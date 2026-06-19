@@ -203,6 +203,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="nav" data-tab="docs" data-title="Documentos · Informes">📄&nbsp; Documentos</div>
     <div class="nav" data-tab="lesiones" data-title="Registro de Lesiones">🩺&nbsp; Lesiones</div>
     <div class="nav" data-tab="microciclo" data-title="Planificación Microciclo">📅&nbsp; Microciclo</div>
+    <div class="nav" data-tab="graficos" data-title="Gráficos · Analytics">📈&nbsp; Gráficos</div>
   </div>
   <div class="sb-ft">CT SF · <span style="cursor:pointer;color:var(--acc)" onclick="openGPSConfig()" title="Configurar GPS">⚙ GPS</span> · <span style="cursor:pointer;color:var(--mut)" onclick="doLogout()">Salir</span></div>
 </div>
@@ -242,6 +243,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="tab" id="t-docs"><select class="psel" id="docs-player-sel"></select><div id="docs-body"></div></div>
     <div class="tab" id="t-lesiones"><div id="lesiones-body"></div></div>
     <div class="tab" id="t-microciclo"><div id="microciclo-body"></div></div>
+    <div class="tab" id="t-graficos"></div>
   </div>
 </div>
 </div>
@@ -1836,12 +1838,13 @@ function ciRenderQ(idx){
 function ciPick(n){
   CIST.ans[CIQ[CIST.qIdx].id]=n;ciRenderQ(CIST.qIdx);
   clearTimeout(window._cia);
-  window._cia=setTimeout(function(){if(CIST.qIdx<CIQ.length-1)ciRenderQ(CIST.qIdx+1);else ciSave();},380);
+  window._cia=setTimeout(function(){if(CIST.qIdx<CIQ.length-1)ciRenderQ(CIST.qIdx+1);else ciBodyMap();},380);
 }
 async function ciSave(){
   var a=CIST.ans,ws=calcWS(a),wco=ws>=7?'var(--grn)':ws>=5?'var(--yel)':'var(--red)';
   try{await sbUpsert('wellness',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,
     sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue});}catch(e){}
+  try{await sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}});}catch(e){}
   await loadRealWellness();updateTopStats();
   var fn=PL[CIST.player].name.split(' ')[0];
   var dimBoxes=CIQ.map(function(q){
@@ -5240,6 +5243,192 @@ async function renderMicrociclo(){
   }
 }
 
+// ===== BODY MAP =====
+var BP_F=[
+  ['head','Cabeza','ellipse','cx="50" cy="17" rx="14" ry="14"'],
+  ['neck_f','Cuello','rect','x="43" y="31" width="14" height="10" rx="3"'],
+  ['l_shoulder','Hombro Izq','ellipse','cx="26" cy="49" rx="12" ry="9"'],
+  ['r_shoulder','Hombro Der','ellipse','cx="74" cy="49" rx="12" ry="9"'],
+  ['chest','Pecho','rect','x="33" y="40" width="34" height="22" rx="4"'],
+  ['abdomen','Abdomen','rect','x="33" y="62" width="34" height="20" rx="4"'],
+  ['l_arm','Bícep Izq','rect','x="13" y="57" width="14" height="28" rx="5"'],
+  ['r_arm','Bícep Der','rect','x="73" y="57" width="14" height="28" rx="5"'],
+  ['l_forearm','Anteb. Izq','rect','x="10" y="85" width="12" height="26" rx="5"'],
+  ['r_forearm','Anteb. Der','rect','x="78" y="85" width="12" height="26" rx="5"'],
+  ['l_groin','Ingle Izq','rect','x="33" y="82" width="17" height="14" rx="3"'],
+  ['r_groin','Ingle Der','rect','x="50" y="82" width="17" height="14" rx="3"'],
+  ['l_quad','Cuádric. Izq','rect','x="32" y="96" width="16" height="38" rx="5"'],
+  ['r_quad','Cuádric. Der','rect','x="52" y="96" width="16" height="38" rx="5"'],
+  ['l_knee_f','Rodilla Izq','rect','x="31" y="134" width="16" height="12" rx="3"'],
+  ['r_knee_f','Rodilla Der','rect','x="53" y="134" width="16" height="12" rx="3"'],
+  ['l_shin','Tibial Izq','rect','x="32" y="146" width="14" height="32" rx="4"'],
+  ['r_shin','Tibial Der','rect','x="54" y="146" width="14" height="32" rx="4"'],
+  ['l_foot_f','Pie Izq','rect','x="28" y="178" width="17" height="9" rx="3"'],
+  ['r_foot_f','Pie Der','rect','x="54" y="178" width="17" height="9" rx="3"']
+];
+var BP_B=[
+  ['head_b','Cabeza','ellipse','cx="50" cy="17" rx="14" ry="14"'],
+  ['nuca','Nuca','rect','x="43" y="31" width="14" height="10" rx="3"'],
+  ['l_trap','Trap. Izq','ellipse','cx="26" cy="49" rx="12" ry="9"'],
+  ['r_trap','Trap. Der','ellipse','cx="74" cy="49" rx="12" ry="9"'],
+  ['upper_back','Espalda Alta','rect','x="33" y="40" width="34" height="20" rx="4"'],
+  ['lower_back','Lumbar','rect','x="33" y="60" width="34" height="20" rx="4"'],
+  ['l_arm_b','Bícep Izq','rect','x="13" y="57" width="14" height="28" rx="5"'],
+  ['r_arm_b','Bícep Der','rect','x="73" y="57" width="14" height="28" rx="5"'],
+  ['l_forearm_b','Anteb. Izq','rect','x="10" y="85" width="12" height="26" rx="5"'],
+  ['r_forearm_b','Anteb. Der','rect','x="78" y="85" width="12" height="26" rx="5"'],
+  ['l_glute','Glúteo Izq','rect','x="33" y="80" width="17" height="18" rx="3"'],
+  ['r_glute','Glúteo Der','rect','x="50" y="80" width="17" height="18" rx="3"'],
+  ['l_hamstring','Isquio Izq','rect','x="32" y="98" width="16" height="36" rx="5"'],
+  ['r_hamstring','Isquio Der','rect','x="52" y="98" width="16" height="36" rx="5"'],
+  ['l_knee_b','Rodilla Izq','rect','x="31" y="134" width="16" height="12" rx="3"'],
+  ['r_knee_b','Rodilla Der','rect','x="53" y="134" width="16" height="12" rx="3"'],
+  ['l_calf','Gemelo Izq','rect','x="32" y="146" width="14" height="32" rx="4"'],
+  ['r_calf','Gemelo Der','rect','x="54" y="146" width="14" height="32" rx="4"'],
+  ['l_heel','Talón Izq','rect','x="28" y="178" width="17" height="9" rx="3"'],
+  ['r_heel','Talón Der','rect','x="54" y="178" width="17" height="9" rx="3"']
+];
+function bpC(lv){return lv===0?['rgba(255,255,255,.06)','rgba(255,255,255,.2)']:lv===1?['rgba(16,185,129,.4)','#10b981']:lv===2?['rgba(245,158,11,.4)','#f59e0b']:['rgba(244,63,94,.45)','#f43f5e'];}
+function bpZone(z){var c=bpC((CIST.dolor||{})[z[0]]||0);return '<'+z[2]+' id="bz-'+z[0]+'" '+z[3]+' fill="'+c[0]+'" stroke="'+c[1]+'" stroke-width="1.2" onclick="bpClick(\''+z[0]+'\')" style="cursor:pointer"/>';}
+function bpSVG(zones,title){return '<div style="text-align:center"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin-bottom:6px">'+title+'</div><svg viewBox="0 0 100 192" xmlns="http://www.w3.org/2000/svg" style="width:130px;max-width:42vw">'+zones.map(bpZone).join('')+'</svg></div>';}
+function bpClick(id){
+  CIST.dolor=CIST.dolor||{};
+  CIST.dolor[id]=((CIST.dolor[id]||0)+1)%4;
+  var c=bpC(CIST.dolor[id]);
+  var el=document.getElementById('bz-'+id);
+  if(el){el.setAttribute('fill',c[0]);el.setAttribute('stroke',c[1]);}
+  var allZ=BP_F.concat(BP_B),zd=allZ.find(function(z){return z[0]===id;}),leg=$('bp-zone-lbl');
+  if(leg&&zd){var lv=CIST.dolor[id],lvt=lv===0?'Sin dolor':lv===1?'Leve':lv===2?'Moderado':'Intenso',lvc=lv===0?'var(--mut)':lv===1?'var(--grn)':lv===2?'var(--yel)':'var(--red)';leg.innerHTML=zd[1]+': <span style="color:'+lvc+';font-weight:700">'+lvt+'</span>';}
+}
+async function ciBodyMap(){
+  CIST.dolor={};
+  try{var rows=await sbGet('dolor','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY+'&player_idx=eq.'+CIST.player);if(rows.length&&rows[0].zones)CIST.dolor=rows[0].zones;}catch(e){}
+  var p=PL[CIST.player];
+  $('t-checkin').innerHTML=
+    '<div style="max-width:540px;margin:0 auto">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<button onclick="ciRenderQ('+(CIQ.length-1)+')" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">← Volver</button>'
+    +'<span style="font-size:12px;color:var(--mut)">'+p.name+' · Mapa de dolor</span>'
+    +'</div>'
+    +'<div style="height:3px;background:var(--b);border-radius:2px;margin-bottom:16px;overflow:hidden"><div style="height:100%;width:100%;background:linear-gradient(90deg,var(--acc),var(--pur))"></div></div>'
+    +'<div class="card" style="padding:20px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--acc);margin-bottom:6px;text-align:center">Mapa de Dolor Corporal</div>'
+    +'<div style="font-size:11px;color:var(--mut);text-align:center;margin-bottom:16px">Tocá la zona · 1x <span style="color:var(--grn)">Leve</span> · 2x <span style="color:var(--yel)">Moderado</span> · 3x <span style="color:var(--red)">Intenso</span> · 4x Quitar</div>'
+    +'<div style="display:flex;justify-content:center;gap:20px;flex-wrap:wrap">'+bpSVG(BP_F,'Frente')+bpSVG(BP_B,'Espalda')+'</div>'
+    +'<div id="bp-zone-lbl" style="text-align:center;font-size:12px;color:var(--mut);margin-top:10px;min-height:18px"></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:10px;margin-top:14px">'
+    +'<button onclick="ciSave()" style="flex:1;padding:14px;border-radius:11px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:800;cursor:pointer">Guardar →</button>'
+    +'<button onclick="CIST.dolor={};ciSave()" style="padding:14px 18px;border-radius:11px;background:var(--c);border:1px solid var(--b);color:var(--mut);font-size:13px;cursor:pointer">Omitir</button>'
+    +'</div></div>';
+}
+
+// ===== GRÁFICOS =====
+async function renderGraficos(){
+  var el=$('t-graficos');if(!el)return;
+  el.innerHTML=
+    '<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="card" id="g-heatmap"><h3>🔥 Heatmap de Carga · Últimas Sesiones GPS</h3><div id="g-heatmap-body" style="margin-top:8px"></div></div>'
+    +'<div class="g2">'
+    +'<div class="card"><h3>🕸️ Radar Individual</h3><select class="psel" id="radar-sel" onchange="renderRadar()" style="margin-bottom:8px"></select><div class="cw"><canvas id="radar-c"></canvas></div></div>'
+    +'<div class="card"><h3>💚 Tendencia Wellness · Equipo (14 días)</h3><div class="cw"><canvas id="wtrend-c"></canvas></div></div>'
+    +'</div></div>';
+  var opts=PL.map(function(p,i){return '<option value="'+i+'">'+p.name+'</option>';}).join('');
+  var rs=$('radar-sel');if(rs)rs.innerHTML=opts;
+  renderHeatmapGraf();
+  renderRadar();
+  renderWellnessTrend();
+}
+
+function renderHeatmapGraf(){
+  var hb=$('g-heatmap-body');if(!hb)return;
+  var sess=SESSIONS.slice().sort(function(a,b){return new Date(a.date)-new Date(b.date);}).slice(-8);
+  if(!sess.length){hb.innerHTML='<div style="color:var(--mut);font-size:12px;text-align:center;padding:16px">No hay sesiones GPS cargadas</div>';return;}
+  var gpsP=PL.filter(function(p){return p.gps;});
+  var maxPL=0;
+  var matrix=gpsP.map(function(p){
+    return sess.map(function(s){
+      var m=s._pidx&&s._pidx[p.idx]?s._pidx[p.idx]:null;
+      var pl=m?m.pl:0;
+      if(pl>maxPL)maxPL=pl;
+      return pl||0;
+    });
+  });
+  var html='<div style="overflow-x:auto"><table style="border-collapse:separate;border-spacing:3px;width:100%;font-size:9px">'
+    +'<tr><td style="padding:2px 6px;width:80px"></td>'
+    +sess.map(function(s){return '<td style="text-align:center;padding:2px;color:var(--mut);white-space:nowrap;font-size:8px">'+s.date.slice(5)+'<br><span style="color:var(--dim)">'+s.sessionType+'</span></td>';}).join('')+'</tr>';
+  matrix.forEach(function(row,pi){
+    var p=gpsP[pi];
+    html+='<tr><td style="padding:2px 6px;color:var(--dim);white-space:nowrap;font-size:9px">'+p.name.split(' ')[0]+'</td>';
+    row.forEach(function(pl){
+      var t=maxPL>0?pl/maxPL:0;
+      var bg=pl===0?'rgba(255,255,255,.04)':t>0.85?'rgba(244,63,94,.5)':t>0.65?'rgba(245,158,11,.45)':t>0.35?'rgba(6,214,160,.4)':'rgba(100,116,139,.25)';
+      html+='<td style="text-align:center;padding:4px 3px;background:'+bg+';border-radius:4px;font-size:9px;font-weight:700;color:'+(pl>0?'#e2e8f0':'var(--mut)')+'">'+( pl>0?Math.round(pl):'—')+'</td>';
+    });
+    html+='</tr>';
+  });
+  html+='</table></div>'
+    +'<div style="display:flex;gap:12px;margin-top:8px;font-size:9px;color:var(--mut);flex-wrap:wrap">'
+    +'<span>■ <span style="color:rgba(100,116,139,.8)">Bajo</span></span>'
+    +'<span>■ <span style="color:var(--acc)">Medio</span></span>'
+    +'<span>■ <span style="color:var(--yel)">Alto</span></span>'
+    +'<span>■ <span style="color:var(--red)">Máximo</span></span>'
+    +'<span style="margin-left:8px;color:var(--dim)">Player Load (u.a.)</span>'
+    +'</div>';
+  hb.innerHTML=html;
+}
+
+function renderRadar(){
+  destC('radar-c');
+  var idx=parseInt(($('radar-sel')||{}).value)||0,p=PL[idx];if(!p)return;
+  var ts=calcTeamZScores();
+  var pAcwr=p.acwr||1,pWs=p.wscore||5,pMono=p.monotony||1;
+  var plLast=p.loads&&p.loads[27]?p.loads[27].ext||0:0;
+  var tPlMean=ts.pl.mean||400;
+  function sc(v,lo,hi){return Math.max(0,Math.min(10,(v-lo)/(hi-lo)*10));}
+  var pData=[
+    sc(pAcwr,0.4,1.8)*10,
+    (pWs||5)*10/10,
+    sc(plLast,0,tPlMean*1.5)*10,
+    sc(10-pMono,5,9.5)*10,
+    sc(p.velRatio||1,0.75,1.05)*10
+  ].map(function(v){return +v.toFixed(1);});
+  var tData=[5,5,5,5,5];
+  mkC('radar-c',{type:'radar',data:{
+    labels:['ACWR','Wellness','Carga PL','Monotonía\n(inv.)','Vel. Máx %'],
+    datasets:[
+      {label:p.name.split(' ')[0],data:pData,borderColor:'#06d6a0',backgroundColor:'rgba(6,214,160,.12)',pointBackgroundColor:'#06d6a0',borderWidth:2,pointRadius:3},
+      {label:'Media equipo',data:tData,borderColor:'rgba(139,92,246,.5)',backgroundColor:'rgba(139,92,246,.06)',pointBackgroundColor:'#8b5cf6',borderWidth:1.5,borderDash:[4,3],pointRadius:2}
+    ]
+  },options:Object.assign({},CBASE,{scales:{r:{min:0,max:10,ticks:{display:false,stepSize:2},grid:{color:'rgba(255,255,255,.07)'},pointLabels:{color:'#94a3b8',font:{size:9}}}}})});
+}
+
+async function renderWellnessTrend(){
+  destC('wtrend-c');
+  var cutoff=new Date();cutoff.setDate(cutoff.getDate()-13);
+  var cutStr=cutoff.toISOString().split('T')[0];
+  var rows=[];
+  try{rows=await sbGet('wellness','team_id=eq.'+TEAM.id+'&date=gte.'+cutStr+'&order=date.asc');}catch(e){}
+  var days=[];
+  for(var i=13;i>=0;i--){var d=new Date();d.setDate(d.getDate()-i);days.push(d.toISOString().split('T')[0]);}
+  var dayAvg=days.map(function(day){
+    var dr=rows.filter(function(r){return r.date===day;});
+    if(!dr.length)return null;
+    var sc=dr.map(function(r){return calcWS(r);}).filter(function(v){return v!==null;});
+    return sc.length?+(avg(sc).toFixed(1)):null;
+  });
+  mkC('wtrend-c',{type:'line',data:{
+    labels:days.map(function(d){return d.slice(5);}),
+    datasets:[{
+      label:'Wellness promedio',data:dayAvg,
+      borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,.1)',
+      borderWidth:2.5,tension:.35,fill:true,spanGaps:true,
+      pointBackgroundColor:dayAvg.map(function(v){return v===null?'transparent':v>=7?'#10b981':v>=5?'#f59e0b':'#f43f5e';}),
+      pointRadius:5,pointHoverRadius:7
+    }]
+  },options:Object.assign({},CBASE,{scales:{x:XY.x,y:Object.assign({},XY.y,{min:0,max:10,ticks:Object.assign({},XY.y.ticks,{stepSize:2})})}})});
+}
+
 var TABS={
   plantel:{title:'Vista de Plantel',render:function(){renderPlantel();showAlertasPanel();}},
   carga:{title:'Análisis de Carga',render:renderCarga},
@@ -5255,7 +5444,8 @@ var TABS={
   campo:{title:'Campo CT · Contenido',render:renderCampo},
   docs:{title:'Documentos · Informes',render:renderDocs},
   lesiones:{title:'Registro de Lesiones',render:renderLesiones},
-  microciclo:{title:'Planificación Microciclo',render:renderMicrociclo}
+  microciclo:{title:'Planificación Microciclo',render:renderMicrociclo},
+  graficos:{title:'Gráficos · Analytics',render:renderGraficos}
 };
 
 function switchTab(name){
