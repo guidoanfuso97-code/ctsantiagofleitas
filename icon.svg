@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06d6a0"/>
+      <stop offset="100%" style="stop-color:#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(6,214,160,0.07)"/>
+      <stop offset="100%" style="stop-color:rgba(139,92,246,0.07)"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="90" fill="#091220"/>
+  <rect width="512" height="512" rx="90" fill="url(#g2)"/>
+  <circle cx="256" cy="200" r="90" fill="none" stroke="url(#g1)" stroke-width="3" opacity="0.3"/>
+  <circle cx="256" cy="200" r="60" fill="none" stroke="url(#g1)" stroke-width="2" opacity="0.2"/>
+  <text x="256" y="218" font-family="Arial Black, Arial" font-weight="900" font-size="72" text-anchor="middle" fill="url(#g1)" letter-spacing="6">CT</text>
+  <text x="256" y="340" font-family="Arial Black, Arial" font-weight="900" font-size="88" text-anchor="middle" fill="url(#g1)" letter-spacing="10">ATLAS</text>
+  <text x="256" y="390" font-family="Arial, sans-serif" font-weight="500" font-size="28" text-anchor="middle" fill="#64748b" letter-spacing="5">DEPORTIVO · 2026</text>
+</svg>

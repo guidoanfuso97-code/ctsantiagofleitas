@@ -1,5 +1,12 @@
 <!DOCTYPE html>
 <html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#06d6a0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ATLAS">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -130,8 +137,8 @@ input:focus,select.fi:focus{border-color:var(--acc)}
 <div id="login-screen">
   <div class="login-box">
     <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--acc),var(--pur));display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 16px;box-shadow:0 8px 32px rgba(6,214,160,.3)">⚽</div>
-    <div style="font-size:30px;font-weight:900;letter-spacing:5px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px">ATLAS</div>
-    <div style="font-size:10px;color:var(--dim);margin-bottom:4px;letter-spacing:2px;text-transform:uppercase">Club El Porvenir</div>
+    <div style="font-size:22px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px">CT SANTIAGO FLEITAS</div>
+    <div style="font-size:10px;color:var(--dim);margin-bottom:4px;letter-spacing:2px;text-transform:uppercase">Cuerpo Técnico</div>
     <div style="font-size:10px;color:var(--mut);margin-bottom:32px;opacity:.6">Plataforma de Análisis Deportivo · 2026</div>
     <div style="font-size:10px;color:var(--dim);margin-bottom:10px;text-transform:uppercase;letter-spacing:.8px">Contraseña de acceso</div>
     <input type="password" id="login-pass" class="login-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" autofocus>
@@ -5332,6 +5339,13 @@ async function initATLAS(){
   $('neuro-sel').addEventListener('change',renderNeuro);
   $('ind-sel').addEventListener('change',renderIndividual);
   $('docs-player-sel').addEventListener('change',renderDocs);
+}
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('/ctsantiagofleitas/sw.js');
+  });
 }
 </script>
 </body></html>

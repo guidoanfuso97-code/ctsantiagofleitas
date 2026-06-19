@@ -1,0 +1,25 @@
+{
+  "name": "ATLAS · CT Santiago Fleitas",
+  "short_name": "ATLAS",
+  "description": "Plataforma de análisis deportivo - Club El Porvenir 2026",
+  "start_url": "/ctsantiagofleitas/",
+  "scope": "/ctsantiagofleitas/",
+  "display": "standalone",
+  "background_color": "#050c1a",
+  "theme_color": "#06d6a0",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
