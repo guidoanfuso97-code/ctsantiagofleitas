@@ -5344,7 +5344,7 @@ function renderHeatmapGraf(){
   var hb=$('g-heatmap-body');if(!hb)return;
   var sess=SESSIONS.slice().sort(function(a,b){return new Date(a.date)-new Date(b.date);}).slice(-8);
   if(!sess.length){hb.innerHTML='<div style="color:var(--mut);font-size:12px;text-align:center;padding:16px">No hay sesiones GPS cargadas</div>';return;}
-  var gpsP=PL.filter(function(p){return p.gps;});
+  var gpsP=PL.filter(function(p){return p.hasGPSDevice;});
   var maxPL=0;
   var matrix=gpsP.map(function(p){
     return sess.map(function(s){
