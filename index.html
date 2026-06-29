@@ -192,6 +192,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="nav" data-tab="carga" data-title="Análisis de Carga">📊&nbsp; Carga</div>
     <div class="nav" data-tab="wellness" data-title="Monitor de Wellness">💚&nbsp; Wellness</div>
     <div class="nav" data-tab="neuro" data-title="Estado Neuromuscular">⚡&nbsp; Neuromuscular</div>
+    <div class="nav" data-tab="fp" data-title="Force Plates · VALD ForceDecks">🔬&nbsp; Force Plates</div>
     <div class="nav" data-tab="individual" data-title="Perfil Individual">👤&nbsp; Individual</div>
     <div class="nav" data-tab="rpe" data-title="Evaluar RPE Post-Sesión">🎯&nbsp; Evaluar RPE</div>
     <div class="nav" data-tab="checkin" data-title="Check-in Wellness Diario">💚&nbsp; Check-in</div>
@@ -232,6 +233,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="tab" id="t-carga"><select class="psel" id="carga-sel"></select><div id="carga-body"></div></div>
     <div class="tab" id="t-wellness"><div id="wellness-body"></div></div>
     <div class="tab" id="t-neuro"><select class="psel" id="neuro-sel"></select><div id="neuro-body"></div></div>
+    <div class="tab" id="t-fp"></div>
     <div class="tab" id="t-individual"><select class="psel" id="ind-sel"></select><div id="ind-body"></div></div>
     <div class="tab" id="t-rpe"></div>
     <div class="tab" id="t-checkin"></div>
@@ -3226,9 +3228,346 @@ function closeGPSConfig(){
 function loadGPSConfig(){/* GPS config now loaded from Supabase via loadTeams */}
 
 
+// ===== FORCE PLATES MODULE =====
+var FP_DATA=[];
+var FP_ACTIVE_TYPE='cmj';
+var FP_ACTIVE_PLAYER=0;
+
+var FP_TYPES=[
+  {id:'cmj',        label:'CMJ',         icon:'⬆️', color:'var(--acc)',
+   metrics:[
+     {key:'jump_height',     label:'Altura',       unit:'cm',    main:true},
+     {key:'peak_power',      label:'Peak Power',   unit:'W/kg',  main:false},
+     {key:'asymmetry',       label:'Asimetría',    unit:'%',     main:false,alert:true},
+     {key:'rsi_mod',         label:'RSI-Mod',      unit:'',      main:false},
+     {key:'contraction_time',label:'Cont. Time',   unit:'ms',    main:false},
+     {key:'braking_rfd',     label:'Braking RFD',  unit:'N/s/kg',main:false}
+   ]},
+  {id:'cmj_rebound',label:'CMJ Rebound', icon:'🔁', color:'var(--pur)',
+   metrics:[
+     {key:'rsi',        label:'RSI',          unit:'',   main:true},
+     {key:'jump_height',label:'Altura',       unit:'cm', main:false},
+     {key:'contact_time',label:'Contact Time',unit:'ms', main:false},
+     {key:'asymmetry',  label:'Asimetría',    unit:'%',  main:false,alert:true}
+   ]},
+  {id:'imtp',       label:'IMTP',        icon:'💪', color:'var(--yel)',
+   metrics:[
+     {key:'peak_force',label:'Peak Force', unit:'N/kg',   main:true},
+     {key:'rfd_100',   label:'RFD 100ms',  unit:'N/s/kg', main:false},
+     {key:'rfd_200',   label:'RFD 200ms',  unit:'N/s/kg', main:false},
+     {key:'asymmetry', label:'Asimetría',  unit:'%',      main:false,alert:true}
+   ]}
+];
+
+async function loadForcePlates(){
+  try{FP_DATA=await sbGet('force_plates','team_id=eq.'+TEAM.id+'&order=date.asc');}
+  catch(e){FP_DATA=[];}
+}
+
+function fpEntries(playerIdx,testType){
+  return FP_DATA.filter(function(r){return r.player_idx===playerIdx&&r.test_type===testType;})
+    .sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+}
+
+function fpMetricColor(key,val){
+  if(key==='asymmetry'){var a=Math.abs(val||0);return a>15?'var(--red)':a>10?'var(--yel)':'var(--grn)';}
+  return 'var(--acc)';
+}
+
+function renderForcePlates(){
+  var tab=document.getElementById('t-fp');if(!tab)return;
+  var tt=FP_TYPES.find(function(t){return t.id===FP_ACTIVE_TYPE;})||FP_TYPES[0];
+  var idx=FP_ACTIVE_PLAYER;
+  var p=PL[idx];
+  var entries=fpEntries(idx,FP_ACTIVE_TYPE);
+  var latest=entries.length?entries[entries.length-1]:null;
+  var prev=entries.length>1?entries[entries.length-2]:null;
+
+  // Header
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
+    +'<div><div style="font-size:15px;font-weight:700">🔬 Force Plates · VALD ForceDecks</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">CMJ · CMJ Rebound · IMTP</div></div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    +'<select onchange="FP_ACTIVE_PLAYER=+this.value;renderForcePlates()" style="background:var(--bg2);border:1px solid var(--acc);border-radius:8px;padding:7px 12px;color:var(--acc);font-size:12px;font-weight:700;outline:none;cursor:pointer">'
+    +PL.map(function(pl,i){return'<option value="'+i+'"'+(i===idx?' selected':'')+'>'+pl.name+'</option>';}).join('')
+    +'</select>'
+    +'<button onclick="openFPImport()" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);color:var(--acc);border-radius:8px;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer">📥 Importar CSV</button>'
+    +'<button onclick="openFPManual('+idx+',\''+FP_ACTIVE_TYPE+'\')" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--pur);border-radius:8px;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Manual</button>'
+    +'</div></div>';
+
+  // Test type tabs
+  html+='<div style="display:flex;gap:6px;margin-bottom:16px">';
+  FP_TYPES.forEach(function(t){
+    var active=t.id===FP_ACTIVE_TYPE;
+    var cnt=fpEntries(idx,t.id).length;
+    html+='<button onclick="FP_ACTIVE_TYPE=\''+t.id+'\';renderForcePlates()" style="padding:8px 16px;border-radius:9px;border:1px solid '+(active?t.color:'var(--b)')+';background:'+(active?'rgba(6,214,160,.08)':'var(--c)')+';color:'+(active?t.color:'var(--mut)')+';font-size:12px;font-weight:'+(active?700:500)+';cursor:pointer">'+t.icon+' '+t.label+'<span style="margin-left:6px;font-size:9px;background:var(--b);border-radius:4px;padding:1px 5px;color:var(--mut)">'+cnt+'</span></button>';
+  });
+  html+='</div>';
+
+  // Asimetría alert
+  if(latest&&latest.asymmetry!==null&&Math.abs(latest.asymmetry)>10){
+    var dir=latest.asymmetry>0?'Izquierda':'Derecha';
+    html+='<div class="rec r" style="margin-bottom:12px"><div style="font-size:20px">⚠️</div><div><h4>Asimetría elevada — '+tt.label+'</h4><p>'+Math.abs(latest.asymmetry).toFixed(1)+'% dominancia '+dir+' · '+latest.date+'</p></div></div>';
+  }
+
+  // KPI cards
+  html+='<div class="g4 mb">';
+  var mainM=tt.metrics.find(function(m){return m.main;})||tt.metrics[0];
+  tt.metrics.forEach(function(m){
+    var val=latest?latest[m.key]:null;
+    var pval=prev?prev[m.key]:null;
+    var delta=(val!==null&&val!==undefined&&pval!==null&&pval!==undefined)?+(val-pval).toFixed(2):null;
+    var col=val!==null&&val!==undefined?fpMetricColor(m.key,val):'var(--mut)';
+    var disp=val!==null&&val!==undefined?(m.key==='asymmetry'?(val>0?'+':'')+parseFloat(val).toFixed(1):val):null;
+    html+='<div class="card">'
+      +'<div class="mval" style="color:'+col+'">'+(disp!==null?disp:'—')+(disp!==null&&m.unit?' <span style="font-size:11px;color:var(--mut)">'+m.unit+'</span>':'')+'</div>'
+      +'<div class="mlbl">'+m.label+'</div>'
+      +(delta!==null
+        ?'<div style="font-size:10px;font-weight:700;color:'+(delta>0?'var(--grn)':'var(--red)')+'">'+( delta>0?'↑ +':delta<0?'↓ ':'→ ')+Math.abs(delta)+' '+m.unit+'</div>'
+        :'<div class="msub">'+(latest?latest.date:'Sin datos')+'</div>')
+      +'</div>';
+  });
+  html+='</div>';
+
+  // Trend chart
+  if(entries.length>1){
+    html+='<div class="card mb"><h3>'+tt.icon+' '+tt.label+' · '+mainM.label+' — Evolución</h3><div class="cwl"><canvas id="fp-trend-c"></canvas></div></div>';
+  }
+
+  // Historial
+  if(entries.length){
+    html+='<div class="card"><h3>📋 Historial · '+tt.label+' · '+p.name+'</h3><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+      +'<thead><tr style="border-bottom:1px solid var(--b)">'
+      +'<th style="padding:7px 8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase">Fecha</th>'
+      +tt.metrics.map(function(m){return'<th style="padding:7px;text-align:right;font-size:9px;color:var(--mut);text-transform:uppercase">'+m.label+'</th>';}).join('')
+      +'<th style="padding:7px;font-size:9px;color:var(--mut)">Fuente</th>'
+      +'<th></th>'
+      +'</tr></thead><tbody>'
+      +entries.slice().reverse().slice(0,12).map(function(e){
+        return'<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+          +'<td style="padding:7px 8px;font-size:11px;font-weight:600">'+e.date+'</td>'
+          +tt.metrics.map(function(m){
+            var v=e[m.key];var ok=v!==null&&v!==undefined;
+            var col2=ok?fpMetricColor(m.key,v):'var(--mut)';
+            var dv=ok?(m.key==='asymmetry'?(v>0?'+':'')+parseFloat(v).toFixed(1):v):'—';
+            return'<td style="padding:7px;text-align:right;font-size:11px;color:'+col2+';font-weight:600">'+dv+(ok&&m.unit?' <span style="font-size:9px;color:var(--mut)">'+m.unit+'</span>':'')+'</td>';
+          }).join('')
+          +'<td style="padding:7px"><span style="font-size:9px;background:var(--c);border:1px solid var(--b);border-radius:4px;padding:1px 6px;color:var(--mut)">'+(e.source==='csv'?'CSV':'Manual')+'</span></td>'
+          +'<td style="padding:7px"><button onclick="deleteFPEntry(\''+e.id+'\')" style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);color:var(--red);border-radius:5px;padding:2px 8px;font-size:10px;cursor:pointer">✕</button></td>'
+          +'</tr>';
+      }).join('')
+      +'</tbody></table></div></div>';
+  } else {
+    html+='<div class="card" style="text-align:center;padding:48px;color:var(--mut)">'
+      +'<div style="font-size:36px;margin-bottom:12px">'+tt.icon+'</div>'
+      +'<div style="font-size:14px;font-weight:700;margin-bottom:6px">Sin datos de '+tt.label+'</div>'
+      +'<div style="font-size:11px">Importá un CSV de VALD o cargá datos manualmente</div>'
+      +'</div>';
+  }
+
+  tab.innerHTML=html;
+
+  // Chart
+  if(entries.length>1){
+    setTimeout(function(){
+      var labels2=entries.map(function(e){return e.date.slice(5);});
+      var data2=entries.map(function(e){var v=e[mainM.key];return v!==null&&v!==undefined?+parseFloat(v).toFixed(2):null;});
+      var valid=data2.filter(function(v){return v!==null;});
+      var avgV=valid.length?+(valid.reduce(function(a,b){return a+b;},0)/valid.length).toFixed(2):0;
+      mkC('fp-trend-c',{type:'line',data:{labels:labels2,datasets:[
+        {label:mainM.label+(mainM.unit?' ('+mainM.unit+')':''),data:data2,borderColor:tt.color,backgroundColor:'rgba(6,214,160,.07)',borderWidth:2.5,pointRadius:5,tension:.3,fill:true,spanGaps:true},
+        {label:'Promedio',data:labels2.map(function(){return avgV;}),borderColor:'rgba(255,255,255,.2)',borderWidth:1.5,borderDash:[5,5],pointRadius:0,backgroundColor:'transparent'}
+      ]},options:Object.assign({},CBASE,{scales:{x:XY.x,y:Object.assign({},XY.y,{title:{display:true,text:mainM.unit||mainM.label,color:'#64748b',font:{size:9}}})}})});
+    },100);
+  }
+}
+
+function openFPManual(playerIdx,testType){
+  var ex=document.getElementById('fp-manual-modal');if(ex)ex.parentNode.removeChild(ex);
+  var modal=document.createElement('div');
+  modal.id='fp-manual-modal';modal.className='modal on';
+  modal.onclick=function(e){if(e.target===modal)modal.parentNode.removeChild(modal);};
+  var tt=FP_TYPES.find(function(t){return t.id===testType;})||FP_TYPES[0];
+  var p=PL[playerIdx];
+  modal.innerHTML='<div class="mbox" style="max-width:420px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div><div style="font-size:16px;font-weight:800">'+tt.icon+' '+tt.label+' · '+p.name+'</div>'
+    +'<div style="font-size:10px;color:var(--mut);margin-top:2px">Carga manual</div></div>'
+    +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>'
+    +'</div>'
+    +'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Fecha</div>'
+    +'<input type="date" id="fp-date" value="'+TODAY+'" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none"></div>'
+    +tt.metrics.map(function(m){
+      return'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">'+m.label+(m.unit?' ('+m.unit+')':'')+'</div>'
+        +'<input type="number" step="0.01" id="fp-'+m.key+'" placeholder="—" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:9px 10px;color:var(--txt);font-size:14px;font-weight:600;outline:none;text-align:center"></div>';
+    }).join('')
+    +'<div style="margin-bottom:14px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Notas</div>'
+    +'<input type="text" id="fp-notes" placeholder="Observaciones..." style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none"></div>'
+    +'<button onclick="saveFPManual('+playerIdx+',\''+testType+'\')" style="width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>'
+    +'</div>';
+  document.body.appendChild(modal);
+}
+
+async function saveFPManual(playerIdx,testType){
+  var date=(document.getElementById('fp-date')||{}).value||TODAY;
+  var notes=(document.getElementById('fp-notes')||{}).value||'';
+  var tt=FP_TYPES.find(function(t){return t.id===testType;})||FP_TYPES[0];
+  var row={team_id:TEAM.id,player_idx:playerIdx,date:date,test_type:testType,notes:notes,source:'manual'};
+  tt.metrics.forEach(function(m){var el=document.getElementById('fp-'+m.key);row[m.key]=el&&el.value!==''?+el.value:null;});
+  var saved=await sbInsertReturn('force_plates',row);
+  if(saved)row.id=saved.id;
+  FP_DATA.push(row);
+  var m=document.getElementById('fp-manual-modal');if(m)m.parentNode.removeChild(m);
+  renderForcePlates();
+  showBanner('✅ '+tt.label+' guardado · '+PL[playerIdx].name,'var(--grn)',2500);
+}
+
+async function deleteFPEntry(id){
+  if(!confirm('¿Eliminar este registro?'))return;
+  await sbDelete('force_plates','id=eq.'+id);
+  FP_DATA=FP_DATA.filter(function(r){return r.id!==id;});
+  renderForcePlates();
+  showBanner('🗑 Registro eliminado','var(--red)',2000);
+}
+
+function openFPImport(){
+  var ex=document.getElementById('fp-import-modal');if(ex)ex.parentNode.removeChild(ex);
+  var modal=document.createElement('div');
+  modal.id='fp-import-modal';modal.className='modal on';
+  modal.onclick=function(e){if(e.target===modal)modal.parentNode.removeChild(modal);};
+  modal.innerHTML='<div class="mbox" style="max-width:600px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div><div style="font-size:16px;font-weight:800">📥 Importar CSV · VALD ForceDecks</div>'
+    +'<div style="font-size:10px;color:var(--mut);margin-top:2px">Export estándar · CMJ, CMJ Rebound, IMTP</div></div>'
+    +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>'
+    +'</div>'
+    +'<div style="background:rgba(6,214,160,.05);border:1px solid rgba(6,214,160,.15);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:11px;color:var(--dim);line-height:1.7">'
+    +'<strong style="color:var(--acc)">Cómo exportar de VALD ForceDecks:</strong><br>'
+    +'Seleccionar tests → Export → Export as CSV<br>'
+    +'El CSV debe incluir columnas: Athlete, Date, Test Type y métricas.'
+    +'</div>'
+    +'<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--mut);margin-bottom:6px">Jugador (si el CSV no tiene columna Athlete, se asigna a este jugador)</div>'
+    +'<select id="fp-import-player" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--txt);font-size:12px;outline:none">'
+    +PL.map(function(pl,i){return'<option value="'+i+'">'+pl.name+'</option>';}).join('')
+    +'</select></div>'
+    +'<label style="display:block;border:2px dashed rgba(6,214,160,.3);border-radius:12px;padding:36px;text-align:center;cursor:pointer;background:rgba(6,214,160,.03);transition:.2s" id="fp-dz">'
+    +'<div style="font-size:32px;margin-bottom:8px">📄</div>'
+    +'<div style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:4px">Subir archivo CSV</div>'
+    +'<div style="font-size:10px;color:var(--mut)">Click o arrastrá el archivo aquí</div>'
+    +'<input type="file" accept=".csv" style="display:none" onchange="handleFPCSV(this.files[0])">'
+    +'</label>'
+    +'<div id="fp-import-preview" style="margin-top:12px"></div>'
+    +'</div>';
+  document.body.appendChild(modal);
+  var dz=document.getElementById('fp-dz');
+  if(dz){
+    dz.addEventListener('dragover',function(e){e.preventDefault();dz.style.borderColor='var(--acc)';dz.style.background='rgba(6,214,160,.08)';});
+    dz.addEventListener('dragleave',function(){dz.style.borderColor='rgba(6,214,160,.3)';dz.style.background='rgba(6,214,160,.03)';});
+    dz.addEventListener('drop',function(e){e.preventDefault();dz.style.borderColor='rgba(6,214,160,.3)';if(e.dataTransfer.files[0])handleFPCSV(e.dataTransfer.files[0]);});
+  }
+}
+
+function handleFPCSV(file){
+  if(!file)return;
+  var r=new FileReader();r.onload=function(e){parseFPCSV(e.target.result);};r.readAsText(file);
+}
+
+function parseFPCSV(text){
+  var preview=document.getElementById('fp-import-preview');if(!preview)return;
+  var lines=text.trim().split('\n').map(function(l){return l.trim();}).filter(function(l){return l;});
+  if(lines.length<2){preview.innerHTML='<div style="color:var(--red);font-size:12px;padding:10px">⚠ Archivo vacío o inválido</div>';return;}
+  var hLine=lines[0].replace(/^﻿/,'');
+  var sep=hLine.indexOf(';')>hLine.indexOf(',')?';':',';
+  var hdrs=hLine.split(sep).map(function(h){return h.replace(/^"|"$/g,'').trim();});
+  function fc(cands){for(var i=0;i<cands.length;i++){var x=hdrs.findIndex(function(h){return h.toLowerCase().includes(cands[i].toLowerCase());});if(x!==-1)return x;}return -1;}
+  var cAth=fc(['athlete','name','player','jugador','atleta']);
+  var cDat=fc(['date','fecha']);
+  var cTyp=fc(['test type','test_type','type','tipo']);
+  var cJH=fc(['jump height','jump_height','altura de salto']);
+  var cPP=fc(['peak power','peak_power','relative peak power']);
+  var cAsym=fc(['asymmetry','asimetr']);
+  var cRSIM=fc(['rsi-modified','rsi modified','rsi-mod','rsimod','rsi mod']);
+  var cContT=fc(['contraction time','contraction_time']);
+  var cBRFD=fc(['braking rfd','braking_rfd','braking mean']);
+  var cRSI=fc(['reactive strength index']);
+  if(cRSI===-1){var rx=hdrs.findIndex(function(h){return /^rsi$/i.test(h.trim());});if(rx!==-1)cRSI=rx;}
+  var cContactT=fc(['contact time','contact_time']);
+  var cPF=fc(['peak force','peak_force','relative peak force','net peak force']);
+  var cRFD1=fc(['rfd - 100','rfd_100','rfd100','100ms','100 ms']);
+  var cRFD2=fc(['rfd - 200','rfd_200','rfd200','200ms','200 ms']);
+
+  function mapType(raw){
+    if(!raw)return null;var r=raw.toLowerCase();
+    if(r.includes('rebound')||r.includes('10/5'))return'cmj_rebound';
+    if(r.includes('imtp')||r.includes('isometric'))return'imtp';
+    if(r.includes('cmj')||r.includes('countermovement'))return'cmj';
+    return null;
+  }
+  function parseDate(s){
+    s=(s||'').trim();
+    if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+    var p=s.split(/[\/-]/);
+    if(p.length===3){
+      if(p[2].length===4)return p[2]+'-'+(p[1].length<2?'0':'')+p[1]+'-'+(p[0].length<2?'0':'')+p[0];
+      if(p[0].length===4)return p[0]+'-'+(p[1].length<2?'0':'')+p[1]+'-'+(p[2].length<2?'0':'')+p[2];
+    }
+    return null;
+  }
+
+  var playerIdx=parseInt((document.getElementById('fp-import-player')||{}).value)||0;
+  var playerFirstWord=PL[playerIdx]?PL[playerIdx].name.split(' ')[0].toLowerCase():'';
+  var parsed=[],skipped=0;
+
+  for(var i=1;i<lines.length;i++){
+    var vals=lines[i].split(sep).map(function(v){return v.replace(/^"|"$/g,'').trim();});
+    if(vals.length<2)continue;
+    if(cAth!==-1&&playerFirstWord){
+      var csvName=(vals[cAth]||'').toLowerCase();
+      if(!csvName.includes(playerFirstWord)){skipped++;continue;}
+    }
+    var date=parseDate(cDat!==-1?vals[cDat]:'');
+    if(!date){skipped++;continue;}
+    var testType=mapType(cTyp!==-1?vals[cTyp]:'cmj');
+    if(!testType){skipped++;continue;}
+    function gv(col){if(col===-1)return null;var v=vals[col];return(v!==undefined&&v!==''&&v!=='—'&&v!=='N/A')?+parseFloat(v).toFixed(3):null;}
+    var jh=gv(cJH);if(jh!==null&&jh<5)jh=+(jh*100).toFixed(2);
+    parsed.push({team_id:TEAM.id,player_idx:playerIdx,date:date,test_type:testType,source:'csv',notes:'',
+      jump_height:jh,peak_power:gv(cPP),asymmetry:gv(cAsym),rsi_mod:gv(cRSIM),
+      contraction_time:gv(cContT)!==null?Math.round(gv(cContT)):null,braking_rfd:gv(cBRFD),
+      rsi:gv(cRSI),contact_time:gv(cContactT)!==null?Math.round(gv(cContactT)):null,
+      peak_force:gv(cPF),rfd_100:gv(cRFD1),rfd_200:gv(cRFD2)});
+  }
+
+  if(!parsed.length){
+    preview.innerHTML='<div style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);border-radius:10px;padding:14px;font-size:12px;color:var(--red)">⚠️ No se encontraron filas válidas.'+(skipped?' '+skipped+' filas omitidas.':'')+' Verificá que sea un export de VALD ForceDecks.</div>';
+    return;
+  }
+  var byType={};parsed.forEach(function(r){if(!byType[r.test_type])byType[r.test_type]=0;byType[r.test_type]++;});
+  var typeSummary=Object.keys(byType).map(function(k){var tt2=FP_TYPES.find(function(t){return t.id===k;})||{label:k,icon:'⚡'};return tt2.icon+' '+tt2.label+': <strong>'+byType[k]+'</strong>';}).join(' &nbsp;·&nbsp; ');
+  window._fpParsed=parsed;
+  preview.innerHTML='<div style="background:rgba(6,214,160,.06);border:1px solid rgba(6,214,160,.2);border-radius:10px;padding:14px;margin-bottom:12px">'
+    +'<div style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:4px">✓ '+parsed.length+' registros listos para importar</div>'
+    +'<div style="font-size:11px;color:var(--dim)">'+typeSummary+(skipped?' &nbsp;·&nbsp; <span style="color:var(--yel)">'+skipped+' omitidas</span>':'')+'</div>'
+    +'</div>'
+    +'<button id="fp-confirm-btn" style="width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">Importar '+parsed.length+' registros →</button>';
+  document.getElementById('fp-confirm-btn').onclick=function(){confirmFPImport(window._fpParsed);};
+}
+
+async function confirmFPImport(rows){
+  var btn=document.getElementById('fp-confirm-btn');
+  if(btn){btn.disabled=true;btn.textContent='Importando...';}
+  var saved=0;
+  for(var i=0;i<rows.length;i++){
+    var res=await sbInsertReturn('force_plates',rows[i]);
+    if(res){rows[i].id=res.id;FP_DATA.push(rows[i]);saved++;}
+  }
+  var m=document.getElementById('fp-import-modal');if(m)m.parentNode.removeChild(m);
+  renderForcePlates();
+  showBanner('✅ '+saved+' registros importados de VALD','var(--grn)',3000);
+}
+
 // ===== EVALUACIONES MODULE =====
 var EVAL_TYPES=[
-  {id:'cmj',     label:'CMJ',          unit:'cm',  icon:'⬆️', desc:'Countermovement Jump'},
   {id:'t10_5',   label:'10/5 RSI',     unit:'',    icon:'🔁', desc:'Reactive Strength Index'},
   {id:'sprint10',label:'10m Lanzado',  unit:'s',   icon:'⚡', desc:'Velocidad aceleración'},
   {id:'t1000',   label:'Test 1000m',   unit:'s',   icon:'🏃', desc:'Resistencia'},
@@ -5434,6 +5773,7 @@ var TABS={
   carga:{title:'Análisis de Carga',render:renderCarga},
   wellness:{title:'Monitor de Wellness',render:renderWellness},
   neuro:{title:'Estado Neuromuscular',render:renderNeuro},
+  fp:{title:'Force Plates · VALD ForceDecks',render:renderForcePlates},
   individual:{title:'Perfil Individual',render:renderIndividual},
   rpe:{title:'Evaluar RPE Post-Sesión',render:renderRPETab},
   checkin:{title:'Check-in Wellness Diario',render:renderCheckinTab},
@@ -5542,6 +5882,7 @@ async function initATLAS(){
     loadRealRPE(),
     loadCampoEntries(),
     loadEvals(),
+    loadForcePlates(),
     loadPartidosCustom(),
     loadDocs(),
     loadLesiones()
