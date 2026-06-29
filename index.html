@@ -193,6 +193,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="nav" data-tab="wellness" data-title="Monitor de Wellness">💚&nbsp; Wellness</div>
     <div class="nav" data-tab="neuro" data-title="Estado Neuromuscular">⚡&nbsp; Neuromuscular</div>
     <div class="nav" data-tab="fp" data-title="Force Plates · VALD ForceDecks">🔬&nbsp; Force Plates</div>
+    <div class="nav" data-tab="fv" data-title="Perfil Fuerza-Velocidad">📐&nbsp; Perfil F-V</div>
     <div class="nav" data-tab="individual" data-title="Perfil Individual">👤&nbsp; Individual</div>
     <div class="nav" data-tab="rpe" data-title="Evaluar RPE Post-Sesión">🎯&nbsp; Evaluar RPE</div>
     <div class="nav" data-tab="checkin" data-title="Check-in Wellness Diario">💚&nbsp; Check-in</div>
@@ -234,6 +235,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="tab" id="t-wellness"><div id="wellness-body"></div></div>
     <div class="tab" id="t-neuro"><select class="psel" id="neuro-sel"></select><div id="neuro-body"></div></div>
     <div class="tab" id="t-fp"></div>
+    <div class="tab" id="t-fv"></div>
     <div class="tab" id="t-individual"><select class="psel" id="ind-sel"></select><div id="ind-body"></div></div>
     <div class="tab" id="t-rpe"></div>
     <div class="tab" id="t-checkin"></div>
@@ -3566,6 +3568,343 @@ async function confirmFPImport(rows){
   showBanner('✅ '+saved+' registros importados de VALD','var(--grn)',3000);
 }
 
+// ===== PERFIL F-V MODULE =====
+var FV_SEL_PLAYER = null; // null = team view, idx = individual
+
+var FV_QUADRANTS = [
+  {id:'power',    label:'Potencia',           color:'#06d6a0', desc:'Alta fuerza y velocidad. Mantener con trabajo variado.',
+   rec:'Mantener con sesiones mixtas de fuerza y velocidad. Monitorear fatiga acumulada.'},
+  {id:'force',    label:'Fuerza-dominante',   color:'#8b5cf6', desc:'Alta fuerza, baja velocidad. Priorizar velocidad.',
+   rec:'Incorporar sprints máximos, pliometría reactiva (RSI), y trabajo de potencia con cargas medias-bajas a alta velocidad.'},
+  {id:'velocity', label:'Velocidad-dominante',color:'#f59e0b', desc:'Alta velocidad, baja fuerza. Priorizar fuerza.',
+   rec:'Priorizar fuerza máxima: sentadilla pesada, IMTP, hip thrust. Reducir volumen de sprint en período de carga.'},
+  {id:'develop',  label:'Desarrollo',         color:'#f43f5e', desc:'Fuerza y velocidad bajo media. Desarrollar ambas.',
+   rec:'Plan integral de S&C: fuerza máxima + sprints cortos. Evaluar carga total y recuperación.'}
+];
+
+function fvGetIMTP(playerIdx){
+  var rows = FP_DATA.filter(function(r){return r.player_idx===playerIdx&&r.test_type==='imtp'&&r.peak_force!==null;});
+  if(!rows.length) return null;
+  return rows.reduce(function(a,b){return new Date(a.date)>new Date(b.date)?a:b;}).peak_force;
+}
+
+function fvGetCMJPower(playerIdx){
+  var rows = FP_DATA.filter(function(r){return r.player_idx===playerIdx&&r.test_type==='cmj'&&r.peak_power!==null;});
+  if(!rows.length) return null;
+  return rows.reduce(function(a,b){return new Date(a.date)>new Date(b.date)?a:b;}).peak_power;
+}
+
+function fvBuildDataset(){
+  return PL.map(function(p,i){
+    var imtp = fvGetIMTP(i);
+    var cmjPow = fvGetCMJPower(i);
+    var force = imtp; // prefer IMTP
+    var forceType = imtp !== null ? 'imtp' : (cmjPow !== null ? 'cmj' : null);
+    if(force===null) force = cmjPow;
+    var vel = p.hasGPSDevice && p.peakVel28 > 0 ? p.peakVel28 : null;
+    return {idx:i, name:p.name, pos:p.pos, force:force, vel:vel, forceType:forceType};
+  });
+}
+
+function fvClassify(force, vel, meanF, meanV){
+  var highF = force >= meanF, highV = vel >= meanV;
+  if(highF && highV)  return FV_QUADRANTS[0]; // power
+  if(highF && !highV) return FV_QUADRANTS[1]; // force dominant
+  if(!highF && highV) return FV_QUADRANTS[2]; // velocity dominant
+  return FV_QUADRANTS[3];                     // develop
+}
+
+function renderFV(){
+  var tab = document.getElementById('t-fv'); if(!tab) return;
+  var ds = fvBuildDataset();
+  var withBoth = ds.filter(function(d){return d.force!==null&&d.vel!==null;});
+  var withForce = ds.filter(function(d){return d.force!==null;});
+  var withVel = ds.filter(function(d){return d.vel!==null;});
+  var meanF = withBoth.length ? withBoth.reduce(function(s,d){return s+d.force;},0)/withBoth.length : 0;
+  var meanV = withBoth.length ? withBoth.reduce(function(s,d){return s+d.vel;},0)/withBoth.length : 0;
+
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
+    +'<div><div style="font-size:15px;font-weight:700">📐 Perfil Fuerza-Velocidad</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">IMTP (N/kg) × Vel Máx 28d (km/h) · VALD + Catapult</div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<button onclick="FV_SEL_PLAYER=null;renderFV()" style="padding:7px 14px;border-radius:8px;border:1px solid '+(FV_SEL_PLAYER===null?'var(--acc)':'var(--b)')+';background:'+(FV_SEL_PLAYER===null?'rgba(6,214,160,.1)':'var(--c)')+';color:'+(FV_SEL_PLAYER===null?'var(--acc)':'var(--mut)')+';font-size:11px;font-weight:700;cursor:pointer">👥 Equipo</button>'
+    +'<select onchange="FV_SEL_PLAYER=+this.value;renderFV()" style="background:var(--bg2);border:1px solid '+(FV_SEL_PLAYER!==null?'var(--acc)':'var(--b)')+';border-radius:8px;padding:7px 12px;color:'+(FV_SEL_PLAYER!==null?'var(--acc)':'var(--mut)')+';font-size:12px;font-weight:700;outline:none;cursor:pointer">'
+    +'<option value="" '+(FV_SEL_PLAYER===null?'selected':'')+'>Individual...</option>'
+    +PL.map(function(p,i){return'<option value="'+i+'"'+(i===FV_SEL_PLAYER?' selected':'')+'>'+p.name+'</option>';}).join('')
+    +'</select>'
+    +'</div></div>';
+
+  // Missing data warning
+  var missing = ds.filter(function(d){return d.force===null||d.vel===null;});
+  if(missing.length){
+    html += '<div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--yel)">'
+      +'⚠️ Sin datos completos: '
+      +missing.map(function(d){
+        var miss=[];
+        if(d.force===null)miss.push('Force Plates');
+        if(d.vel===null)miss.push('GPS');
+        return d.name.split(' ')[0]+' ('+miss.join('+')+')';
+      }).join(', ')
+      +'</div>';
+  }
+
+  if(FV_SEL_PLAYER !== null){
+    html += fvRenderIndividual(FV_SEL_PLAYER, ds, meanF, meanV);
+  } else {
+    html += fvRenderTeam(ds, meanF, meanV, withBoth);
+  }
+
+  tab.innerHTML = html;
+
+  if(FV_SEL_PLAYER !== null){
+    fvDrawRadar(FV_SEL_PLAYER, ds, meanF, meanV);
+  } else if(withBoth.length > 1){
+    fvDrawScatter(withBoth, meanF, meanV);
+  }
+}
+
+function fvRenderTeam(ds, meanF, meanV, withBoth){
+  var html = '';
+
+  // Summary KPIs
+  html += '<div class="g4 mb">';
+  var counts = {power:0,force:0,velocity:0,develop:0};
+  withBoth.forEach(function(d){var q=fvClassify(d.force,d.vel,meanF,meanV);counts[q.id]++;});
+  FV_QUADRANTS.forEach(function(q){
+    html += '<div class="card" style="border-left:3px solid '+q.color+'">'
+      +'<div class="mval" style="color:'+q.color+'">'+counts[q.id]+'</div>'
+      +'<div class="mlbl">'+q.label+'</div>'
+      +'</div>';
+  });
+  html += '</div>';
+
+  // Scatter chart
+  if(withBoth.length > 1){
+    html += '<div class="card mb"><h3>📐 Scatter F-V · Plantel — IMTP (N/kg) vs Vel Máx 28d (km/h)</h3>'
+      +'<div style="height:360px"><canvas id="fv-scatter-c"></canvas></div>'
+      +'<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;justify-content:center">'
+      +FV_QUADRANTS.map(function(q){return'<div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:50%;background:'+q.color+'"></div><span style="font-size:10px;color:var(--dim)">'+q.label+'</span></div>';}).join('')
+      +'</div></div>';
+  }
+
+  // Team table
+  html += '<div class="card"><h3>📋 Resumen del plantel</h3>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr style="border-bottom:1px solid var(--b)">'
+    +['Jugador','Pos','IMTP (N/kg)','Fuente F','Vel Máx 28d','Perfil','Recomendación'].map(function(h){
+      return'<th style="padding:7px 8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase;white-space:nowrap">'+h+'</th>';
+    }).join('')
+    +'</tr></thead><tbody>'
+    +ds.map(function(d){
+      var q = d.force!==null&&d.vel!==null ? fvClassify(d.force,d.vel,meanF,meanV) : null;
+      return'<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="FV_SEL_PLAYER='+d.idx+';renderFV()">'
+        +'<td style="padding:8px;font-size:11px;font-weight:700">'+d.name+'</td>'
+        +'<td style="padding:8px;font-size:10px;color:var(--mut)">'+d.pos+'</td>'
+        +'<td style="padding:8px;font-size:11px;font-weight:700;color:var(--acc)">'+(d.force!==null?d.force.toFixed(1)+'<span style="font-size:9px;color:var(--mut)"> N/kg</span>':'<span style="color:var(--mut)">—</span>')+'</td>'
+        +'<td style="padding:8px"><span style="font-size:9px;background:var(--c);border:1px solid var(--b);border-radius:4px;padding:1px 6px;color:var(--mut)">'+(d.forceType==='imtp'?'IMTP':d.forceType==='cmj'?'CMJ Pwr':'—')+'</span></td>'
+        +'<td style="padding:8px;font-size:11px;font-weight:700;color:var(--yel)">'+(d.vel!==null?d.vel.toFixed(1)+'<span style="font-size:9px;color:var(--mut)"> km/h</span>':'<span style="color:var(--mut)">—</span>')+'</td>'
+        +'<td style="padding:8px">'+(q?'<span style="font-size:10px;font-weight:700;color:'+q.color+'">'+q.label+'</span>':'<span style="color:var(--mut);font-size:10px">Sin datos</span>')+'</td>'
+        +'<td style="padding:8px;font-size:10px;color:var(--dim);max-width:220px">'+(q?q.rec.slice(0,60)+'…':'—')+'</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div></div>';
+
+  return html;
+}
+
+function fvRenderIndividual(idx, ds, meanF, meanV){
+  var d = ds[idx];
+  var q = d.force!==null&&d.vel!==null ? fvClassify(d.force,d.vel,meanF,meanV) : null;
+  var fNorm = meanF>0&&d.force!==null ? Math.round(d.force/meanF*100) : null;
+  var vNorm = meanV>0&&d.vel!==null ? Math.round(d.vel/meanV*100) : null;
+  var fvImb = fNorm!==null&&vNorm!==null ? fNorm-vNorm : null;
+
+  var html = '<div style="background:var(--c);border:1px solid '+(q?q.color:'var(--b)')+';border-radius:14px;padding:20px;margin-bottom:14px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">'
+    +'<div>'
+    +'<div style="font-size:18px;font-weight:800;margin-bottom:2px">'+d.name+'</div>'
+    +'<div style="font-size:11px;color:var(--mut)">'+d.pos+'</div>'
+    +'</div>'
+    +(q?'<div style="text-align:right"><div style="font-size:22px;font-weight:900;color:'+q.color+'">'+q.label+'</div><div style="font-size:10px;color:var(--mut);margin-top:2px">'+q.desc+'</div></div>':'')
+    +'</div></div>';
+
+  // KPI cards
+  html += '<div class="g4 mb">';
+  [{label:'IMTP Peak Force',val:d.force,unit:'N/kg',col:'var(--acc)',src:d.forceType==='imtp'?'IMTP':'CMJ Power'},
+   {label:'Vel Máx 28d',val:d.vel,unit:'km/h',col:'var(--yel)',src:'GPS'},
+   {label:'F vs Media equipo',val:fNorm,unit:'%',col:fNorm!==null?(fNorm>=100?'var(--grn)':fNorm>=85?'var(--yel)':'var(--red)'):'var(--mut)'},
+   {label:'V vs Media equipo',val:vNorm,unit:'%',col:vNorm!==null?(vNorm>=100?'var(--grn)':vNorm>=85?'var(--yel)':'var(--red)'):'var(--mut)'}
+  ].forEach(function(k){
+    html += '<div class="card"><div class="mval" style="color:'+k.col+'">'+(k.val!==null?k.val.toFixed(1)+'<span style="font-size:11px;color:var(--mut)"> '+k.unit+'</span>':'—')+'</div>'
+      +'<div class="mlbl">'+k.label+'</div>'
+      +(k.src?'<div class="msub">'+k.src+'</div>':'')
+      +'</div>';
+  });
+  html += '</div>';
+
+  // FV Imbalance bar
+  if(fvImb!==null){
+    var imbAbs=Math.abs(fvImb),imbCol=imbAbs<10?'var(--grn)':imbAbs<20?'var(--yel)':'var(--red)';
+    var imbLabel=fvImb>10?'Fuerza-dominante':fvImb<-10?'Velocidad-dominante':'Equilibrado';
+    html += '<div class="card mb">'
+      +'<h3>Desequilibrio F-V</h3>'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:8px">'
+      +'<span style="font-size:11px;color:var(--mut)">Velocidad-dominante ←</span>'
+      +'<span style="font-size:12px;font-weight:800;color:'+imbCol+'">'+imbLabel+' · '+(fvImb>0?'+':'')+fvImb+'%</span>'
+      +'<span style="font-size:11px;color:var(--mut)">→ Fuerza-dominante</span>'
+      +'</div>'
+      +'<div style="height:8px;background:var(--b);border-radius:4px;position:relative;overflow:hidden">'
+      +'<div style="position:absolute;left:50%;top:0;width:2px;height:100%;background:rgba(255,255,255,.2)"></div>'
+      +'<div style="position:absolute;top:0;height:100%;'+(fvImb>0?'left:50%;width:'+Math.min(Math.abs(fvImb)/2,50)+'%':'right:50%;width:'+Math.min(Math.abs(fvImb)/2,50)+'%')+';background:'+imbCol+';border-radius:4px;transition:.6s"></div>'
+      +'</div></div>';
+  }
+
+  // Radar chart
+  html += '<div class="g2 mb">'
+    +'<div class="card"><h3>📊 Radar vs Media equipo</h3><div style="height:240px"><canvas id="fv-radar-c"></canvas></div></div>'
+    +(q?'<div class="card" style="border-left:3px solid '+q.color+'"><h3 style="color:'+q.color+'">🎯 Recomendación de entrenamiento</h3>'
+      +'<div style="font-size:12px;line-height:1.7;color:var(--dim);margin-top:8px">'+q.rec+'</div>'
+      +'<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--b)">'
+      +fvTrainSuggestions(q.id).map(function(s){
+        return'<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">'
+          +'<div style="width:6px;height:6px;border-radius:50%;background:'+q.color+';margin-top:4px;flex-shrink:0"></div>'
+          +'<div style="font-size:11px;color:var(--txt)">'+s+'</div></div>';
+      }).join('')
+      +'</div></div>':'')
+    +'</div>';
+
+  return html;
+}
+
+function fvTrainSuggestions(qid){
+  var map = {
+    power:    ['Mantener volumen de fuerza máxima (2-3x/semana)','Sprints máximos 2x/semana en microciclos de baja carga','Pliometría de potencia: CMJ con carga, saltos reactivos'],
+    force:    ['Priorizar sesiones de sprints máximos (3-4 sprints ≥90% Vmax)','Pliometría reactiva: DJ, CMJ Rebound, 10/5 RSI','Reducir proporción de trabajo de fuerza máxima a 1x/semana'],
+    velocity: ['Aumentar frecuencia de fuerza máxima: squat, RDL, hip thrust pesado','IMTP: trabajo isométrico explosivo 2x/semana','Reducir sprints máximos hasta alcanzar base de fuerza adecuada'],
+    develop:  ['Plan de S&C integral: fuerza 3x/semana + sprint 2x/semana','Priorizar recuperación: revisar carga total y wellness','Evaluar si déficit refleja fatiga acumulada o capacidad real']
+  };
+  return map[qid]||[];
+}
+
+function fvDrawScatter(withBoth, meanF, meanV){
+  setTimeout(function(){
+    var colors = withBoth.map(function(d){return fvClassify(d.force,d.vel,meanF,meanV).color;});
+    var pts = withBoth.map(function(d,i){return{x:d.vel,y:d.force,label:d.name.split(' ')[0],color:colors[i]};});
+    var canvas = document.getElementById('fv-scatter-c'); if(!canvas) return;
+    var ctx = canvas.getContext('2d');
+    // Draw quadrant backgrounds first via plugin
+    var minV=Math.min.apply(null,withBoth.map(function(d){return d.vel;}))*0.95;
+    var maxV=Math.max.apply(null,withBoth.map(function(d){return d.vel;}))*1.05;
+    var minF=Math.min.apply(null,withBoth.map(function(d){return d.force;}))*0.95;
+    var maxF=Math.max.apply(null,withBoth.map(function(d){return d.force;}))*1.05;
+
+    mkC('fv-scatter-c',{
+      type:'scatter',
+      data:{datasets:[{
+        data:pts,
+        pointBackgroundColor:colors,
+        pointBorderColor:colors,
+        pointRadius:8,
+        pointHoverRadius:11
+      },{
+        // Mean crosshair - vertical
+        type:'line',data:[{x:meanV,y:minF},{x:meanV,y:maxF}],
+        borderColor:'rgba(255,255,255,.15)',borderWidth:1.5,borderDash:[5,5],pointRadius:0,showLine:true
+      },{
+        type:'line',data:[{x:minV,y:meanF},{x:maxV,y:meanF}],
+        borderColor:'rgba(255,255,255,.15)',borderWidth:1.5,borderDash:[5,5],pointRadius:0,showLine:true
+      }]},
+      options:Object.assign({},CBASE,{
+        plugins:Object.assign({},CBASE.plugins||{},{
+          tooltip:{callbacks:{label:function(ctx){var p=ctx.raw;return(p.label||'')+(p.y!==undefined?' · F: '+p.y.toFixed(1)+' N/kg':'')+' · V: '+(p.x!==undefined?p.x.toFixed(1):'')+' km/h';}}},
+          legend:{display:false}
+        }),
+        onClick:function(e,els){if(els.length&&els[0].datasetIndex===0){FV_SEL_PLAYER=withBoth[els[0].index].idx;renderFV();}},
+        scales:{
+          x:Object.assign({},XY.x,{title:{display:true,text:'Vel Máx 28d (km/h)',color:'#64748b',font:{size:10}},min:minV,max:maxV}),
+          y:Object.assign({},XY.y,{title:{display:true,text:'IMTP Peak Force (N/kg)',color:'#64748b',font:{size:10}},min:minF,max:maxF})
+        }
+      }),
+      plugins:[{
+        id:'labels',
+        afterDatasetsDraw:function(chart){
+          var meta=chart.getDatasetMeta(0);
+          if(!meta.data)return;
+          ctx.font='bold 9px Segoe UI, system-ui, sans-serif';
+          ctx.textAlign='center';
+          meta.data.forEach(function(pt,i){
+            if(!pts[i])return;
+            ctx.fillStyle=colors[i];
+            ctx.fillText(pts[i].label||'',pt.x,pt.y-14);
+          });
+        }
+      },{
+        id:'quadrant-labels',
+        afterDatasetsDraw:function(chart){
+          var xa=chart.scales.x,ya=chart.scales.y;
+          var mx=xa.getPixelForValue(meanV),my=ya.getPixelForValue(meanF);
+          var labels=[
+            {x:(xa.left+mx)/2,y:(ya.top+my)/2,t:'Potencia',c:'rgba(6,214,160,.4)'},
+            {x:(xa.left+mx)/2,y:(my+ya.bottom)/2,t:'Fuerza-dom.',c:'rgba(139,92,246,.4)'},
+            {x:(mx+xa.right)/2,y:(ya.top+my)/2,t:'Potencia',c:'rgba(6,214,160,.4)'},
+            {x:(mx+xa.right)/2,y:(my+ya.bottom)/2,t:'Vel-dom.',c:'rgba(245,158,11,.4)'}
+          ];
+          // Just 4 quadrant corners
+          var ql=[
+            {x:xa.left+8,y:ya.top+16,t:'POTENCIA',c:'rgba(6,214,160,.5)'},
+            {x:xa.left+8,y:ya.bottom-6,t:'FUERZA-DOM.',c:'rgba(139,92,246,.5)'},
+            {x:xa.right-8,y:ya.top+16,t:'POTENCIA',c:'rgba(6,214,160,.5)'},
+            {x:xa.right-8,y:ya.bottom-6,t:'VEL-DOM.',c:'rgba(245,158,11,.5)'}
+          ];
+          ctx.font='bold 8px Segoe UI, system-ui, sans-serif';
+          // top-left: force dom (high F, low V), top-right: power, bot-left: dev, bot-right: vel dom
+          ctx.textAlign='left';ctx.fillStyle='rgba(139,92,246,.5)';ctx.fillText('FUERZA-DOM.',xa.left+6,ya.top+14);
+          ctx.textAlign='right';ctx.fillStyle='rgba(6,214,160,.5)';ctx.fillText('POTENCIA',xa.right-6,ya.top+14);
+          ctx.textAlign='left';ctx.fillStyle='rgba(244,63,94,.4)';ctx.fillText('DESARROLLO',xa.left+6,ya.bottom-6);
+          ctx.textAlign='right';ctx.fillStyle='rgba(245,158,11,.5)';ctx.fillText('VEL-DOM.',xa.right-6,ya.bottom-6);
+        }
+      }]
+    });
+  },100);
+}
+
+function fvDrawRadar(idx, ds, meanF, meanV){
+  setTimeout(function(){
+    var d = ds[idx]; if(!d) return;
+    var fNorm = meanF>0&&d.force!==null ? +(d.force/meanF*10).toFixed(1) : 0;
+    var vNorm = meanV>0&&d.vel!==null ? +(d.vel/meanV*10).toFixed(1) : 0;
+    // Add CMJ height and RSI from Force Plates
+    var cmjRows = FP_DATA.filter(function(r){return r.player_idx===idx&&r.test_type==='cmj'&&r.jump_height!==null;});
+    var latestCMJ = cmjRows.length?cmjRows.reduce(function(a,b){return new Date(a.date)>new Date(b.date)?a:b;}):null;
+    var rsiRows = FP_DATA.filter(function(r){return r.player_idx===idx&&r.test_type==='cmj_rebound'&&r.rsi!==null;});
+    var latestRSI = rsiRows.length?rsiRows.reduce(function(a,b){return new Date(a.date)>new Date(b.date)?a:b;}):null;
+    // Normalize CMJ height to team mean
+    var allCMJH = PL.map(function(p,i){
+      var rows=FP_DATA.filter(function(r){return r.player_idx===i&&r.test_type==='cmj'&&r.jump_height!==null;});
+      return rows.length?rows.reduce(function(a,b){return new Date(a.date)>new Date(b.date)?a:b;}).jump_height:null;
+    }).filter(function(v){return v!==null;});
+    var meanCMJ=allCMJH.length?allCMJH.reduce(function(a,b){return a+b;},0)/allCMJH.length:1;
+    var cmjNorm=latestCMJ&&meanCMJ>0?+(latestCMJ.jump_height/meanCMJ*10).toFixed(1):0;
+    var allRSI=PL.map(function(p,i){
+      var rows=FP_DATA.filter(function(r){return r.player_idx===i&&r.test_type==='cmj_rebound'&&r.rsi!==null;});
+      return rows.length?rows.reduce(function(a,b){return new Date(a.date)>new Date(b.date)?a:b;}).rsi:null;
+    }).filter(function(v){return v!==null;});
+    var meanRSI=allRSI.length?allRSI.reduce(function(a,b){return a+b;},0)/allRSI.length:1;
+    var rsiNorm=latestRSI&&meanRSI>0?+(latestRSI.rsi/meanRSI*10).toFixed(1):0;
+
+    var playerData=[fNorm,cmjNorm,rsiNorm,vNorm];
+    var teamData=[10,10,10,10]; // team mean = 10
+    mkC('fv-radar-c',{type:'radar',
+      data:{labels:['IMTP\n(Fuerza Máx)','CMJ\n(Potencia)','RSI\n(Reactividad)','Vel Máx\n(Velocidad)'],
+        datasets:[
+          {label:d.name.split(' ')[0],data:playerData,borderColor:'#06d6a0',backgroundColor:'rgba(6,214,160,.12)',pointBackgroundColor:'#06d6a0',borderWidth:2,pointRadius:4},
+          {label:'Media equipo',data:teamData,borderColor:'rgba(255,255,255,.2)',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,3],pointRadius:2,pointBackgroundColor:'rgba(255,255,255,.3)'}
+        ]},
+      options:Object.assign({},CBASE,{scales:{r:{min:0,max:13,ticks:{display:false,stepSize:2},grid:{color:'rgba(255,255,255,.07)'},pointLabels:{color:'#94a3b8',font:{size:9}}}}})
+    });
+  },150);
+}
+
 // ===== EVALUACIONES MODULE =====
 var EVAL_TYPES=[
   {id:'t10_5',   label:'10/5 RSI',     unit:'',    icon:'🔁', desc:'Reactive Strength Index'},
@@ -5774,6 +6113,7 @@ var TABS={
   wellness:{title:'Monitor de Wellness',render:renderWellness},
   neuro:{title:'Estado Neuromuscular',render:renderNeuro},
   fp:{title:'Force Plates · VALD ForceDecks',render:renderForcePlates},
+  fv:{title:'Perfil Fuerza-Velocidad',render:renderFV},
   individual:{title:'Perfil Individual',render:renderIndividual},
   rpe:{title:'Evaluar RPE Post-Sesión',render:renderRPETab},
   checkin:{title:'Check-in Wellness Diario',render:renderCheckinTab},
