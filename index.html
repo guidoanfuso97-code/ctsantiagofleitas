@@ -851,6 +851,105 @@ function velPicoCard(p){
 }
 
 
+function buildPreMatchTable(){
+  if(!SESSIONS||!SESSIONS.length)return'';
+  var sorted=SESSIONS.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  var lastMDDate=null;
+  for(var i=0;i<sorted.length;i++){
+    if(sorted[i].sessionType==='MD'||sorted[i].isMatch){lastMDDate=sorted[i].date;break;}
+  }
+  var micro=sorted.filter(function(s){
+    if(!lastMDDate)return true;
+    return new Date(s.date)>new Date(lastMDDate);
+  });
+  var matches=SESSIONS.filter(function(s){return s.sessionType==='MD'||s.isMatch;});
+  var gpsP=PL.filter(function(p){return p.hasGPSDevice;});
+  if(!gpsP.length)return'';
+  function mAcc(m){return m.accEff||(m.accDec?Math.round(m.accDec*.55):0)||(m.accDecEff?Math.round(m.accDecEff*.55):0);}
+  function mDec(m){return m.decEff||(m.accDec?Math.round(m.accDec*.45):0)||(m.accDecEff?Math.round(m.accDecEff*.45):0);}
+  var METRICS=[
+    {label:'Distancia',  unit:'m',   mult:2.0, get:function(m){return m.dist||0;}},
+    {label:'HI +21',     unit:'m',   mult:1.6, get:function(m){return m.hiDist||0;}},
+    {label:'Sprint +24', unit:'m',   mult:1.6, get:function(m){return m.sprintDist||0;}},
+    {label:'Acc',        unit:'esf', mult:2.0, get:mAcc},
+    {label:'Dec',        unit:'esf', mult:2.0, get:mDec}
+  ];
+  function sumM(sessions,pidx,fn){
+    return sessions.reduce(function(s,sess){
+      var pd=sess.players.find(function(pd){return pd.playerIdx===pidx&&pd.participated;});
+      return s+(pd&&pd.metrics?fn(pd.metrics):0);
+    },0);
+  }
+  function avgM(sessions,pidx,fn){
+    var vals=sessions.map(function(sess){
+      var pd=sess.players.find(function(pd){return pd.playerIdx===pidx&&pd.participated;});
+      return pd&&pd.metrics?fn(pd.metrics):null;
+    }).filter(function(v){return v!==null&&v>0;});
+    return vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;
+  }
+  function pCol(pct){return pct===null?'var(--mut)':pct>=90?'var(--grn)':pct>=70?'var(--yel)':'var(--red)';}
+  function pBg(pct){return pct===null?'transparent':pct>=90?'rgba(16,185,129,.12)':pct>=70?'rgba(245,158,11,.1)':'rgba(244,63,94,.1)';}
+  var nMD=matches.length,nMicro=micro.length;
+  var html='<div class="card" style="margin-top:14px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">'
+    +'<div><h3 style="margin-bottom:2px">⚽ Preparación Pre-Partido · Plantel GPS</h3>'
+    +'<div style="font-size:10px;color:var(--mut)">Acumulado desde el último MD ('+nMicro+' ses.) · Objetivos = promedio de '+nMD+' partido'+(nMD!==1?'s':'')+'</div></div>'
+    +(lastMDDate?'<div style="font-size:10px;color:var(--mut)">Último MD: <strong style="color:var(--acc)">'+lastMDDate+'</strong></div>':'')
+    +'</div>';
+  if(!nMD){
+    return html+'<div style="padding:20px;text-align:center;color:var(--mut);font-size:12px">Sin partidos (MD) registrados. Importá sesiones de partido para calcular los objetivos.</div></div>';
+  }
+  html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:660px">'
+    +'<thead><tr style="border-bottom:1px solid rgba(255,255,255,.06)">'
+    +'<th style="padding:8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase;min-width:120px">Jugador</th>';
+  METRICS.forEach(function(m){
+    html+='<th colspan="2" style="padding:8px;text-align:center;font-size:9px;color:var(--mut);text-transform:uppercase;white-space:nowrap">'
+      +m.label+'<br><span style="font-weight:400;opacity:.65">obj ×'+m.mult+'</span></th>';
+  });
+  html+='</tr><tr style="border-bottom:1px solid var(--b)"><th></th>';
+  METRICS.forEach(function(){
+    html+='<th style="padding:3px 6px;text-align:right;font-size:8px;color:var(--mut)">Acum.</th>'
+      +'<th style="padding:3px 6px;text-align:center;font-size:8px;color:var(--mut)">%</th>';
+  });
+  html+='</tr></thead><tbody>';
+  gpsP.forEach(function(p){
+    html+='<tr style="border-bottom:1px solid rgba(255,255,255,.03)">'
+      +'<td style="padding:8px;font-size:11px;font-weight:700;white-space:nowrap">'+p.name
+      +'<div style="font-size:9px;color:var(--mut);font-weight:400;margin-top:1px">'+p.pos+'</div></td>';
+    METRICS.forEach(function(m){
+      var ma=avgM(matches,p.idx,m.get);
+      var target=ma!==null?ma*m.mult:null;
+      var actual=sumM(micro,p.idx,m.get);
+      var pct=target&&target>0?Math.round(actual/target*100):null;
+      html+='<td style="padding:6px;text-align:right;font-size:11px;font-weight:700;color:var(--dim)">'
+        +(actual>0?Math.round(actual)+'<span style="font-size:8px;color:var(--mut)"> '+m.unit+'</span>':'<span style="color:var(--mut)">—</span>')+'</td>'
+        +'<td style="padding:6px;text-align:center">'
+        +(pct!==null
+          ?'<span style="display:inline-block;min-width:36px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;color:'+pCol(pct)+';background:'+pBg(pct)+'">'+(pct>999?'>999':pct)+'%</span>'
+          :'<span style="font-size:10px;color:var(--mut)">—</span>')
+        +'</td>';
+    });
+    html+='</tr>';
+  });
+  // Team average row
+  html+='<tr style="border-top:2px solid rgba(255,255,255,.09);background:rgba(255,255,255,.02)">'
+    +'<td style="padding:8px;font-size:10px;font-weight:700;color:var(--mut)">⌀ Equipo</td>';
+  METRICS.forEach(function(m){
+    var pcts=gpsP.map(function(p){
+      var ma=avgM(matches,p.idx,m.get);
+      var target=ma!==null?ma*m.mult:null;
+      var actual=sumM(micro,p.idx,m.get);
+      return target&&target>0?actual/target*100:null;
+    }).filter(function(v){return v!==null;});
+    var avgPct=pcts.length?Math.round(pcts.reduce(function(a,b){return a+b;},0)/pcts.length):null;
+    html+='<td></td><td style="padding:6px;text-align:center">'
+      +(avgPct!==null?'<span style="display:inline-block;min-width:36px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;color:'+pCol(avgPct)+';background:'+pBg(avgPct)+'">'+avgPct+'%</span>':'<span style="font-size:10px;color:var(--mut)">—</span>')
+      +'</td>';
+  });
+  html+='</tr></tbody></table></div></div>';
+  return html;
+}
+
 function renderCarga(){
   var idx=parseInt($('carga-sel').value)||0;
   var p=PL[idx];
@@ -1046,7 +1145,8 @@ function renderCarga(){
     +'<div class="g2">'
     +'<div class="card"><h3>HI Dist + Sprint · 28 días</h3><div class="cw"><canvas id="ext-c"></canvas></div></div>'
     +'<div class="card"><h3>EWMA Player Load · 28 días</h3><div class="cw"><canvas id="dist-c"></canvas></div></div>'
-    +'</div>';
+    +'</div>'
+    +buildPreMatchTable();
 
   // Store for metric switching
   window._cargaP=p;
