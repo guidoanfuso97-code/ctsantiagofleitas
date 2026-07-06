@@ -571,8 +571,7 @@ function recalcStatus(p){
 }
 
 async function injectSessionHoy(){
-  // Solo inyecta si no hay sesiones en Supabase (primera vez absoluta)
-  if(SESSIONS.length>0)return;
+  if(!SESSION_HOY||SESSIONS.length>0)return;
   SESSION_HOY.players.forEach(function(sp){
     var match=matchPlayer(sp.name);
     if(match){sp.playerIdx=match.idx;sp.atlasName=match.name;}
@@ -4118,6 +4117,7 @@ var FIXTURE_2026 = [];
 
 // Inject pretemporada data into EVAL_DATA on first load
 async function injectPretemporadaData(){
+  if(!TEAM)return;
   // Check if pretemporada data already exists in Supabase
   try{
     var existing=await sbGet('evaluaciones','team_id=eq.'+TEAM.id+'&date=eq.2026-01-08&limit=1');
@@ -5837,6 +5837,11 @@ async function initATLAS(){
   $('fecha-lbl').textContent=dias[now.getDay()]+' '+now.getDate()+' '+meses[now.getMonth()]+' '+now.getFullYear();
   // Load teams first (needed for keys)
   await loadTeams();
+  if(!TEAM){
+    populateSels();renderPlantel();
+    document.querySelectorAll('.nav').forEach(function(n){n.addEventListener('click',function(){switchTab(n.dataset.tab);closeSidebar();});});
+    return;
+  }
   // Load everything else in parallel
   var results=await Promise.all([
     loadAllSessions(),
