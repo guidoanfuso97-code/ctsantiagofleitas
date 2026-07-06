@@ -622,7 +622,8 @@ function updateTopStats(){
   var avgACWR=gpsPlayers.length?+(avg(gpsPlayers.map(function(p){return p.acwr;}))).toFixed(2):'—';
   // Use innerHTML to avoid emoji concatenation issues
   $('sacwr').innerHTML=String(avgACWR);
-  var avgWS=+(avg(PL.map(function(p){return p.wscore;}))).toFixed(1);
+  var wsScores=PL.map(function(p){return p.wscore;}).filter(function(v){return v!==null;});
+  var avgWS=wsScores.length?+(avg(wsScores)).toFixed(1):'—';
   $('sws').innerHTML=String(avgWS);
   // Show alertas only if on plantel tab or after refresh
   if(document.querySelector('.tab.on')&&document.querySelector('.tab.on').id==='t-plantel'){
@@ -722,7 +723,7 @@ function renderPlantel(){
       +'<div class="pn">'+p.name+badges+'</div>'
       +'<div class="pp">'+p.pos+' · #'+p.num+'</div>'
       +acwrRow
-      +'<div class="pm"><span class="k">Wellness</span><span class="vv" style="color:'+wc(p.wscore)+'">'+p.wscore+'</span></div>'
+      +'<div class="pm"><span class="k">Wellness</span><span class="vv" style="color:'+wc(p.wscore)+'">'+( p.wscore!==null?p.wscore:'—')+'</span></div>'
       +metricRow
       +'</div>';
   }).join('');
@@ -1206,7 +1207,7 @@ function renderWellness(){
   var dims=['sleep','energy','stress','doms','fatigue'],dl=['Sueño','Energía','Estrés','DOMS','Fatiga'],inv=[false,false,true,true,true];
   var dayL=['Mié','Jue','Vie','Sáb','Dom','Lun','Mar'];
   var dimCards=dims.map(function(d,i){
-    var val=+(avg(PL.map(function(p){return p.tw[d];}))).toFixed(1);
+    var val=+(avg(PL.map(function(p){return p.tw?p.tw[d]||0:0;}))).toFixed(1);
     var s=inv[i]?10-val:val;
     var c=s>=7?'var(--grn)':s>=5?'var(--yel)':'var(--red)';
     return '<div class="card"><div class="mval" style="color:'+c+'">'+val+'</div><div class="mlbl">'+dl[i]+'</div><div class="pbar"><div class="pfill" style="width:'+val*10+'%;background:'+c+'"></div></div></div>';
@@ -1260,7 +1261,7 @@ function renderWellness(){
     +'<div class="card" style="width:220px;flex-shrink:0"><h3>Radar · Equipo</h3><div class="cw"><canvas id="ws-radar"></canvas></div></div>'
     +'</div>';
   setTimeout(function(){
-    var tav=dims.map(function(d){return avg(PL.map(function(p){return p.tw[d];}));});
+    var tav=dims.map(function(d){return avg(PL.map(function(p){return p.tw?p.tw[d]||0:0;}));});
     var rs=tav.map(function(v,i){return inv[i]?+(10-v).toFixed(1):+v.toFixed(1);});
     mkC('ws-radar',{type:'radar',data:{labels:['Sueño','Energía','Sin Estrés','Sin DOMS','Sin Fatiga'],datasets:[{data:rs,backgroundColor:'rgba(6,214,160,.1)',borderColor:'rgba(6,214,160,.8)',borderWidth:2,pointBackgroundColor:'rgba(6,214,160,1)',pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{min:0,max:10,grid:{color:'rgba(255,255,255,.07)'},angleLines:{color:'rgba(255,255,255,.07)'},pointLabels:{color:'#94a3b8',font:{size:9}},ticks:{display:false}}}}});
     // Hooper trend chart
@@ -1459,7 +1460,7 @@ function renderIndividual(){
     +gpsMetricBox(p.acwrHI?ac(p.acwrHI):'var(--mut)',p.acwrHI||'—','ACWR HI')
     +gpsMetricBox(p.acwrSprint?ac(p.acwrSprint):'var(--mut)',p.acwrSprint||'—','ACWR Sprint')
     +gpsMetricBox(p.velStatus==='g'?'var(--grn)':p.velStatus==='y'?'var(--yel)':'var(--red)',+(p.peakVel7||0).toFixed(1)+' km/h','Vel Pico 7d')
-    +gpsMetricBox(wc(p.wscore),p.wscore,'Wellness')
+    +gpsMetricBox(wc(p.wscore),p.wscore!==null?p.wscore:'—','Wellness')
     +gpsMetricBox(p.cmjDelta<-5?'var(--red)':p.cmjDelta<0?'var(--yel)':'var(--grn)',(p.cmjDelta>0?'+':'')+p.cmjDelta+'%','CMJ Δ')
     +'</div>'
     // Z-Score vs plantel
