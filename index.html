@@ -1207,10 +1207,11 @@ function renderWellness(){
   var dims=['sleep','energy','stress','doms','fatigue'],dl=['Sueño','Energía','Estrés','DOMS','Fatiga'],inv=[false,false,true,true,true];
   var dayL=['Mié','Jue','Vie','Sáb','Dom','Lun','Mar'];
   var dimCards=dims.map(function(d,i){
-    var val=+(avg(PL.map(function(p){return p.tw?p.tw[d]||0:0;}))).toFixed(1);
-    var s=inv[i]?10-val:val;
-    var c=s>=7?'var(--grn)':s>=5?'var(--yel)':'var(--red)';
-    return '<div class="card"><div class="mval" style="color:'+c+'">'+val+'</div><div class="mlbl">'+dl[i]+'</div><div class="pbar"><div class="pfill" style="width:'+val*10+'%;background:'+c+'"></div></div></div>';
+    var vals=PL.map(function(p){return p.tw?p.tw[d]||0:null;}).filter(function(v){return v!==null;});
+    var val=vals.length?+(avg(vals)).toFixed(1):null;
+    var s=val!==null?(inv[i]?10-val:val):5;
+    var c=val===null?'var(--mut)':s>=7?'var(--grn)':s>=5?'var(--yel)':'var(--red)';
+    return '<div class="card"><div class="mval" style="color:'+c+'">'+(val!==null?val:'—')+'</div><div class="mlbl">'+dl[i]+'</div><div class="pbar"><div class="pfill" style="width:'+(val!==null?val*10:0)+'%;background:'+c+'"></div></div></div>';
   }).join('');
   // Hooper Index
   var hooToday=+(avg(PL.map(function(p){return calcHooper(p.tw)||0;}))).toFixed(1);
@@ -1225,6 +1226,7 @@ function renderWellness(){
     .slice(0,8);
   var hmRows=PL.map(function(p){
     var cells=p.wellness.map(function(d){
+      if(!d)return '<div class="hmc" style="background:rgba(255,255,255,.05)"></div>';
       var s=(d.sleep+d.energy+(10-d.stress)+(10-d.doms)+(10-d.fatigue))/5;
       return '<div class="hmc" style="background:'+wbg(s)+'"></div>';
     }).join('');
