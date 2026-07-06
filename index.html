@@ -562,14 +562,13 @@ async function loadRealRPE(){
 }
 function recalcStatus(p){
   var s='g';
+  var ws=p.wscore; // null = no data → ignore
   if(p.hasGPSDevice){
-    // GPS players: full metrics
-    if((p.acwr&&p.acwr>1.5)||p.wscore<3.5||p.cmjDelta<-10)s='r';
-    else if((p.acwr&&(p.acwr>1.3||p.acwr<0.8))||p.wscore<5||p.cmjDelta<-5)s='y';
+    if((p.acwr&&p.acwr>1.5)||(ws!==null&&ws<3.5)||p.cmjDelta<-10)s='r';
+    else if((p.acwr&&(p.acwr>1.3||p.acwr<0.8))||(ws!==null&&ws<5)||p.cmjDelta<-5)s='y';
   } else {
-    // Non-GPS: sRPE ACWR + wellness only
-    if((p.acwr&&p.acwr>1.5)||p.wscore<3.5)s='r';
-    else if((p.acwr&&(p.acwr>1.3||p.acwr<0.8))||p.wscore<5)s='y';
+    if((p.acwr&&p.acwr>1.5)||(ws!==null&&ws<3.5))s='r';
+    else if((p.acwr&&(p.acwr>1.3||p.acwr<0.8))||(ws!==null&&ws<5))s='y';
   }
   p.status=s;
 }
@@ -1018,13 +1017,13 @@ function renderCarga(){
     +(p.monotony>=1.5&&p.monotony<2.0?'<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:10px;color:var(--yel);font-weight:600">🔁 Monotonía elevada — Considerar sesiones de recuperación</div>':'')
     +'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--b)">'
     +'<span style="font-size:11px;color:var(--mut)">Monotonía</span>'
-    +'<span style="font-size:11px;font-weight:700;color:'+(p.monotony<1.5?'var(--grn)':p.monotony<2?'var(--yel)':'var(--red)')+'">'+p.monotony+'</span></div>'
+    +'<span style="font-size:11px;font-weight:700;color:'+(p.monotony===0?'var(--mut)':p.monotony<1.5?'var(--grn)':p.monotony<2?'var(--yel)':'var(--red)')+'">'+(p.monotony||'—')+'</span></div>'
     +'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--b)">'
     +'<span style="font-size:11px;color:var(--mut)">Strain 7d</span>'
-    +'<span style="font-size:11px;font-weight:700;color:var(--acc)">'+(p.strain/1000).toFixed(1)+'k AU</span></div>'
+    +'<span style="font-size:11px;font-weight:700;color:var(--acc)">'+(p.strain?+(p.strain/1000).toFixed(1)+'k AU':'—')+'</span></div>'
     +'<div style="display:flex;justify-content:space-between;padding:5px 0">'
     +'<span style="font-size:11px;color:var(--mut)">Robustez</span>'
-    +'<span style="font-size:11px;font-weight:700;color:'+(p.robustness>=75?'var(--grn)':p.robustness>=50?'var(--yel)':'var(--red)')+'">'+p.robustness+'%</span></div>'
+    +'<span style="font-size:11px;font-weight:700;color:'+(p.robustness===null?'var(--mut)':p.robustness>=75?'var(--grn)':p.robustness>=50?'var(--yel)':'var(--red)')+'">'+(p.robustness!==null?p.robustness+'%':'—')+'</span></div>'
     +'</div>'
     +'</div>'
     // Main chart - selected metric
@@ -1282,7 +1281,7 @@ function renderNeuro(){
   var rsiColor=tc&&tc.rsi>10?'var(--grn)':tc&&tc.rsi>7?'var(--yel)':'var(--red)';
   $('neuro-body').innerHTML=
     '<div class="g4 mb">'
-    +'<div class="card"><div class="mval" style="color:var(--acc)">'+(tc?tc.h+' cm':'—')+'</div><div class="mlbl">CMJ Hoy</div><div class="msub">Base: '+p.cmjBase.toFixed(1)+' cm</div></div>'
+    +'<div class="card"><div class="mval" style="color:var(--acc)">'+(tc?tc.h+' cm':'—')+'</div><div class="mlbl">CMJ Hoy</div><div class="msub">'+(p.cmjBase?'Base: '+p.cmjBase.toFixed(1)+' cm':'Sin datos base')+'</div></div>'
     +'<div class="card"><div class="mval" style="color:'+dc+'">'+(d>=0?'+':'')+d+'%</div><div class="mlbl">Δ vs Baseline</div><div class="msub">'+(d<-10?'⚠️ Fatiga SNC':d<-5?'⚠️ Monitorear':'✓ OK')+'</div></div>'
     +'<div class="card"><div class="mval" style="color:var(--pur)">'+(tc?tc.ct+' ms':'—')+'</div><div class="mlbl">Contact Time</div></div>'
     +'<div class="card"><div class="mval" style="color:'+rsiColor+'">'+(tc?tc.rsi:'—')+'</div><div class="mlbl">RSI Modificado</div></div>'
