@@ -371,10 +371,14 @@ var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 async function sbGet(table, filters){
   var url=SUPABASE_URL+'/rest/v1/'+table+'?';
   if(filters) url+=filters;
+  var ctrl=new AbortController();
+  var timer=setTimeout(function(){ctrl.abort();},8000);
   try{
     var r=await fetch(url,{
+      signal:ctrl.signal,
       headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'}
     });
+    clearTimeout(timer);
     if(!r.ok){
       console.warn('Supabase '+table+' error:',r.status);
       if(r.status===403||r.status===401){
@@ -384,6 +388,7 @@ async function sbGet(table, filters){
     }
     return await r.json();
   }catch(e){
+    clearTimeout(timer);
     console.warn('Supabase fetch error:',e.message);
     return[];
   }
@@ -5820,12 +5825,12 @@ window.addEventListener('load',async function(){
     document.body.appendChild(loadDiv);
     var bar=document.getElementById('load-bar');
     if(bar)bar.style.width='30%';
+    function removeLoader(){var ld=document.getElementById('atlas-loading');if(ld)ld.parentNode.removeChild(ld);}
+    var loaderGuard=setTimeout(removeLoader,12000);
     try{await initATLAS();}catch(e){console.error('initATLAS:',e);}
+    clearTimeout(loaderGuard);
     if(bar)bar.style.width='100%';
-    setTimeout(function(){
-      var ld=document.getElementById('atlas-loading');
-      if(ld)ld.parentNode.removeChild(ld);
-    },300);
+    setTimeout(removeLoader,300);
   }
 });
 
