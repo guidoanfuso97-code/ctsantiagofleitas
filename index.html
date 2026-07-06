@@ -512,17 +512,16 @@ var PROF={Mon:{ext:650,dur:80,rpe:7.0},Tue:{ext:470,dur:65,rpe:5.0},Wed:{ext:620
 
 function genPlayer(name,pos,num,idx,hasGPS){
   hasGPS=hasGPS!==false;
-  var z28=Array(28).fill(0);
-  var o28=Array(28).fill(1.0);
-  var n28=Array(28).fill(null);
-  var emptyLoad={sRPE:0,ext:0,dur:0,rpe:0,rest:0,match:0};
+  function el(){return{sRPE:0,ext:0,dur:0,rpe:0,rest:0,match:0};}
+  var loads=Array.from({length:28},el);
   return{name:name,pos:pos,num:num,idx:idx,status:'g',hasGPSDevice:hasGPS,
-    loads:Array(28).fill(emptyLoad),sArr:z28.slice(),eArr:z28.slice(),
-    acS:o28.slice(),chS:o28.slice(),acwrArr:o28.slice(),
-    eacS:z28.slice(),echS:z28.slice(),acwr:1.0,wscore:null,tw:null,
-    wellness:n28.slice(),cmj:n28.slice(),cmjBase:0,cmjDelta:0,todayCMJ:null,
+    loads:loads,sArr:Array(28).fill(0),eArr:Array(28).fill(0),
+    acS:Array(28).fill(1.0),chS:Array(28).fill(1.0),acwrArr:Array(28).fill(1.0),
+    eacS:Array(28).fill(0),echS:Array(28).fill(0),acwr:1.0,wscore:null,tw:null,
+    wellness:Array(28).fill(null),cmj:Array(28).fill(null),
+    cmjBase:0,cmjDelta:0,todayCMJ:null,
     robustness:null,monotony:0,strain:0,
-    todayLoad:emptyLoad,realWellness:false,realRPE:false,realGPS:false};
+    todayLoad:loads[27],realWellness:false,realRPE:false,realGPS:false};
 }
 
 async function loadRealWellness(){
@@ -5821,7 +5820,7 @@ window.addEventListener('load',async function(){
     document.body.appendChild(loadDiv);
     var bar=document.getElementById('load-bar');
     if(bar)bar.style.width='30%';
-    await initATLAS();
+    try{await initATLAS();}catch(e){console.error('initATLAS:',e);}
     if(bar)bar.style.width='100%';
     setTimeout(function(){
       var ld=document.getElementById('atlas-loading');
