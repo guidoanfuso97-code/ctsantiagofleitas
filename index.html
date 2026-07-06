@@ -1202,6 +1202,9 @@ function cargaMetric(m){
 }
 
 function renderWellness(){
+  try{ _renderWellness(); }catch(e){ console.error('renderWellness crash:',e); var b=$('wellness-body'); if(b)b.innerHTML='<div style="padding:40px;text-align:center;color:var(--mut)">Error al cargar wellness: '+e.message+'</div>'; }
+}
+function _renderWellness(){
   var real=PL.filter(function(p){return p.realWellness;}).length;
   var pct=Math.round(real/PL.length*100);
   var dims=['sleep','energy','stress','doms','fatigue'],dl=['Sueño','Energía','Estrés','DOMS','Fatiga'],inv=[false,false,true,true,true];
