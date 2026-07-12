@@ -1,4 +1,4 @@
-var CACHE = 'atlas-v12';
+var CACHE = 'atlas-v13';
 var SHELL = [
   '/ctsantiagofleitas/icon.svg',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'
