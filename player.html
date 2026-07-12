@@ -28,14 +28,13 @@ input,select,button{font-family:inherit;-webkit-appearance:none}
 .btn-main:active{opacity:.8}
 .btn-main:disabled{opacity:.5}
 .sec-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);margin-bottom:10px;padding:0 2px}
+.p-row{width:100%;background:#1e293b;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;transition:background .15s,border-color .15s;margin-bottom:6px}
+.p-row:active{background:rgba(6,214,160,.1);border-color:rgba(6,214,160,.35)}
 .spin{width:36px;height:36px;border:3px solid rgba(255,255,255,.1);border-top-color:var(--acc);border-radius:50%;animation:sp .7s linear infinite;margin:0 auto}
 @keyframes sp{to{transform:rotate(360deg)}}
 @keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .fi{animation:fi .28s ease}
 .bp-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);text-align:center;margin-bottom:6px}
-.num-input{width:100%;background:#0f172a;border:2px solid rgba(255,255,255,.15);border-radius:14px;padding:18px;color:#e2e8f0;font-size:32px;font-weight:900;text-align:center;outline:none;transition:border-color .2s}
-.num-input:focus{border-color:var(--acc)}
-.num-input::placeholder{color:rgba(255,255,255,.2)}
 </style>
 </head>
 <body>
@@ -50,6 +49,7 @@ var TEAM_ID='';
 var PLAYER_IDX=-1;
 var PLAYER={name:'',pos:'',num:1};
 var TNAME='ATLAS';
+var ALL_PLAYERS=[];
 var ANS={};
 var DOLOR={};
 var RPE_VAL=null;
@@ -156,63 +156,59 @@ function showLoading(msg){
   document.getElementById('app').innerHTML='<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px"><div class="spin"></div><div style="font-size:13px;color:var(--mut)">'+(msg||'Cargando...')+'</div></div>';
 }
 function showError(msg){
-  document.getElementById('app').innerHTML='<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center"><div style="font-size:52px;margin-bottom:16px">😕</div><div style="font-size:18px;font-weight:800;margin-bottom:8px">Algo falló</div><div style="font-size:13px;color:var(--mut)">'+msg+'</div><button class="btn-main" style="margin-top:24px;max-width:240px" onclick="showJerseyScreen()">← Volver</button></div>';
+  var backFn=ALL_PLAYERS.length?'showNameSelector()':'init()';
+  document.getElementById('app').innerHTML='<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center"><div style="font-size:52px;margin-bottom:16px">😕</div><div style="font-size:18px;font-weight:800;margin-bottom:8px">Algo falló</div><div style="font-size:13px;color:var(--mut)">'+msg+'</div><button class="btn-main" style="margin-top:24px;max-width:240px" onclick="'+backFn+'">← Volver</button></div>';
 }
 
-// ── STEP 1: Jersey number selector ────────────────────────────────────────────
-function showJerseyScreen(){
+// ── STEP 1: Name selector ─────────────────────────────────────────────────────
+function showNameSelector(){
+  // Sort alphabetically by surname (first word of name)
+  var sorted=ALL_PLAYERS.map(function(p,i){return{i:i,p:p};}).sort(function(a,b){
+    return a.p.name.localeCompare(b.p.name,'es');
+  });
+  var rows=sorted.map(function(it){
+    var nm=it.p.name.split(' ');
+    var apellido=nm[0]||'';
+    var nombre=nm.slice(1).join(' ');
+    var url=SB+'/storage/v1/object/public/avatars/'+TEAM_ID+'/'+it.i+'.jpg';
+    var cols=['#06d6a0','#8b5cf6','#f59e0b','#f43f5e','#3b82f6','#22d3ee','#a855f7','#14b8a6'];
+    var col=cols[it.i%cols.length];
+    var ini=(apellido[0]||'').toUpperCase()+(nombre[0]||'').toUpperCase();
+    var av='<div style="position:relative;width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:rgba(0,0,0,.75)">'
+      +'<span>'+ini+'</span>'
+      +'<img src="'+url+'" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">'
+      +'</div>';
+    return '<button class="p-row" onclick="selectPlayer('+it.i+')">'
+      +av
+      +'<div style="min-width:0">'
+      +'<div style="font-size:16px;font-weight:800;letter-spacing:.3px">'+apellido+'</div>'
+      +(nombre?'<div style="font-size:12px;color:#64748b;margin-top:1px">'+nombre+'</div>':'')
+      +'</div>'
+      +'<div style="margin-left:auto;font-size:11px;color:#334155;font-weight:700;background:rgba(255,255,255,.06);border-radius:6px;padding:3px 8px">#'+it.p.num+'</div>'
+      +'</button>';
+  }).join('');
+
   document.getElementById('app').innerHTML=
-    '<div style="max-width:360px;margin:0 auto;padding:48px 24px;min-height:100vh;display:flex;flex-direction:column;justify-content:center" class="fi">'
-    // Logo
-    +'<div style="text-align:center;margin-bottom:40px">'
-    +'<div style="font-size:36px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,#06d6a0,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px">ATLAS</div>'
-    +'<div style="font-size:13px;color:#64748b">'+TNAME+'</div>'
+    '<div style="max-width:480px;margin:0 auto;padding:0 0 32px" class="fi">'
+    // Sticky header
+    +'<div style="position:sticky;top:0;z-index:10;background:#0f172a;padding:20px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+    +'<div style="font-size:20px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#06d6a0,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">ATLAS</div>'
+    +'<div style="font-size:11px;color:#64748b">'+TNAME+'</div>'
     +'</div>'
-    // Number input
-    +'<div style="margin-bottom:10px">'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--acc);margin-bottom:10px;text-align:center">¿Cuál es tu número de camiseta?</div>'
-    +'<input id="num-inp" class="num-input" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="9" min="1" max="99" autocomplete="off" autofocus oninput="validateNum(this)" onkeydown="if(event.key===\'Enter\')confirmNum()">'
+    +'<div style="font-size:13px;font-weight:700;color:#94a3b8">¿Quién sos?</div>'
     +'</div>'
-    +'<div id="num-err" style="text-align:center;font-size:12px;color:#f43f5e;min-height:18px;margin-bottom:14px"></div>'
-    +'<button class="btn-main" id="num-btn" onclick="confirmNum()" disabled>Continuar →</button>'
+    // Player list
+    +'<div style="padding:12px 16px">'+rows+'</div>'
     +'</div>';
-  setTimeout(function(){var el=document.getElementById('num-inp');if(el)el.focus();},100);
 }
 
-function validateNum(input){
-  var v=parseInt(input.value);
-  var btn=document.getElementById('num-btn');
-  var err=document.getElementById('num-err');
-  if(btn)btn.disabled=!(v>=1&&v<=99);
-  if(err)err.textContent='';
-}
-
-async function confirmNum(){
-  var inp=document.getElementById('num-inp');
-  var num=parseInt(inp&&inp.value);
-  if(!num||num<1||num>99)return;
-  showLoading('Buscando jugador...');
-  try{
-    var rows=await sbGet('teams','id=eq.'+TEAM_ID+'&select=id,name,players');
-    if(!rows||!rows.length){showError('Equipo no encontrado.');return;}
-    var players=rows[0].players||[];
-    var idx=players.findIndex(function(p){return +p.num===num;});
-    if(idx<0){
-      // Show not found back on jersey screen
-      showJerseyScreen();
-      setTimeout(function(){
-        var err=document.getElementById('num-err');
-        if(err)err.textContent='Número #'+num+' no encontrado. Verificá con el CT.';
-        var inp=document.getElementById('num-inp');
-        if(inp){inp.value=num;inp.style.borderColor='#f43f5e';}
-      },50);
-      return;
-    }
-    PLAYER_IDX=idx;
-    PLAYER=players[idx];
-    await loadTodayData();
-    renderForm();
-  }catch(e){showError('Error de conexión. Verificá tu internet.');}
+async function selectPlayer(idx){
+  PLAYER_IDX=idx;
+  PLAYER=ALL_PLAYERS[idx];
+  showLoading('Cargando...');
+  await loadTodayData();
+  renderForm();
 }
 
 async function loadTodayData(){
@@ -345,15 +341,15 @@ async function init(){
     return;
   }
   try{
-    // Find team by slug (case-insensitive name match)
     var rows=await sbGet('teams','name=ilike.*'+encodeURIComponent(SLUG)+'*&select=id,name,players');
-    if(!rows||!rows.length){
+    if(!rows||!rows.length)
       rows=await sbGet('teams','id=ilike.*'+encodeURIComponent(SLUG)+'*&select=id,name,players');
-    }
     if(!rows||!rows.length){showError('Equipo "'+SLUG+'" no encontrado. Verificá el link con el CT.');return;}
     TEAM_ID=rows[0].id;
     TNAME=rows[0].name;
-    showJerseyScreen();
+    ALL_PLAYERS=rows[0].players||[];
+    if(!ALL_PLAYERS.length){showError('El equipo no tiene jugadores cargados todavía.');return;}
+    showNameSelector();
   }catch(e){showError('Error de conexión. Verificá tu internet e intentá de nuevo.');}
 }
 init();
