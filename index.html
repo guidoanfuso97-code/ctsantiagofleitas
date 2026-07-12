@@ -461,6 +461,96 @@ var storage = {
 window.storage = storage;
 var TODAY = new Date().toISOString().split('T')[0];
 
+// ===== PLAYER PHOTOS & PORTAL =====
+function playerAvatar(pidx,size){
+  var p=PL[pidx];if(!p)return '';
+  var s=size||32;
+  var url=SUPABASE_URL+'/storage/v1/object/public/avatars/'+TEAM.id+'/'+pidx+'.jpg';
+  var nm=p.name.split(' ');
+  var ini=((nm[0]||'')[0]||'')+((nm[1]||'')[0]||'');
+  var cols=['#06d6a0','#8b5cf6','#f59e0b','#f43f5e','#3b82f6','#22d3ee','#a855f7','#14b8a6'];
+  var col=cols[pidx%cols.length];
+  var fs=Math.round(s*0.38);
+  return '<div style="position:relative;width:'+s+'px;height:'+s+'px;border-radius:50%;overflow:hidden;flex-shrink:0;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:800;color:rgba(0,0,0,.75)">'
+    +'<span>'+ini.toUpperCase()+'</span>'
+    +'<img src="'+url+'" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">'
+    +'</div>';
+}
+function resizePlayerPhoto(file,maxPx){
+  return new Promise(function(res,rej){
+    var img=new Image();var burl=URL.createObjectURL(file);
+    img.onload=function(){
+      var w=img.width,h=img.height;
+      if(w>maxPx||h>maxPx){if(w>h){h=Math.round(h*maxPx/w);w=maxPx;}else{w=Math.round(w*maxPx/h);h=maxPx;}}
+      var c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      c.toBlob(function(b){URL.revokeObjectURL(burl);res(b);},'image/jpeg',0.85);
+    };
+    img.onerror=function(){URL.revokeObjectURL(burl);rej(new Error('img'));};
+    img.src=burl;
+  });
+}
+async function uploadPlayerPhoto(pidx,file){
+  if(!TEAM||!file)return;
+  var blob=await resizePlayerPhoto(file,240);
+  var r=await fetch(SUPABASE_URL+'/storage/v1/object/avatars/'+TEAM.id+'/'+pidx+'.jpg',{
+    method:'POST',
+    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'image/jpeg','x-upsert':'true'},
+    body:blob
+  });
+  if(!r.ok)throw new Error(await r.text());
+}
+async function handlePhotoUpload(pidx,input){
+  var file=input.files[0];if(!file)return;
+  var lbl=input.parentElement;lbl.textContent='⏳';
+  try{
+    await uploadPlayerPhoto(pidx,file);
+    lbl.textContent='✓';
+    setTimeout(function(){lbl.innerHTML='📸<input type="file" accept="image/*" style="display:none" onchange="handlePhotoUpload('+pidx+',this)">';},2000);
+    var ct=document.querySelector('.tab.on');var cn=ct?ct.id.slice(2):'';
+    if(cn==='plantel')renderPlantel();
+    if(cn==='checkin')renderCheckinTab();
+  }catch(e){
+    lbl.textContent='✗';
+    setTimeout(function(){lbl.innerHTML='📸<input type="file" accept="image/*" style="display:none" onchange="handlePhotoUpload('+pidx+',this)">';},2000);
+  }
+}
+var _PLINKS=[];
+function showPlayerLinks(){
+  if(!TM_EDIT)return;
+  _PLINKS=TM_EDIT.players.map(function(p,i){
+    return 'https://guidoanfuso97-code.github.io/ctsantiagofleitas/player.html?t='+TM_EDIT.id+'&p='+i;
+  });
+  var list=TM_EDIT.players.map(function(p,i){
+    var nm=p.name.split(' ');var ini=((nm[0]||'')[0]||'')+((nm[1]||'')[0]||'');
+    var cols=['#06d6a0','#8b5cf6','#f59e0b','#f43f5e','#3b82f6','#22d3ee'];
+    var col=cols[i%cols.length];
+    var avUrl=SUPABASE_URL+'/storage/v1/object/public/avatars/'+TM_EDIT.id+'/'+i+'.jpg';
+    var av='<div style="position:relative;width:34px;height:34px;border-radius:50%;overflow:hidden;flex-shrink:0;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:rgba(0,0,0,.75)">'
+      +'<span>'+ini.toUpperCase()+'</span>'
+      +'<img src="'+avUrl+'" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">'
+      +'</div>';
+    return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+      +av
+      +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700">'+p.name+'</div>'
+      +'<div style="font-size:10px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_PLINKS[i]+'</div></div>'
+      +'<button onclick="copyTxt(_PLINKS['+i+'],this)" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.25);color:var(--acc);border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0">Copiar</button>'
+      +'</div>';
+  }).join('');
+  $('team-modal-body').innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div><button onclick="renderPlayerManager()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;margin-bottom:6px">← Volver</button>'
+    +'<div style="font-size:15px;font-weight:800">Links de Check-in</div>'
+    +'<div style="font-size:11px;color:var(--mut)">Mandá el link a cada jugador por WhatsApp</div></div>'
+    +'<button onclick="closeTeamModal()" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>'
+    +'</div><div style="max-height:400px;overflow-y:auto">'+list+'</div>';
+}
+function copyTxt(txt,btn){
+  navigator.clipboard.writeText(txt).then(function(){
+    if(btn){var o=btn.textContent;btn.textContent='✓ Copiado';setTimeout(function(){btn.textContent=o;},2000);}
+  });
+}
+
 function sr(s){return function(){s=(s*9301+49297)%233280;return s/233280;};}
 function ewma(a,l){var e=a[0],r=[a[0]];for(var i=1;i<a.length;i++){e=l*a[i]+(1-l)*e;r.push(+e.toFixed(1));}return r;}
 function avg(a){return a.length?a.reduce(function(s,v){return s+v;},0)/a.length:0;}
@@ -723,8 +813,11 @@ function renderPlantel(){
     }
     return '<div class="pc'+sel+'" data-s="'+ds+'" onclick="selP2('+p.idx+')">'
       +'<div class="pdot"></div>'
-      +'<div class="pn">'+p.name+badges+'</div>'
-      +'<div class="pp">'+p.pos+' · #'+p.num+'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'
+      +playerAvatar(p.idx,26)
+      +'<div style="min-width:0"><div class="pn" style="margin-bottom:0;margin-right:0">'+p.name+badges+'</div>'
+      +'<div class="pp" style="margin-bottom:0">'+p.pos+' · #'+p.num+'</div></div>'
+      +'</div>'
       +acwrRow
       +'<div class="pm"><span class="k">Wellness</span><span class="vv" style="color:'+wc(p.wscore)+'">'+( p.wscore!==null?p.wscore:'—')+'</span></div>'
       +metricRow
@@ -1805,8 +1898,11 @@ function renderCIPlayers(){
     var kt=done?'✓ Completado':'Pendiente';
     return '<div class="pc" data-s="'+ds+'" onclick="ciSelect('+i+')" style="'+bstyle+'">'
       +'<div class="pdot"></div>'
-      +'<div class="pn">'+p.name+'</div>'
-      +'<div class="pp">'+p.pos+' · #'+p.num+'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'
+      +playerAvatar(i,26)
+      +'<div style="min-width:0"><div class="pn" style="margin-bottom:0;margin-right:0">'+p.name+'</div>'
+      +'<div class="pp" style="margin-bottom:0">'+p.pos+' · #'+p.num+'</div></div>'
+      +'</div>'
       +'<div class="pm"><span class="k" style="color:'+kc+'">'+kt+'</span></div>'
       +'</div>';
   }).join('');
@@ -1922,6 +2018,8 @@ function renderPlayerManager(){
         +'<span style="background:var(--b);border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700;color:var(--mut)">#'+p.num+'</span>'
         +'<span style="flex:1;font-weight:600">'+p.name+'</span>'
         +'<span style="color:var(--mut);font-size:11px;width:40px">'+p.pos+'</span>'
+        +'<label style="cursor:pointer;font-size:15px;line-height:1;padding:3px 5px;border-radius:6px;background:rgba(255,255,255,.05)" title="Subir foto">📸'
+        +'<input type="file" accept="image/*" style="display:none" onchange="handlePhotoUpload('+i+',this)"></label>'
         +'<button class="btn-sm btn-red" onclick="removePlayer('+i+')">✕</button>'
         +'</div>';
     }).join('');
@@ -1929,7 +2027,10 @@ function renderPlayerManager(){
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
     +'<div><button onclick="renderTeamList()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;margin-bottom:6px">← Volver</button>'
     +'<div style="font-size:15px;font-weight:800">'+t.name+'</div><div style="font-size:11px;color:var(--mut)">'+t.players.length+' jugadores</div></div>'
+    +'<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">'
     +'<button onclick="closeTeamModal()" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>'
+    +'<button onclick="showPlayerLinks()" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.25);color:var(--acc);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">📲 Links check-in</button>'
+    +'</div>'
     +'</div>'
     +'<div style="background:var(--c);border:1px solid var(--b);border-radius:10px;padding:12px;margin-bottom:12px">'
     +'<div style="font-size:10px;color:var(--acc);font-weight:600;text-transform:uppercase;margin-bottom:10px">+ Agregar jugador</div>'
