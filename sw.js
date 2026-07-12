@@ -1,5 +1,8 @@
-var CACHE = 'atlas-v14';
+var CACHE = 'atlas-v15';
 var SHELL = [
+  '/ctsantiagofleitas/',
+  '/ctsantiagofleitas/index.html',
+  '/ctsantiagofleitas/player.html',
   '/ctsantiagofleitas/icon.svg',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'
 ];
@@ -26,17 +29,21 @@ self.addEventListener('activate', function(e){
 self.addEventListener('fetch', function(e){
   // Supabase y CDN externo: siempre red
   if(e.request.url.indexOf('supabase.co') >= 0) return;
-  // index.html: siempre red para garantizar version actualizada
-  if(e.request.url.indexOf('index.html') >= 0 || e.request.url.endsWith('/ctsantiagofleitas/') || e.request.url.endsWith('/ctsantiagofleitas')) return;
-  // Resto: cache first
+  if(e.request.url.indexOf('cdnjs.cloudflare.com') >= 0){
+    e.respondWith(
+      caches.match(e.request).then(function(r){ return r || fetch(e.request); })
+    );
+    return;
+  }
+  // App shell: red primero, cache como fallback
   e.respondWith(
-    caches.match(e.request).then(function(cached){
-      return cached || fetch(e.request).then(function(resp){
-        return caches.open(CACHE).then(function(c){
-          c.put(e.request, resp.clone());
-          return resp;
-        });
-      });
+    fetch(e.request).then(function(r){
+      var copy = r.clone();
+      caches.open(CACHE).then(function(c){ c.put(e.request, copy); });
+      return r;
+    }).catch(function(){
+      return caches.match(e.request)
+        .then(function(r){ return r || caches.match('/ctsantiagofleitas/'); });
     })
   );
 });
