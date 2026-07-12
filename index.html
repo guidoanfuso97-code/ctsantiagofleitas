@@ -194,6 +194,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="nav" data-tab="neuro" data-title="Estado Neuromuscular">⚡&nbsp; Neuromuscular</div>
     <div class="nav" data-tab="fp" data-title="Force Plates · VALD ForceDecks">🔬&nbsp; Force Plates</div>
     <div class="nav" data-tab="sprints" data-title="Velocidad · Sprints · Fotocélulas">🏃&nbsp; Sprints</div>
+    <div class="nav" data-tab="zonas" data-title="Zonas de Velocidad · Programar Sesión">⚡&nbsp; Zonas Vel.</div>
     <div class="nav" data-tab="fv" data-title="Perfil Fuerza-Velocidad">📐&nbsp; Perfil F-V</div>
     <div class="nav" data-tab="individual" data-title="Perfil Individual">👤&nbsp; Individual</div>
     <div class="nav" data-tab="rpe" data-title="Evaluar RPE Post-Sesión">🎯&nbsp; Evaluar RPE</div>
@@ -237,6 +238,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="tab" id="t-neuro"><select class="psel" id="neuro-sel"></select><div id="neuro-body"></div></div>
     <div class="tab" id="t-fp"></div>
     <div class="tab" id="t-sprints"></div>
+    <div class="tab" id="t-zonas"></div>
     <div class="tab" id="t-fv"></div>
     <div class="tab" id="t-individual"><select class="psel" id="ind-sel"></select><div id="ind-body"></div></div>
     <div class="tab" id="t-rpe"></div>
@@ -4038,6 +4040,413 @@ async function importSprintCSV(){
   alert('✅ '+valid.length+' tests importados correctamente.');
 }
 
+// ===== VELOCITY ZONES MODULE =====
+var VMAX_DATA=[];           // [{team_id,player_idx,vmax_kmh,source,test_date,notes}]
+var ZONAS_VIEW='zonas';     // 'zonas' | 'sesion'
+var ZONAS_ACTIVE_TPL='tempo';
+var ZONAS_P={};             // current param values for active template
+
+var VZ_ZONES=[
+  {id:'z1',name:'Recuperación',    pmin:0,  pmax:55,  col:'rgba(148,163,184,.9)'},
+  {id:'z2',name:'Aeróbico Base',   pmin:55, pmax:65,  col:'rgba(6,214,160,.9)'},
+  {id:'z3',name:'Tempo / Umbral',  pmin:65, pmax:75,  col:'rgba(59,130,246,.9)'},
+  {id:'z4',name:'Alta Int.',       pmin:75, pmax:85,  col:'rgba(245,158,11,.9)'},
+  {id:'z5',name:'Muy Alta Int.',   pmin:85, pmax:95,  col:'rgba(249,115,22,.9)'},
+  {id:'z6',name:'Sprint Máx.',     pmin:95, pmax:100, col:'rgba(244,63,94,.9)'},
+];
+
+var VZ_TPLS=[
+  {id:'aerobico',  name:'Aeróbico',      icon:'🫀',
+   desc:'Trote extensivo de baja-media intensidad. Base aeróbica y recuperación activa.',
+   params:[
+     {k:'pct',     lbl:'% Vmax',   type:'range',min:55,max:70, step:1,   def:62},
+     {k:'duration',lbl:'Duración', type:'num',  min:15,max:60, step:5,   def:35, unit:'min'},
+   ]},
+  {id:'tempo',     name:'Tempo Run',     icon:'🏃',
+   desc:'Carrera continua moderada. Desarrollo aeróbico y umbral anaeróbico.',
+   params:[
+     {k:'pct',     lbl:'% Vmax',   type:'range',min:60,max:80, step:1,   def:70},
+     {k:'duration',lbl:'Duración', type:'num',  min:5, max:60, step:5,   def:20, unit:'min'},
+     {k:'sets',    lbl:'Series',   type:'num',  min:1, max:6,  step:1,   def:1,  unit:''},
+     {k:'rest',    lbl:'Descanso', type:'num',  min:1, max:10, step:0.5, def:3,  unit:'min'},
+   ]},
+  {id:'hiit3030',  name:'HIIT 30-30',    icon:'⚡',
+   desc:'30s trabajo + 30s trote recuperación. Alta intensidad aeróbica intermitente.',
+   params:[
+     {k:'pct',     lbl:'% Vmax trabajo', type:'range',min:80,max:100,step:1,def:90},
+     {k:'pct_rest',lbl:'% Vmax recup.',  type:'range',min:40,max:65, step:1,def:50},
+     {k:'reps',    lbl:'Reps/serie',     type:'num',  min:4, max:20, step:1,def:8,  unit:''},
+     {k:'sets',    lbl:'Series',         type:'num',  min:1, max:6,  step:1,def:3,  unit:''},
+     {k:'rest',    lbl:'Desc. series',   type:'num',  min:2, max:8,  step:0.5,def:4,unit:'min'},
+   ]},
+  {id:'hiit1020',  name:'HIIT 10-20',    icon:'💥',
+   desc:'10s al máximo + 20s pausa pasiva. Alta densidad de sprint, neuromusuclar.',
+   params:[
+     {k:'pct',     lbl:'% Vmax',   type:'range',min:85,max:100,step:1,def:95},
+     {k:'reps',    lbl:'Reps/serie',type:'num',  min:5, max:20, step:1,def:10, unit:''},
+     {k:'sets',    lbl:'Series',    type:'num',  min:2, max:8,  step:1,def:4,  unit:''},
+     {k:'rest',    lbl:'Desc. series',type:'num',min:2, max:6,  step:0.5,def:3,unit:'min'},
+   ]},
+  {id:'sprint',    name:'Sprints',        icon:'🚀',
+   desc:'Sprints máximos con recuperación completa (>1:20 trabajo:descanso). Potencia máxima.',
+   params:[
+     {k:'pct',     lbl:'% Vmax',       type:'range',min:90,max:100,step:1,  def:98},
+     {k:'distance',lbl:'Distancia',    type:'num',  min:10,max:60, step:5,   def:30, unit:'m'},
+     {k:'reps',    lbl:'Repeticiones', type:'num',  min:3, max:12, step:1,   def:6,  unit:''},
+     {k:'rest',    lbl:'Recuperación', type:'num',  min:2, max:8,  step:0.5, def:4,  unit:'min'},
+   ]},
+  {id:'custom',    name:'Personalizado', icon:'✏️',
+   desc:'Configurá la intensidad y volumen que necesitás.',
+   params:[
+     {k:'pct',     lbl:'% Vmax objetivo',  type:'range',min:50,max:100,step:1,def:75},
+     {k:'pct_rest',lbl:'% Vmax recup. (0=pausa)',type:'range',min:0,max:70,step:1,def:0},
+     {k:'duration',lbl:'Duración',         type:'num',  min:1, max:60, step:1,def:15, unit:'min'},
+     {k:'reps',    lbl:'Reps',             type:'num',  min:1, max:20, step:1,def:1,  unit:''},
+     {k:'sets',    lbl:'Series',           type:'num',  min:1, max:8,  step:1,def:1,  unit:''},
+     {k:'rest',    lbl:'Descanso',         type:'num',  min:0, max:10, step:0.5,def:3,unit:'min'},
+   ]},
+];
+
+// Initialize params to defaults for current template
+function vzInitParams(tplId){
+  var tpl=VZ_TPLS.find(function(t){return t.id===tplId;})||VZ_TPLS[0];
+  ZONAS_P={};
+  tpl.params.forEach(function(p){ZONAS_P[p.k]=p.def;});
+}
+
+// Get effective Vmax for player (km/h). Priority: manual override > GPS 28d > Sprints
+function getVmax(pidx){
+  var m=VMAX_DATA.find(function(r){return r.player_idx===pidx;});
+  if(m&&m.vmax_kmh>0) return{val:+m.vmax_kmh,src:'manual',date:m.test_date||''};
+  var p=PL[pidx];
+  if(p&&p.hasGPSDevice&&p.peakVel28>0) return{val:+p.peakVel28.toFixed(1),src:'gps',date:'28d'};
+  // from sprints module: best sprintVmax (m/s) * 3.6
+  var best=null;
+  sprintEntriesFor(pidx).forEach(function(e){var v=sprintVmax(e);if(v&&(best===null||v>best))best=v;});
+  if(best) return{val:+(best*3.6).toFixed(1),src:'sprint',date:''};
+  return null;
+}
+
+function vzPace(kmh){
+  if(!kmh||kmh<=0)return'—';
+  var secs=3600/kmh;
+  var m=Math.floor(secs/60),s=Math.round(secs%60);
+  return m+':'+(s<10?'0':'')+s+' /km';
+}
+function vzSrcBadge(src){
+  var map={gps:'GPS',sprint:'Sprint',manual:'Manual'};
+  var col={gps:'var(--grn)',sprint:'var(--acc)',manual:'var(--pur)'};
+  return'<span style="font-size:9px;background:var(--c);border:1px solid var(--b);border-radius:4px;padding:1px 6px;color:'+(col[src]||'var(--mut)')+'">'+( map[src]||src)+'</span>';
+}
+
+async function loadVmax(){
+  try{VMAX_DATA=await sbGet('player_vmax','team_id=eq.'+TEAM.id);}
+  catch(e){VMAX_DATA=[];}
+}
+
+function renderZonas(){
+  var tab=document.getElementById('t-zonas');if(!tab)return;
+  if(!Object.keys(ZONAS_P).length) vzInitParams(ZONAS_ACTIVE_TPL);
+
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
+    +'<div><div style="font-size:15px;font-weight:700">⚡ Zonas de Velocidad</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">Vmax individual → zonas y prescripción de sesión</div></div>'
+    +'</div>';
+
+  // Sub-tabs
+  html+='<div style="display:flex;gap:6px;margin-bottom:16px">';
+  [{id:'zonas',lbl:'🗂 Plantel · Zonas'},{id:'sesion',lbl:'📋 Programar Sesión'}].forEach(function(t){
+    var a=ZONAS_VIEW===t.id;
+    html+='<button onclick="ZONAS_VIEW=\''+t.id+'\';renderZonas()" style="padding:8px 18px;border-radius:9px;border:1px solid '+(a?'var(--acc)':'var(--b)')+';background:'+(a?'rgba(6,214,160,.08)':'var(--c)')+';color:'+(a?'var(--acc)':'var(--mut)')+';font-size:12px;font-weight:'+(a?700:500)+';cursor:pointer">'+t.lbl+'</button>';
+  });
+  html+='</div>';
+
+  html+= ZONAS_VIEW==='zonas' ? renderZonasView() : renderSesionView();
+  tab.innerHTML=html;
+}
+
+function renderZonasView(){
+  var html='';
+  // Zone legend
+  html+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">';
+  VZ_ZONES.forEach(function(z){
+    html+='<div style="display:flex;align-items:center;gap:5px;background:var(--c);border-radius:6px;padding:4px 10px">'
+      +'<div style="width:8px;height:8px;border-radius:50%;background:'+z.col+'"></div>'
+      +'<span style="font-size:10px;color:var(--mut)">Z'+VZ_ZONES.indexOf(z)+1+' '+z.name+' <strong style="color:var(--txt)">'+z.pmin+'-'+z.pmax+'%</strong></span>'
+      +'</div>';
+  });
+  html+='</div>';
+
+  // Main table
+  html+='<div class="card" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:680px">'
+    +'<thead><tr style="border-bottom:1px solid var(--b)">'
+    +'<th style="padding:8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase">Jugador</th>'
+    +'<th style="padding:8px;text-align:center;font-size:9px;color:var(--mut);text-transform:uppercase">Vmax</th>'
+    +VZ_ZONES.map(function(z,i){return'<th style="padding:8px;text-align:center;font-size:9px;color:var(--mut);text-transform:uppercase">Z'+(i+1)+' '+z.pmin+'-'+z.pmax+'%</th>';}).join('')
+    +'<th style="padding:8px;font-size:9px"></th>'
+    +'</tr></thead><tbody>';
+
+  PL.forEach(function(p,i){
+    var vm=getVmax(i);
+    html+='<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+      +'<td style="padding:8px"><div style="font-size:12px;font-weight:600">'+p.name+'</div><div style="font-size:9px;color:var(--mut)">'+p.pos+'</div></td>'
+      +'<td style="padding:8px;text-align:center">';
+    if(vm){
+      html+='<div style="font-size:13px;font-weight:700;color:var(--acc)">'+vm.val+' <span style="font-size:9px;color:var(--mut)">km/h</span></div>'
+        +'<div style="margin-top:2px">'+vzSrcBadge(vm.src)+'</div>';
+    } else {
+      html+='<span style="font-size:11px;color:var(--mut)">Sin Vmax</span>';
+    }
+    html+='</td>';
+    VZ_ZONES.forEach(function(z){
+      if(!vm){html+='<td style="padding:8px;text-align:center;font-size:10px;color:rgba(255,255,255,.2)">—</td>';return;}
+      var lo=+(vm.val*z.pmin/100).toFixed(1);
+      var hi=+(vm.val*z.pmax/100).toFixed(1);
+      html+='<td style="padding:6px;text-align:center">'
+        +'<div style="background:'+z.col.replace('.9','.12')+';border:1px solid '+z.col.replace('.9','.35')+';border-radius:6px;padding:4px 6px">'
+        +'<div style="font-size:11px;font-weight:700;color:var(--txt)">'+lo+'–'+hi+'</div>'
+        +'<div style="font-size:8px;color:var(--mut)">km/h</div>'
+        +'</div></td>';
+    });
+    html+='<td style="padding:8px"><button onclick="openVmaxEdit('+i+')" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--pur);border-radius:6px;padding:3px 10px;font-size:10px;cursor:pointer">✎ Editar</button></td>';
+    html+='</tr>';
+  });
+
+  html+='</tbody></table></div>';
+
+  // Info card
+  html+='<div class="card" style="margin-top:12px;background:rgba(6,214,160,.04);border-color:rgba(6,214,160,.15)">'
+    +'<div style="font-size:11px;color:var(--mut);line-height:1.7">'
+    +'<strong style="color:var(--acc)">Fuentes de Vmax</strong> — '
+    +'<strong style="color:var(--grn)">GPS</strong>: pico 28 días de Catapult · '
+    +'<strong style="color:var(--acc)">Sprint</strong>: mejor V-máx (20-30m) del módulo Sprints · '
+    +'<strong style="color:var(--pur)">Manual</strong>: override del preparador. '
+    +'El manual tiene prioridad sobre los automáticos.'
+    +'</div></div>';
+  return html;
+}
+
+function renderSesionView(){
+  var tpl=VZ_TPLS.find(function(t){return t.id===ZONAS_ACTIVE_TPL;})||VZ_TPLS[0];
+
+  // Template selector
+  var html='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">';
+  VZ_TPLS.forEach(function(t){
+    var a=t.id===ZONAS_ACTIVE_TPL;
+    html+='<button onclick="ZONAS_ACTIVE_TPL=\''+t.id+'\';vzInitParams(\''+t.id+'\');renderZonas()" '
+      +'style="padding:8px 14px;border-radius:9px;border:1px solid '+(a?'var(--acc)':'var(--b)')+';background:'+(a?'rgba(6,214,160,.08)':'var(--c)')+';color:'+(a?'var(--acc)':'var(--mut)')+';font-size:12px;font-weight:'+(a?700:500)+';cursor:pointer">'
+      +t.icon+' '+t.name+'</button>';
+  });
+  html+='</div>';
+
+  // Template info + params
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">';
+  // Left: description
+  html+='<div class="card" style="padding:14px">'
+    +'<div style="font-size:13px;font-weight:700;margin-bottom:6px">'+tpl.icon+' '+tpl.name+'</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-bottom:10px">'+tpl.desc+'</div>';
+  // Zone badge for this template
+  var mainPct=ZONAS_P[tpl.params[0].k]||tpl.params[0].def;
+  var zone=VZ_ZONES.find(function(z){return mainPct>=z.pmin&&mainPct<z.pmax;})||VZ_ZONES[VZ_ZONES.length-1];
+  html+='<div style="display:inline-flex;align-items:center;gap:6px;background:'+zone.col.replace('.9','.12')+';border:1px solid '+zone.col.replace('.9','.35')+';border-radius:8px;padding:5px 10px">'
+    +'<div style="width:8px;height:8px;border-radius:50%;background:'+zone.col+'"></div>'
+    +'<span style="font-size:11px;font-weight:700;color:var(--txt)">'+mainPct+'% → '+zone.name+'</span>'
+    +'</div></div>';
+  // Right: params
+  html+='<div class="card" style="padding:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin-bottom:10px">Parámetros</div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px">';
+  tpl.params.forEach(function(p){
+    var val=ZONAS_P[p.k]!==undefined?ZONAS_P[p.k]:p.def;
+    html+='<div>'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:4px">'
+      +'<span style="font-size:11px;color:var(--mut)">'+p.lbl+'</span>'
+      +'<span style="font-size:12px;font-weight:700;color:var(--acc)">'+val+(p.unit?' '+p.unit:'')+(p.type==='range'?'%':'')+'</span>'
+      +'</div>';
+    if(p.type==='range'){
+      html+='<input type="range" min="'+p.min+'" max="'+p.max+'" step="'+p.step+'" value="'+val+'"'
+        +' oninput="ZONAS_P[\''+p.k+'\']=+this.value;this.previousElementSibling.lastElementChild.textContent=this.value+\'%\';vzUpdatePrescription()"'
+        +' style="width:100%;accent-color:var(--acc)">';
+    } else {
+      html+='<input type="number" min="'+p.min+'" max="'+p.max+'" step="'+p.step+'" value="'+val+'"'
+        +' oninput="ZONAS_P[\''+p.k+'\']=+this.value;vzUpdatePrescription()"'
+        +' style="width:100%;background:var(--bg2);border:1px solid var(--b);color:var(--txt);border-radius:7px;padding:7px 10px;font-size:13px;font-weight:700;text-align:center;outline:none">';
+    }
+    html+='</div>';
+  });
+  html+='</div></div></div>';
+
+  // Prescription header card
+  var descLine=buildSesionDescLine(tpl,ZONAS_P);
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--acc)">📋 Prescripción individual</div>'
+    +'<button onclick="printZonasPrescription()" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);color:var(--acc);border-radius:8px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">🖨 Imprimir / Exportar</button>'
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-bottom:10px">'+tpl.icon+' '+descLine+'</div>';
+
+  // Prescription table
+  html+='<div id="vz-prescription">'+buildPrescriptionTable(tpl,ZONAS_P)+'</div>';
+  return html;
+}
+
+function buildSesionDescLine(tpl,params){
+  var parts=[tpl.name];
+  tpl.params.forEach(function(p){
+    var v=params[p.k]!==undefined?params[p.k]:p.def;
+    if(p.type==='range') parts.push(p.lbl+': '+v+'%');
+    else if(v) parts.push(p.lbl+': '+v+(p.unit?' '+p.unit:''));
+  });
+  return parts.join(' · ');
+}
+
+function buildPrescriptionTable(tpl,params){
+  var hasDualPct=tpl.params.some(function(p){return p.k==='pct_rest';});
+  var pct=+(params.pct||params.pct_work||tpl.params[0].def);
+  var pctRest=+(params.pct_rest||0);
+
+  var html='<div class="card" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:'+(hasDualPct?'560':'420')+'px">'
+    +'<thead><tr style="border-bottom:1px solid var(--b)">'
+    +'<th style="padding:8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase">Jugador</th>'
+    +'<th style="padding:8px;text-align:center;font-size:9px;color:var(--mut);text-transform:uppercase">Vmax</th>'
+    +'<th style="padding:8px;text-align:center;font-size:9px;color:var(--acc);text-transform:uppercase">'+(hasDualPct?'Trabajo ('+pct+'%)':'Objetivo ('+pct+'%)')+'</th>'
+    +(hasDualPct&&pctRest>0?'<th style="padding:8px;text-align:center;font-size:9px;color:var(--yel);text-transform:uppercase">Recup. ('+pctRest+'%)</th>':'')
+    +'<th style="padding:8px;text-align:center;font-size:9px;color:var(--mut);text-transform:uppercase">Ritmo</th>'
+    +'</tr></thead><tbody>';
+
+  var anyVmax=false;
+  PL.forEach(function(p,i){
+    var vm=getVmax(i);
+    if(!vm){
+      html+='<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+        +'<td style="padding:8px"><div style="font-size:12px;font-weight:600;color:var(--mut)">'+p.name+'</div><div style="font-size:9px;color:rgba(255,255,255,.2)">'+p.pos+'</div></td>'
+        +'<td colspan="'+(hasDualPct&&pctRest>0?4:3)+'" style="padding:8px;text-align:center;font-size:10px;color:rgba(255,255,255,.25)">Sin Vmax — configurar en Plantel · Zonas</td></tr>';
+      return;
+    }
+    anyVmax=true;
+    var tgtKmh=+(vm.val*pct/100).toFixed(1);
+    var tgtMs=+(tgtKmh/3.6).toFixed(2);
+    var rstKmh=pctRest>0?+(vm.val*pctRest/100).toFixed(1):null;
+    var rstMs=rstKmh?+(rstKmh/3.6).toFixed(2):null;
+
+    var zone=VZ_ZONES.find(function(z){return pct>=z.pmin&&pct<z.pmax;})||VZ_ZONES[VZ_ZONES.length-1];
+    html+='<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+      +'<td style="padding:8px"><div style="font-size:12px;font-weight:600">'+p.name+'</div><div style="font-size:9px;color:var(--mut)">'+p.pos+'</div></td>'
+      +'<td style="padding:8px;text-align:center"><div style="font-size:13px;font-weight:700;color:var(--acc)">'+vm.val+'</div><div style="font-size:9px;color:var(--mut)">km/h</div></td>'
+      +'<td style="padding:8px;text-align:center">'
+        +'<div style="background:'+zone.col.replace('.9','.1')+';border:1px solid '+zone.col.replace('.9','.3')+';border-radius:8px;padding:5px 10px">'
+        +'<div style="font-size:14px;font-weight:800;color:var(--txt)">'+tgtKmh+' <span style="font-size:9px;font-weight:400;color:var(--mut)">km/h</span></div>'
+        +'<div style="font-size:9px;color:var(--mut)">'+tgtMs+' m/s</div>'
+        +'</div></td>'
+      +(hasDualPct&&pctRest>0?'<td style="padding:8px;text-align:center">'
+        +'<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:5px 10px">'
+        +'<div style="font-size:13px;font-weight:700;color:var(--txt)">'+rstKmh+' <span style="font-size:9px;color:var(--mut)">km/h</span></div>'
+        +'<div style="font-size:9px;color:var(--mut)">'+rstMs+' m/s</div>'
+        +'</div></td>':'')
+      +'<td style="padding:8px;text-align:center;font-size:12px;font-weight:600;color:var(--mut)">'+vzPace(tgtKmh)+'</td>'
+      +'</tr>';
+  });
+
+  if(!anyVmax){
+    html+='<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--mut)">⚠️ Ningún jugador tiene Vmax configurado.<br>Andá a <strong>Plantel · Zonas</strong> y agregá las velocidades.</td></tr>';
+  }
+  html+='</tbody></table></div>';
+  return html;
+}
+
+function vzUpdatePrescription(){
+  var tpl=VZ_TPLS.find(function(t){return t.id===ZONAS_ACTIVE_TPL;})||VZ_TPLS[0];
+  var el=document.getElementById('vz-prescription');
+  if(el)el.innerHTML=buildPrescriptionTable(tpl,ZONAS_P);
+  // update zone badge in params card
+  var mainPct=ZONAS_P[tpl.params[0].k]||tpl.params[0].def;
+  var zone=VZ_ZONES.find(function(z){return mainPct>=z.pmin&&mainPct<z.pmax;})||VZ_ZONES[VZ_ZONES.length-1];
+}
+
+function printZonasPrescription(){
+  var tpl=VZ_TPLS.find(function(t){return t.id===ZONAS_ACTIVE_TPL;})||VZ_TPLS[0];
+  var descLine=buildSesionDescLine(tpl,ZONAS_P);
+  var table=buildPrescriptionTable(tpl,ZONAS_P);
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Prescripción · '+tpl.name+'</title>'
+    +'<style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#fff;color:#111;padding:24px}'
+    +'h2{font-size:18px;margin:0 0 4px}p{font-size:12px;color:#666;margin:0 0 16px}'
+    +'table{width:100%;border-collapse:collapse;font-size:12px}'
+    +'th,td{padding:8px 10px;border:1px solid #e2e8f0}'
+    +'th{background:#f8fafc;font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.5px}'
+    +'@media print{@page{size:A4 landscape;margin:15mm}}</style></head><body>'
+    +'<h2>'+tpl.icon+' '+tpl.name+' · Prescripción de Velocidad</h2>'
+    +'<p>'+descLine+' · Claypole 2026</p>'
+    +'<div id="c">'+table+'</div>'
+    +'<script>document.getElementById("c").querySelectorAll("button,input").forEach(function(e){e.remove();});window.print();<\/script>'
+    +'</body></html>';
+  var w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
+}
+
+// Vmax manual edit modal
+function openVmaxEdit(pidx){
+  var p=PL[pidx];
+  var vm=getVmax(pidx);
+  var gpsVal=p.hasGPSDevice&&p.peakVel28>0?p.peakVel28.toFixed(1):null;
+  var sprintVal=null;
+  var best=null;
+  sprintEntriesFor(pidx).forEach(function(e){var v=sprintVmax(e);if(v&&(best===null||v>best))best=v;});
+  if(best) sprintVal=(best*3.6).toFixed(1);
+  var manualCurrent=VMAX_DATA.find(function(r){return r.player_idx===pidx;});
+  var currentVal=manualCurrent?manualCurrent.vmax_kmh:'';
+
+  var html='<div style="max-width:400px;margin:0 auto">'
+    +'<h2 style="margin-bottom:4px">✎ Vmax · '+p.name+'</h2>'
+    +'<p style="font-size:11px;color:var(--mut);margin-bottom:16px">'+p.pos+' — El valor manual tiene prioridad sobre GPS y Sprints.</p>';
+
+  // Detected values
+  html+='<div style="display:flex;gap:10px;margin-bottom:16px">';
+  if(gpsVal) html+='<div class="card" style="flex:1;padding:10px;cursor:pointer" onclick="document.getElementById(\'vme-val\').value='+gpsVal+'">'
+    +'<div style="font-size:14px;font-weight:700;color:var(--grn)">'+gpsVal+' km/h</div>'
+    +'<div style="font-size:9px;color:var(--mut)">GPS 28d (usar)</div></div>';
+  if(sprintVal) html+='<div class="card" style="flex:1;padding:10px;cursor:pointer" onclick="document.getElementById(\'vme-val\').value='+sprintVal+'">'
+    +'<div style="font-size:14px;font-weight:700;color:var(--acc)">'+sprintVal+' km/h</div>'
+    +'<div style="font-size:9px;color:var(--mut)">Sprint V-máx (usar)</div></div>';
+  if(!gpsVal&&!sprintVal) html+='<div style="font-size:11px;color:var(--mut);padding:8px 0">Sin datos automáticos detectados. Ingresá el valor manual.</div>';
+  html+='</div>';
+
+  html+='<div style="margin-bottom:12px">'
+    +'<label style="font-size:11px;color:var(--mut);display:block;margin-bottom:6px">Vmax Manual (km/h)</label>'
+    +'<input type="number" id="vme-val" value="'+currentVal+'" step="0.1" min="20" max="45" placeholder="Ej: 32.5"'
+    +' style="width:100%;background:var(--bg2);border:1px solid var(--acc);color:var(--txt);border-radius:9px;padding:12px;font-size:20px;font-weight:900;text-align:center;outline:none;box-sizing:border-box">'
+    +'</div>'
+    +'<div style="margin-bottom:16px">'
+    +'<label style="font-size:11px;color:var(--mut);display:block;margin-bottom:4px">Fecha del test (opcional)</label>'
+    +'<input type="date" id="vme-date" value="'+(manualCurrent&&manualCurrent.test_date?manualCurrent.test_date:TODAY)+'"'
+    +' style="width:100%;background:var(--bg2);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:9px 12px;font-size:12px;outline:none;box-sizing:border-box">'
+    +'</div>'
+    +'<div style="display:flex;gap:10px">'
+    +(manualCurrent?'<button onclick="deleteVmax('+pidx+')" style="flex:1;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);color:var(--red);border-radius:9px;padding:11px;font-size:12px;cursor:pointer">Quitar manual</button>':'')
+    +'<button onclick="closeModal()" style="flex:1;background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:9px;padding:11px;font-size:13px;cursor:pointer">Cancelar</button>'
+    +'<button onclick="saveVmaxEdit('+pidx+')" style="flex:2;background:linear-gradient(90deg,var(--acc),var(--pur));border:none;color:#000;border-radius:9px;padding:11px;font-size:13px;font-weight:700;cursor:pointer">Guardar</button>'
+    +'</div></div>';
+  openModal(html);
+}
+
+async function saveVmaxEdit(pidx){
+  var val=parseFloat(document.getElementById('vme-val').value);
+  var date=document.getElementById('vme-date').value||null;
+  if(!val||val<10||val>50){alert('Ingresá una velocidad válida (10-50 km/h)');return;}
+  var row={team_id:TEAM.id,player_idx:pidx,vmax_kmh:val,source:'manual',test_date:date,notes:''};
+  try{
+    var url=SUPABASE_URL+'/rest/v1/player_vmax?on_conflict=team_id,player_idx';
+    await fetch(url,{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(row)});
+  }catch(e){}
+  // update local
+  VMAX_DATA=VMAX_DATA.filter(function(r){return r.player_idx!==pidx;});
+  VMAX_DATA.push(row);
+  closeModal();renderZonas();
+}
+
+async function deleteVmax(pidx){
+  await sbDelete('player_vmax','team_id=eq.'+TEAM.id+'&player_idx=eq.'+pidx);
+  VMAX_DATA=VMAX_DATA.filter(function(r){return r.player_idx!==pidx;});
+  closeModal();renderZonas();
+}
+
 function renderFV(){
   var tab = document.getElementById('t-fv'); if(!tab) return;
   var ds = fvBuildDataset();
@@ -6178,6 +6587,7 @@ var TABS={
   neuro:{title:'Estado Neuromuscular',render:renderNeuro},
   fp:{title:'Force Plates · VALD ForceDecks',render:renderForcePlates},
   sprints:{title:'Velocidad · Sprints · Fotocélulas',render:renderSprints},
+  zonas:{title:'Zonas de Velocidad · Programar Sesión',render:renderZonas},
   fv:{title:'Perfil Fuerza-Velocidad',render:renderFV},
   individual:{title:'Perfil Individual',render:renderIndividual},
   rpe:{title:'Evaluar RPE Post-Sesión',render:renderRPETab},
@@ -6294,6 +6704,7 @@ async function initATLAS(){
     loadEvals(),
     loadForcePlates(),
     loadSprints(),
+    loadVmax(),
     loadPartidosCustom(),
     loadDocs(),
     loadLesiones()
