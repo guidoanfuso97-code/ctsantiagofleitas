@@ -193,6 +193,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="nav" data-tab="wellness" data-title="Monitor de Wellness">💚&nbsp; Wellness</div>
     <div class="nav" data-tab="neuro" data-title="Estado Neuromuscular">⚡&nbsp; Neuromuscular</div>
     <div class="nav" data-tab="fp" data-title="Force Plates · VALD ForceDecks">🔬&nbsp; Force Plates</div>
+    <div class="nav" data-tab="sprints" data-title="Velocidad · Sprints · Fotocélulas">🏃&nbsp; Sprints</div>
     <div class="nav" data-tab="fv" data-title="Perfil Fuerza-Velocidad">📐&nbsp; Perfil F-V</div>
     <div class="nav" data-tab="individual" data-title="Perfil Individual">👤&nbsp; Individual</div>
     <div class="nav" data-tab="rpe" data-title="Evaluar RPE Post-Sesión">🎯&nbsp; Evaluar RPE</div>
@@ -235,6 +236,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="tab" id="t-wellness"><div id="wellness-body"></div></div>
     <div class="tab" id="t-neuro"><select class="psel" id="neuro-sel"></select><div id="neuro-body"></div></div>
     <div class="tab" id="t-fp"></div>
+    <div class="tab" id="t-sprints"></div>
     <div class="tab" id="t-fv"></div>
     <div class="tab" id="t-individual"><select class="psel" id="ind-sel"></select><div id="ind-body"></div></div>
     <div class="tab" id="t-rpe"></div>
@@ -3624,6 +3626,418 @@ function fvClassify(force, vel, meanF, meanV){
   return FV_QUADRANTS[3];                     // develop
 }
 
+// ===== SPRINTS MODULE =====
+var SPRINT_DATA=[];
+var SPRINT_VIEW='plantel';   // 'plantel' | 'individual'
+var SPRINT_PLAYER=0;
+
+// Benchmarks (lower = faster = better). Threshold = tiempo máximo para esa categoría
+var SP_BENCH={
+  t5: {elite:1.04,good:1.10},
+  t10:{elite:1.74,good:1.86},
+  t20:{elite:2.87,good:3.05},
+  t30:{elite:3.87,good:4.10}
+};
+var SP_DIST=[5,10,20,30];
+
+async function loadSprints(){
+  try{SPRINT_DATA=await sbGet('sprints','team_id=eq.'+TEAM.id+'&order=date.asc');}
+  catch(e){SPRINT_DATA=[];}
+}
+
+function sprintEntriesFor(pidx){
+  return SPRINT_DATA.filter(function(r){return r.player_idx===pidx;})
+    .sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+}
+function sprintBest(pidx,key){
+  var entries=sprintEntriesFor(pidx).filter(function(r){return r[key]!==null&&r[key]!==undefined;});
+  if(!entries.length)return null;
+  return Math.min.apply(null,entries.map(function(r){return+r[key];}));
+}
+function sprintTimeColor(key,val){
+  if(val===null||val===undefined)return'var(--mut)';
+  var b=SP_BENCH[key];if(!b)return'var(--txt)';
+  return val<=b.elite?'var(--grn)':val<=b.good?'var(--yel)':'var(--red)';
+}
+function sprintVmax(entry){
+  if(!entry||entry.t20===null||entry.t30===null)return null;
+  var split=entry.t30-entry.t20;if(split<=0)return null;
+  return+(10/split).toFixed(2);
+}
+function sprintFmt(v){return v!==null&&v!==undefined?(+v).toFixed(2):'—';}
+
+function renderSprints(){
+  var tab=document.getElementById('t-sprints');if(!tab)return;
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
+    +'<div><div style="font-size:15px;font-weight:700">🏃 Velocidad · Sprints</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">5m · 10m · 20m · 30m · Fotocélulas WinLaborat</div></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<button onclick="openSprintCSV()" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);color:var(--acc);border-radius:8px;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer">📥 Importar CSV</button>'
+    +'<button onclick="openSprintManual(-1)" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--pur);border-radius:8px;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Registrar Test</button>'
+    +'</div></div>';
+
+  // Sub-tabs
+  html+='<div style="display:flex;gap:6px;margin-bottom:16px">';
+  [{id:'plantel',lbl:'👥 Plantel'},{id:'individual',lbl:'👤 Individual'}].forEach(function(t){
+    var a=SPRINT_VIEW===t.id;
+    html+='<button onclick="SPRINT_VIEW=\''+t.id+'\';renderSprints()" style="padding:8px 18px;border-radius:9px;border:1px solid '+(a?'var(--acc)':'var(--b)')+';background:'+(a?'rgba(6,214,160,.08)':'var(--c)')+';color:'+(a?'var(--acc)':'var(--mut)')+';font-size:12px;font-weight:'+(a?700:500)+';cursor:pointer">'+t.lbl+'</button>';
+  });
+  html+='</div>';
+
+  if(SPRINT_VIEW==='plantel') html+=renderSprintsPlantel();
+  else html+=renderSprintsIndividual();
+
+  tab.innerHTML=html;
+
+  // Draw trend chart if individual view has data
+  if(SPRINT_VIEW==='individual'){
+    var entries=sprintEntriesFor(SPRINT_PLAYER);
+    if(entries.length>1) drawSprintChart(entries);
+  }
+}
+
+function renderSprintsPlantel(){
+  var keys=['t5','t10','t20','t30'];
+  var html='<div class="card" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:500px">'
+    +'<thead><tr style="border-bottom:1px solid var(--b)">'
+    +'<th style="padding:8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase">Jugador</th>'
+    +'<th style="padding:8px;text-align:right;font-size:9px;color:var(--mut);text-transform:uppercase">5m</th>'
+    +'<th style="padding:8px;text-align:right;font-size:9px;color:var(--mut);text-transform:uppercase">10m</th>'
+    +'<th style="padding:8px;text-align:right;font-size:9px;color:var(--mut);text-transform:uppercase">20m</th>'
+    +'<th style="padding:8px;text-align:right;font-size:9px;color:var(--mut);text-transform:uppercase">30m</th>'
+    +'<th style="padding:8px;text-align:right;font-size:9px;color:var(--mut);text-transform:uppercase">V-máx m/s</th>'
+    +'<th style="padding:8px;text-align:right;font-size:9px;color:var(--mut);text-transform:uppercase">Tests</th>'
+    +'<th style="padding:8px;font-size:9px;color:var(--mut)"></th>'
+    +'</tr></thead><tbody>';
+
+  PL.forEach(function(p,i){
+    var entries=sprintEntriesFor(i);
+    var latest=entries.length?entries[entries.length-1]:null;
+    var vmaxBest=null;
+    entries.forEach(function(e){var v=sprintVmax(e);if(v&&(vmaxBest===null||v>vmaxBest))vmaxBest=v;});
+    html+='<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="SPRINT_PLAYER='+i+';SPRINT_VIEW=\'individual\';renderSprints()">'
+      +'<td style="padding:8px"><div style="font-size:12px;font-weight:600">'+p.name+'</div><div style="font-size:9px;color:var(--mut)">'+p.pos+'</div></td>';
+    keys.forEach(function(k){
+      var b=sprintBest(i,k);
+      html+='<td style="padding:8px;text-align:right;font-size:12px;font-weight:700;color:'+sprintTimeColor(k,b)+'">'+sprintFmt(b)+(b!==null?'<span style="font-size:9px;color:var(--mut)"> s</span>':'')+'</td>';
+    });
+    var vmaxCol=vmaxBest!==null?(vmaxBest>=9.0?'var(--grn)':vmaxBest>=8.0?'var(--yel)':'var(--red)'):'var(--mut)';
+    html+='<td style="padding:8px;text-align:right;font-size:12px;font-weight:700;color:'+vmaxCol+'">'+(vmaxBest!==null?vmaxBest.toFixed(2)+'<span style="font-size:9px;color:var(--mut)"> m/s</span>':'—')+'</td>'
+      +'<td style="padding:8px;text-align:right;font-size:11px;color:var(--mut)">'+entries.length+'</td>'
+      +'<td style="padding:8px"><button onclick="event.stopPropagation();openSprintManual('+i+')" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--pur);border-radius:6px;padding:3px 10px;font-size:10px;cursor:pointer">+</button></td>'
+      +'</tr>';
+  });
+
+  html+='</tbody></table></div>';
+
+  // Benchmarks legend
+  html+='<div class="card" style="margin-top:12px"><h3 style="margin-bottom:10px">📊 Referencias</h3>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:16px">';
+  [['t5','5m'],['t10','10m'],['t20','20m'],['t30','30m']].forEach(function(kl){
+    var b=SP_BENCH[kl[0]];
+    html+='<div style="min-width:120px">'
+      +'<div style="font-size:10px;color:var(--mut);font-weight:700;margin-bottom:4px">'+kl[1]+'</div>'
+      +'<div style="font-size:11px;color:var(--grn)">● Élite &lt;'+b.elite+'s</div>'
+      +'<div style="font-size:11px;color:var(--yel)">● Bueno &lt;'+b.good+'s</div>'
+      +'<div style="font-size:11px;color:var(--red)">● En desarrollo ≥'+b.good+'s</div>'
+      +'</div>';
+  });
+  html+='</div></div>';
+  return html;
+}
+
+function renderSprintsIndividual(){
+  var p=PL[SPRINT_PLAYER];
+  var entries=sprintEntriesFor(SPRINT_PLAYER);
+  var latest=entries.length?entries[entries.length-1]:null;
+  var prev=entries.length>1?entries[entries.length-2]:null;
+
+  // Player selector
+  var html='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
+    +'<select onchange="SPRINT_PLAYER=+this.value;renderSprints()" style="background:var(--bg2);border:1px solid var(--acc);border-radius:8px;padding:7px 12px;color:var(--acc);font-size:12px;font-weight:700;outline:none;cursor:pointer">'
+    +PL.map(function(pl,i){return'<option value="'+i+'"'+(i===SPRINT_PLAYER?' selected':'')+'>'+pl.name+'</option>';}).join('')
+    +'</select>'
+    +'<button onclick="openSprintManual('+SPRINT_PLAYER+')" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--pur);border-radius:8px;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Test</button>'
+    +'</div>';
+
+  // KPI cards
+  var keys=['t5','t10','t20','t30'];
+  var labels=['5m','10m','20m','30m'];
+  html+='<div class="g4 mb">';
+  keys.forEach(function(k,i){
+    var best=sprintBest(SPRINT_PLAYER,k);
+    var latestVal=latest?latest[k]:null;
+    var prevVal=prev?prev[k]:null;
+    var delta=(latestVal!==null&&latestVal!==undefined&&prevVal!==null&&prevVal!==undefined)?+(latestVal-prevVal).toFixed(3):null;
+    var col=sprintTimeColor(k,best);
+    html+='<div class="card">'
+      +'<div class="mval" style="color:'+col+'">'+(best!==null?best.toFixed(2):'—')+(best!==null?'<span style="font-size:11px;color:var(--mut)"> s</span>':'')+'</div>'
+      +'<div class="mlbl">Mejor '+labels[i]+'</div>'
+      +(delta!==null
+        ?'<div style="font-size:10px;font-weight:700;color:'+(delta<0?'var(--grn)':'var(--red)')+'">'+( delta<0?'↑ Mejora ':delta>0?'↓ ':'')+Math.abs(delta).toFixed(3)+' s</div>'
+        :'<div class="msub">'+(latest?latest.date:'Sin datos')+'</div>')
+      +'</div>';
+  });
+  // V-máx card
+  var vmaxBest=null;
+  entries.forEach(function(e){var v=sprintVmax(e);if(v&&(vmaxBest===null||v>vmaxBest))vmaxBest=v;});
+  var vmaxLatest=latest?sprintVmax(latest):null;
+  var vmaxCol=vmaxBest!==null?(vmaxBest>=9.0?'var(--grn)':vmaxBest>=8.0?'var(--yel)':'var(--red)'):'var(--mut)';
+  html+='<div class="card"><div class="mval" style="color:'+vmaxCol+'">'+(vmaxBest!==null?vmaxBest.toFixed(2):'—')+(vmaxBest!==null?'<span style="font-size:11px;color:var(--mut)"> m/s</span>':'')+'</div><div class="mlbl">V-máx (20-30m)</div>'
+    +(vmaxLatest!==null?'<div class="msub">Último: '+vmaxLatest.toFixed(2)+' m/s</div>':'<div class="msub">Sin datos</div>')
+    +'</div>';
+  html+='</div>';
+
+  // Trend chart
+  if(entries.length>1){
+    html+='<div class="card mb"><h3>📈 Evolución · '+p.name+'</h3><div class="cwl"><canvas id="sprint-trend-c"></canvas></div></div>';
+  }
+
+  // History table
+  if(entries.length){
+    html+='<div class="card"><h3>📋 Historial · '+p.name+'</h3><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:480px">'
+      +'<thead><tr style="border-bottom:1px solid var(--b)">'
+      +'<th style="padding:7px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase">Fecha</th>'
+      +'<th style="padding:7px;text-align:right;font-size:9px;color:var(--mut)">5m</th>'
+      +'<th style="padding:7px;text-align:right;font-size:9px;color:var(--mut)">10m</th>'
+      +'<th style="padding:7px;text-align:right;font-size:9px;color:var(--mut)">20m</th>'
+      +'<th style="padding:7px;text-align:right;font-size:9px;color:var(--mut)">30m</th>'
+      +'<th style="padding:7px;text-align:right;font-size:9px;color:var(--mut)">V0-10</th>'
+      +'<th style="padding:7px;text-align:right;font-size:9px;color:var(--mut)">V10-20</th>'
+      +'<th style="padding:7px;text-align:right;font-size:9px;color:var(--mut)">V-máx</th>'
+      +'<th style="padding:7px;font-size:9px;color:var(--mut)">Fuente</th>'
+      +'<th></th>'
+      +'</tr></thead><tbody>'
+      +entries.slice().reverse().slice(0,15).map(function(e){
+        var v010=e.t10?+(10/e.t10).toFixed(2):null;
+        var v1020=(e.t10&&e.t20&&(e.t20-e.t10)>0)?+(10/(e.t20-e.t10)).toFixed(2):null;
+        var vmax=sprintVmax(e);
+        var vmxCol=vmax?(vmax>=9?'var(--grn)':vmax>=8?'var(--yel)':'var(--red)'):'var(--mut)';
+        return'<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+          +'<td style="padding:7px;font-size:11px;font-weight:600">'+e.date+'</td>'
+          +['t5','t10','t20','t30'].map(function(k){
+            var v=e[k];
+            return'<td style="padding:7px;text-align:right;font-size:11px;font-weight:600;color:'+sprintTimeColor(k,v)+'">'+(v!=null?parseFloat(v).toFixed(2):'—')+(v!=null?' <span style="font-size:9px;color:var(--mut)">s</span>':'')+'</td>';
+          }).join('')
+          +'<td style="padding:7px;text-align:right;font-size:11px;color:var(--acc)">'+(v010!==null?v010+' <span style="font-size:9px;color:var(--mut)">m/s</span>':'—')+'</td>'
+          +'<td style="padding:7px;text-align:right;font-size:11px;color:var(--pur)">'+(v1020!==null?v1020+' <span style="font-size:9px;color:var(--mut)">m/s</span>':'—')+'</td>'
+          +'<td style="padding:7px;text-align:right;font-size:11px;font-weight:700;color:'+vmxCol+'">'+(vmax!==null?vmax+' <span style="font-size:9px;color:var(--mut)">m/s</span>':'—')+'</td>'
+          +'<td style="padding:7px"><span style="font-size:9px;background:var(--c);border:1px solid var(--b);border-radius:4px;padding:1px 6px;color:var(--mut)">'+(e.source==='csv'?'CSV':'Manual')+'</span></td>'
+          +'<td style="padding:7px"><button onclick="deleteSprintEntry(\''+e.id+'\')" style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);color:var(--red);border-radius:5px;padding:2px 8px;font-size:10px;cursor:pointer">✕</button></td>'
+          +'</tr>';
+      }).join('')
+      +'</tbody></table></div></div>';
+  } else {
+    html+='<div class="card" style="text-align:center;padding:32px;color:var(--mut)">Sin datos para '+p.name+'<br><button onclick="openSprintManual('+SPRINT_PLAYER+')" style="margin-top:12px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--pur);border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer">+ Registrar primer test</button></div>';
+  }
+  return html;
+}
+
+function drawSprintChart(entries){
+  setTimeout(function(){
+    var canvas=document.getElementById('sprint-trend-c');if(!canvas)return;
+    var labels=entries.map(function(e){return e.date;});
+    var datasets=[
+      {label:'5m (s)',data:entries.map(function(e){return e.t5||null;}),borderColor:'#06d6a0',tension:.3,fill:false,spanGaps:true},
+      {label:'10m (s)',data:entries.map(function(e){return e.t10||null;}),borderColor:'#8b5cf6',tension:.3,fill:false,spanGaps:true},
+      {label:'20m (s)',data:entries.map(function(e){return e.t20||null;}),borderColor:'#f59e0b',tension:.3,fill:false,spanGaps:true},
+      {label:'30m (s)',data:entries.map(function(e){return e.t30||null;}),borderColor:'#f43f5e',tension:.3,fill:false,spanGaps:true}
+    ];
+    if(window.sprintChart){try{window.sprintChart.destroy();}catch(e){}}
+    window.sprintChart=new Chart(canvas,{type:'line',data:{labels:labels,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'var(--mut)',font:{size:11}}}},scales:{y:{ticks:{color:'var(--mut)'},grid:{color:'rgba(255,255,255,.06)'},title:{display:true,text:'Tiempo (s)',color:'var(--mut)'}},x:{ticks:{color:'var(--mut)'},grid:{color:'rgba(255,255,255,.06)'}}}}});
+  },100);
+}
+
+function openSprintManual(pidx){
+  if(pidx<0)pidx=0;
+  var playerOpts=PL.map(function(p,i){return'<option value="'+i+'"'+(i===pidx?' selected':'')+'>'+p.name+'</option>';}).join('');
+  var html='<div style="max-width:460px;margin:0 auto">'
+    +'<h2 style="margin-bottom:16px">🏃 Registrar Test de Velocidad</h2>'
+    +'<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div><label style="font-size:11px;color:var(--mut);display:block;margin-bottom:4px">Jugador</label>'
+    +'<select id="sp-player" style="width:100%;background:var(--bg2);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:9px 12px;font-size:13px;outline:none">'+playerOpts+'</select></div>'
+    +'<div><label style="font-size:11px;color:var(--mut);display:block;margin-bottom:4px">Fecha</label>'
+    +'<input type="date" id="sp-date" value="'+TODAY+'" style="width:100%;background:var(--bg2);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;box-sizing:border-box"></div>'
+    +'<div class="g4">'
+    +['5m','10m','20m','30m'].map(function(d,i){
+      var key=['t5','t10','t20','t30'][i];
+      return'<div><label style="font-size:11px;color:var(--mut);display:block;margin-bottom:4px">'+d+' (s)</label>'
+        +'<input type="number" id="sp-'+key+'" placeholder="1.00" step="0.001" min="0.5" max="15" oninput="sprintPreviewCalc()"'
+        +' style="width:100%;background:var(--bg2);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:9px 10px;font-size:14px;font-weight:700;outline:none;box-sizing:border-box;text-align:center"></div>';
+    }).join('')
+    +'</div>'
+    +'<div id="sp-preview" style="background:var(--c);border:1px solid var(--b);border-radius:10px;padding:12px;display:none">'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin-bottom:8px">Velocidades calculadas</div>'
+    +'<div id="sp-preview-vals" style="display:flex;gap:16px;flex-wrap:wrap"></div>'
+    +'</div>'
+    +'<div><label style="font-size:11px;color:var(--mut);display:block;margin-bottom:4px">Notas</label>'
+    +'<input type="text" id="sp-notes" placeholder="Condición pista, calzado, contexto..." style="width:100%;background:var(--bg2);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:9px 12px;font-size:12px;outline:none;box-sizing:border-box"></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:10px;margin-top:20px">'
+    +'<button onclick="closeModal()" style="flex:1;background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:9px;padding:12px;font-size:13px;cursor:pointer">Cancelar</button>'
+    +'<button onclick="saveSprintManual()" style="flex:2;background:linear-gradient(90deg,var(--acc),var(--pur));border:none;color:#000;border-radius:9px;padding:12px;font-size:13px;font-weight:700;cursor:pointer">Guardar Test</button>'
+    +'</div></div>';
+  openModal(html);
+}
+
+function sprintPreviewCalc(){
+  var t5=parseFloat(document.getElementById('sp-t5').value)||null;
+  var t10=parseFloat(document.getElementById('sp-t10').value)||null;
+  var t20=parseFloat(document.getElementById('sp-t20').value)||null;
+  var t30=parseFloat(document.getElementById('sp-t30').value)||null;
+  var prev=document.getElementById('sp-preview');
+  var vals=document.getElementById('sp-preview-vals');
+  if(!prev||!vals)return;
+  var items=[];
+  if(t10)items.push({label:'V 0-10',val:(10/t10).toFixed(2)+' m/s',col:'var(--acc)'});
+  if(t10&&t20&&t20>t10)items.push({label:'V 10-20',val:(10/(t20-t10)).toFixed(2)+' m/s',col:'var(--pur)'});
+  if(t20&&t30&&t30>t20)items.push({label:'V-máx',val:(10/(t30-t20)).toFixed(2)+' m/s',col:'var(--yel)'});
+  if(t30)items.push({label:'V media',val:(30/t30).toFixed(2)+' m/s',col:'var(--mut)'});
+  if(items.length){
+    prev.style.display='block';
+    vals.innerHTML=items.map(function(it){return'<div><div style="font-size:14px;font-weight:700;color:'+it.col+'">'+it.val+'</div><div style="font-size:9px;color:var(--mut)">'+it.label+'</div></div>';}).join('');
+  } else{prev.style.display='none';}
+}
+
+async function saveSprintManual(){
+  var pidx=parseInt(document.getElementById('sp-player').value);
+  var date=document.getElementById('sp-date').value;
+  var t5=parseFloat(document.getElementById('sp-t5').value)||null;
+  var t10=parseFloat(document.getElementById('sp-t10').value)||null;
+  var t20=parseFloat(document.getElementById('sp-t20').value)||null;
+  var t30=parseFloat(document.getElementById('sp-t30').value)||null;
+  var notes=document.getElementById('sp-notes').value||'';
+  if(!date){alert('Ingresá la fecha');return;}
+  if(t5===null&&t10===null&&t20===null&&t30===null){alert('Ingresá al menos un tiempo');return;}
+  var row={team_id:TEAM.id,player_idx:pidx,date:date,t5:t5,t10:t10,t20:t20,t30:t30,notes:notes,source:'manual'};
+  try{
+    var res=await sbInsertReturn('sprints',row);
+    if(res&&res.length)SPRINT_DATA.push(res[0]);
+    else SPRINT_DATA.push(Object.assign({id:'tmp_'+Date.now()},row));
+  }catch(e){SPRINT_DATA.push(Object.assign({id:'tmp_'+Date.now()},row));}
+  SPRINT_PLAYER=pidx;SPRINT_VIEW='individual';
+  closeModal();renderSprints();
+}
+
+async function deleteSprintEntry(id){
+  if(!confirm('¿Eliminar este test?'))return;
+  await sbDelete('sprints','id=eq.'+id);
+  SPRINT_DATA=SPRINT_DATA.filter(function(r){return r.id!==id;});
+  renderSprints();
+}
+
+// ===== CSV IMPORT WINLABORAT =====
+function openSprintCSV(){
+  var playerList=PL.map(function(p,i){return'<li style="font-size:11px;color:var(--mut)"><strong>'+p.name+'</strong></li>';}).join('');
+  var html='<div style="max-width:520px;margin:0 auto">'
+    +'<h2 style="margin-bottom:4px">📥 Importar CSV WinLaborat</h2>'
+    +'<p style="font-size:11px;color:var(--mut);margin-bottom:14px">Pegá el contenido del CSV exportado por WinLaborat. Formato esperado (separado por ; o ,):</p>'
+    +'<div style="background:var(--c);border:1px solid var(--b);border-radius:8px;padding:10px;font-size:10px;color:var(--acc);font-family:monospace;margin-bottom:14px;overflow-x:auto;white-space:nowrap">'
+    +'Nombre;Fecha;5m;10m;20m;30m<br>'
+    +'Lucas Pérez;2026-07-12;1.050;1.820;3.010;4.050<br>'
+    +'Martín Gómez;2026-07-12;;1.840;3.020;4.080'
+    +'</div>'
+    +'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Jugadores del plantel:</div><ul style="margin:0;padding-left:16px;columns:2;-webkit-columns:2">'+playerList+'</ul></div>'
+    +'<textarea id="sp-csv-area" placeholder="Pegá aquí el CSV..." style="width:100%;height:160px;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:10px;color:var(--txt);font-size:12px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>'
+    +'<div id="sp-csv-preview" style="margin-top:10px"></div>'
+    +'<div style="display:flex;gap:10px;margin-top:14px">'
+    +'<button onclick="closeModal()" style="flex:1;background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:9px;padding:12px;font-size:13px;cursor:pointer">Cancelar</button>'
+    +'<button onclick="previewSprintCSV()" style="flex:1;background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);color:var(--acc);border-radius:9px;padding:12px;font-size:13px;font-weight:700;cursor:pointer">Previsualizar</button>'
+    +'<button onclick="importSprintCSV()" style="flex:2;background:linear-gradient(90deg,var(--acc),var(--pur));border:none;color:#000;border-radius:9px;padding:12px;font-size:13px;font-weight:700;cursor:pointer">Importar</button>'
+    +'</div></div>';
+  openModal(html);
+}
+
+function parseSprintCSVText(text){
+  var lines=text.trim().split('\n').filter(function(l){return l.trim();});
+  if(lines.length<2)return[];
+  // detect separator
+  var sep=lines[0].includes(';')?';':',';
+  var header=lines[0].split(sep).map(function(h){return h.trim().replace(/"/g,'').toLowerCase();});
+  // find column indices (flexible)
+  function colIdx(names){for(var i=0;i<header.length;i++){for(var j=0;j<names.length;j++){if(header[i].includes(names[j]))return i;}}return-1;}
+  var iName=colIdx(['nombre','name','atleta','athlete','jugador']);
+  var iDate=colIdx(['fecha','date']);
+  var i5=colIdx(['5m','5 m','t5','split5','tiempo5','d5']);
+  var i10=colIdx(['10m','10 m','t10','split10','tiempo10','d10']);
+  var i20=colIdx(['20m','20 m','t20','split20','tiempo20','d20']);
+  var i30=colIdx(['30m','30 m','t30','split30','tiempo30','d30']);
+  if(iName<0)iName=0;
+  if(iDate<0)iDate=1;
+  var parsed=[];
+  for(var li=1;li<lines.length;li++){
+    var cols=lines[li].split(sep).map(function(c){return c.trim().replace(/"/g,'');});
+    if(!cols[iName])continue;
+    var rawDate=cols[iDate]||TODAY;
+    // normalize date: dd/mm/yyyy → yyyy-mm-dd
+    var dateStr=rawDate;
+    if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rawDate)){
+      var dp=rawDate.split('/');dateStr=dp[2]+'-'+dp[1].padStart(2,'0')+'-'+dp[0].padStart(2,'0');
+    } else if(/^\d{1,2}-\d{1,2}-\d{4}$/.test(rawDate)){
+      var dp2=rawDate.split('-');dateStr=dp2[2]+'-'+dp2[1].padStart(2,'0')+'-'+dp2[0].padStart(2,'0');
+    }
+    function parseT(idx){if(idx<0||!cols[idx])return null;var v=parseFloat(cols[idx].replace(',','.'));return isNaN(v)?null:v;}
+    // match player name to plantel
+    var name=cols[iName].trim().toLowerCase();
+    var pidx=PL.findIndex(function(p){
+      var pn=p.name.toLowerCase();
+      return pn===name||pn.includes(name)||name.includes(pn)||
+        pn.split(' ')[0]===name.split(' ')[0]; // match by first name
+    });
+    parsed.push({name:cols[iName],playerIdx:pidx,date:dateStr,t5:parseT(i5),t10:parseT(i10),t20:parseT(i20),t30:parseT(i30)});
+  }
+  return parsed;
+}
+
+function previewSprintCSV(){
+  var text=document.getElementById('sp-csv-area').value;
+  var parsed=parseSprintCSVText(text);
+  var prev=document.getElementById('sp-csv-preview');if(!prev)return;
+  if(!parsed.length){prev.innerHTML='<div style="color:var(--red);font-size:11px">No se pudo parsear el CSV. Revisá el formato.</div>';return;}
+  var html='<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--mut);margin-bottom:6px">'+parsed.length+' filas detectadas:</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
+    +'<thead><tr style="border-bottom:1px solid var(--b)">'
+    +'<th style="padding:4px 6px;text-align:left;color:var(--mut)">Nombre CSV</th>'
+    +'<th style="padding:4px 6px;color:var(--mut)">Mapea a</th>'
+    +'<th style="padding:4px 6px;color:var(--mut)">5m</th>'
+    +'<th style="padding:4px 6px;color:var(--mut)">10m</th>'
+    +'<th style="padding:4px 6px;color:var(--mut)">20m</th>'
+    +'<th style="padding:4px 6px;color:var(--mut)">30m</th>'
+    +'</tr></thead><tbody>'
+    +parsed.map(function(r){
+      var found=r.playerIdx>=0;
+      return'<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+        +'<td style="padding:4px 6px">'+r.name+'</td>'
+        +'<td style="padding:4px 6px;font-weight:700;color:'+(found?'var(--grn)':'var(--red)')+'">'+( found?PL[r.playerIdx].name:'⚠️ No encontrado')+'</td>'
+        +'<td style="padding:4px 6px;text-align:right">'+sprintFmt(r.t5)+'</td>'
+        +'<td style="padding:4px 6px;text-align:right">'+sprintFmt(r.t10)+'</td>'
+        +'<td style="padding:4px 6px;text-align:right">'+sprintFmt(r.t20)+'</td>'
+        +'<td style="padding:4px 6px;text-align:right">'+sprintFmt(r.t30)+'</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div>';
+  prev.innerHTML=html;
+}
+
+async function importSprintCSV(){
+  var text=document.getElementById('sp-csv-area').value;
+  var parsed=parseSprintCSVText(text);
+  var valid=parsed.filter(function(r){return r.playerIdx>=0;});
+  if(!valid.length){alert('No se encontraron jugadores del plantel. Verificá los nombres.');return;}
+  var rows=valid.map(function(r){return{team_id:TEAM.id,player_idx:r.playerIdx,date:r.date,t5:r.t5,t10:r.t10,t20:r.t20,t30:r.t30,notes:'',source:'csv'};});
+  try{
+    for(var i=0;i<rows.length;i++){
+      var res=await sbInsertReturn('sprints',rows[i]);
+      if(res&&res.length)SPRINT_DATA.push(res[0]);
+      else SPRINT_DATA.push(Object.assign({id:'tmp_'+Date.now()+'_'+i},rows[i]));
+    }
+  }catch(e){rows.forEach(function(r,i){SPRINT_DATA.push(Object.assign({id:'tmp_'+Date.now()+'_'+i},r));});}
+  closeModal();
+  SPRINT_VIEW='plantel';
+  renderSprints();
+  alert('✅ '+valid.length+' tests importados correctamente.');
+}
+
 function renderFV(){
   var tab = document.getElementById('t-fv'); if(!tab) return;
   var ds = fvBuildDataset();
@@ -5763,6 +6177,7 @@ var TABS={
   wellness:{title:'Monitor de Wellness',render:renderWellness},
   neuro:{title:'Estado Neuromuscular',render:renderNeuro},
   fp:{title:'Force Plates · VALD ForceDecks',render:renderForcePlates},
+  sprints:{title:'Velocidad · Sprints · Fotocélulas',render:renderSprints},
   fv:{title:'Perfil Fuerza-Velocidad',render:renderFV},
   individual:{title:'Perfil Individual',render:renderIndividual},
   rpe:{title:'Evaluar RPE Post-Sesión',render:renderRPETab},
@@ -5878,6 +6293,7 @@ async function initATLAS(){
     loadCampoEntries(),
     loadEvals(),
     loadForcePlates(),
+    loadSprints(),
     loadPartidosCustom(),
     loadDocs(),
     loadLesiones()
