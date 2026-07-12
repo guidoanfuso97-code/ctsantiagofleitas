@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ATLAS · Check-in</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100vh;background:#0f172a;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif}
+:root{--acc:#06d6a0;--pur:#8b5cf6;--yel:#f59e0b;--red:#f43f5e;--grn:#10b981;--mut:#64748b}
+input,select,button{font-family:inherit;-webkit-appearance:none}
+.card{background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;margin-bottom:10px}
+.q-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--acc);margin-bottom:3px}
+.q-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:4px}
+.q-btn{height:52px;border-radius:10px;background:#0f172a;border:1.5px solid rgba(255,255,255,.1);color:#64748b;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,border-color .12s,color .12s}
+.q-btn.sel{border-width:2px}
+.q-hints{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);padding:0 1px}
+.tog-row{display:flex;gap:8px;margin-top:10px}
+.tog{flex:1;padding:11px;border-radius:10px;background:#0f172a;border:1.5px solid rgba(255,255,255,.1);color:#64748b;font-size:13px;font-weight:700;cursor:pointer;text-align:center;transition:all .15s}
+.tog.sel{border-color:var(--acc);color:var(--acc);background:rgba(6,214,160,.07)}
+.rpe-grid{display:grid;grid-template-columns:repeat(11,1fr);gap:3px;margin-bottom:6px}
+.rpe-btn{height:48px;border-radius:8px;background:#0f172a;border:1.5px solid rgba(255,255,255,.1);color:#64748b;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.rpe-btn.sel{border-width:2px}
+.btn-main{width:100%;padding:17px;border-radius:14px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.3px;transition:opacity .15s}
+.btn-main:active{opacity:.8}
+.sec-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);margin-bottom:10px;padding:0 2px}
+.spin{width:36px;height:36px;border:3px solid rgba(255,255,255,.1);border-top-color:var(--acc);border-radius:50%;animation:sp .7s linear infinite;margin:0 auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fi .25s ease}
+.bp-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);text-align:center;margin-bottom:6px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var SB='https://gbgvcipaeipanfciwylg.supabase.co';
+var SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3ZjaXBhZWlwYW5mY2l3eWxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjMzMzgsImV4cCI6MjA5NjIzOTMzOH0.taAZnfsb8YX50DoPVuk1az8YppWZVD_WAiW8oh9kXT8';
+var P=new URLSearchParams(location.search);
+var TID=P.get('t')||'';
+var PIDX=parseInt(P.get('p'));
+var TODAY=new Date().toISOString().slice(0,10);
+var PLAYER={name:'',pos:'',num:1};
+var TNAME='ATLAS';
+var ANS={};
+var DOLOR={};
+var RPE_VAL=null;
+var RPE_DUR=90;
+var TRAINED=null;
+var SHOW_MAP=false;
+var DONE=false;
+
+var CIQ=[
+  {id:'sleep', em:'😴', lbl:'Calidad de Sueño',  txt:'¿Cómo dormiste anoche?',       gh:true,  lo:'Muy mal',   hi:'Excelente'},
+  {id:'energy',em:'⚡', lbl:'Nivel de Energía',   txt:'¿Cómo está tu energía hoy?',   gh:true,  lo:'Sin energía',hi:'Lleno'},
+  {id:'stress',em:'🧠', lbl:'Nivel de Estrés',    txt:'¿Cómo te sentís mentalmente?', gh:false, lo:'Sin estrés', hi:'Muy estresado'},
+  {id:'doms',  em:'💪', lbl:'Dolor Muscular',     txt:'¿Cómo están tus músculos?',    gh:false, lo:'Sin dolor',  hi:'Muy dolorido'},
+  {id:'fatigue',em:'🔋',lbl:'Fatiga',             txt:'¿Qué tan fatigado te sentís?', gh:false, lo:'Sin fatiga', hi:'Muy fatigado'}
+];
+var RPED=['Reposo','Muy leve','Leve','Moderado','Algo intenso','Intenso','Intenso+','Muy intenso','Muy intenso+','Casi máximo','Máximo'];
+
+var _BG='rgba(158,170,184,.9)';
+var BP_F=[
+  ['head','Cabeza','path','d="M37,2 Q50,0 63,2 Q67,10 67,19 Q65,28 50,28 Q35,28 33,19 Q33,10 37,2 Z"'],
+  ['neck_f','Cuello','path','d="M44,28 L56,28 L56,40 L44,40 Z"'],
+  ['l_shoulder','Hombro Izq','path','d="M44,40 Q30,42 17,54 L17,66 L30,62 L30,40 Z"'],
+  ['r_shoulder','Hombro Der','path','d="M56,40 Q70,42 83,54 L83,66 L70,62 L70,40 Z"'],
+  ['chest','Pecho','path','d="M30,62 L70,62 L68,94 L32,94 Z"'],
+  ['abdomen','Abdomen','path','d="M32,94 L68,94 L66,114 L34,114 Z"'],
+  ['l_arm','Bícep Izq','path','d="M17,66 L5,72 L3,108 L17,108 Z"'],
+  ['r_arm','Bícep Der','path','d="M83,66 L95,72 L97,108 L83,108 Z"'],
+  ['l_forearm','Anteb. Izq','path','d="M17,108 L3,108 L2,148 L17,148 Z"'],
+  ['r_forearm','Anteb. Der','path','d="M83,108 L97,108 L98,148 L83,148 Z"'],
+  ['l_groin','Ingle Izq','path','d="M34,114 L50,114 L48,130 L28,133 Q26,124 28,118 Z"'],
+  ['r_groin','Ingle Der','path','d="M66,114 L50,114 L52,130 L72,133 Q74,124 72,118 Z"'],
+  ['l_quad','Cuádric. Izq','path','d="M28,133 L48,130 L46,176 Q40,183 34,181 L23,170 L23,142 Z"'],
+  ['r_quad','Cuádric. Der','path','d="M72,133 L52,130 L54,176 Q60,183 66,181 L77,170 L77,142 Z"'],
+  ['l_knee_f','Rodilla Izq','path','d="M23,170 L34,181 L46,181 L46,200 L21,200 Q19,189 21,175 Z"'],
+  ['r_knee_f','Rodilla Der','path','d="M77,170 L66,181 L54,181 L54,200 L79,200 Q81,189 79,175 Z"'],
+  ['l_shin','Tibial Izq','path','d="M21,200 L46,200 L44,238 L19,238 Z"'],
+  ['r_shin','Tibial Der','path','d="M79,200 L54,200 L56,238 L81,238 Z"'],
+  ['l_foot_f','Pie Izq','path','d="M17,238 L44,238 L42,250 Q30,252 15,248 Z"'],
+  ['r_foot_f','Pie Der','path','d="M83,238 L56,238 L58,250 Q70,252 85,248 Z"']
+];
+var BP_B=[
+  ['head_b','Cabeza','path','d="M37,2 Q50,0 63,2 Q67,10 67,19 Q65,28 50,28 Q35,28 33,19 Q33,10 37,2 Z"'],
+  ['nuca','Nuca','path','d="M44,28 L56,28 L56,40 L44,40 Z"'],
+  ['l_trap','Trap. Izq','path','d="M44,40 Q30,42 17,54 L17,66 L30,62 L30,40 Z"'],
+  ['r_trap','Trap. Der','path','d="M56,40 Q70,42 83,54 L83,66 L70,62 L70,40 Z"'],
+  ['upper_back','Espalda Alta','path','d="M30,62 L70,62 L68,94 L32,94 Z"'],
+  ['lower_back','Lumbar','path','d="M32,94 L68,94 L66,114 L34,114 Z"'],
+  ['l_arm_b','Trícep Izq','path','d="M17,66 L5,72 L3,108 L17,108 Z"'],
+  ['r_arm_b','Trícep Der','path','d="M83,66 L95,72 L97,108 L83,108 Z"'],
+  ['l_forearm_b','Anteb. Izq','path','d="M17,108 L3,108 L2,148 L17,148 Z"'],
+  ['r_forearm_b','Anteb. Der','path','d="M83,108 L97,108 L98,148 L83,148 Z"'],
+  ['l_glute','Glúteo Izq','path','d="M34,114 L50,114 L48,130 L28,133 Q26,124 28,118 Z"'],
+  ['r_glute','Glúteo Der','path','d="M66,114 L50,114 L52,130 L72,133 Q74,124 72,118 Z"'],
+  ['l_hamstring','Isquio Izq','path','d="M28,133 L48,130 L46,176 Q40,183 34,181 L23,170 L23,142 Z"'],
+  ['r_hamstring','Isquio Der','path','d="M72,133 L52,130 L54,176 Q60,183 66,181 L77,170 L77,142 Z"'],
+  ['l_knee_b','Rodilla Izq','path','d="M23,170 L34,181 L46,181 L46,200 L21,200 Q19,189 21,175 Z"'],
+  ['r_knee_b','Rodilla Der','path','d="M77,170 L66,181 L54,181 L54,200 L79,200 Q81,189 79,175 Z"'],
+  ['l_calf','Gemelo Izq','path','d="M21,200 L46,200 L44,238 L19,238 Z"'],
+  ['r_calf','Gemelo Der','path','d="M79,200 L54,200 L56,238 L81,238 Z"'],
+  ['l_heel','Talón Izq','path','d="M17,238 L44,238 L42,250 Q30,252 15,248 Z"'],
+  ['r_heel','Talón Der','path','d="M83,238 L56,238 L58,250 Q70,252 85,248 Z"']
+];
+
+function sbH(){return{'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json'};}
+async function sbGet(t,f){var r=await fetch(SB+'/rest/v1/'+t+'?'+(f||''),{headers:sbH()});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sbUp(t,d){
+  var r=await fetch(SB+'/rest/v1/'+t+'?on_conflict=team_id,player_idx,date',{
+    method:'POST',
+    headers:Object.assign({},sbH(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
+    body:JSON.stringify(d)
+  });
+  if(!r.ok)throw new Error(await r.text());
+}
+
+function bpC(lv){return lv===0?[_BG,'rgba(255,255,255,.72)']:lv===1?['rgba(22,163,74,.82)','rgba(255,255,255,.82)']:lv===2?['rgba(234,179,8,.88)','rgba(255,255,255,.82)']:['rgba(220,38,38,.9)','rgba(255,255,255,.82)'];}
+function bpZH(z){var c=bpC(DOLOR[z[0]]||0);return '<path id="pbz-'+z[0]+'" '+z[3]+' fill="'+c[0]+'" stroke="'+c[1]+'" stroke-width="1.3" stroke-linejoin="round" onclick="bpTap(\''+z[0]+'\')" style="cursor:pointer"/>';}
+function bpSvg(z,t){return '<div><div class="bp-title">'+t+'</div><svg viewBox="-1 0 102 254" xmlns="http://www.w3.org/2000/svg" style="width:140px;max-width:43vw;overflow:visible">'+z.map(bpZH).join('')+'</svg></div>';}
+function bpTap(id){
+  DOLOR[id]=((DOLOR[id]||0)+1)%4;
+  var c=bpC(DOLOR[id]);
+  var el=document.getElementById('pbz-'+id);
+  if(el){el.setAttribute('fill',c[0]);el.setAttribute('stroke',c[1]);}
+  var allZ=BP_F.concat(BP_B),zd=allZ.find(function(z){return z[0]===id;}),leg=document.getElementById('bp-leg');
+  if(leg&&zd){var lv=DOLOR[id],t=lv===0?'Sin dolor':lv===1?'Leve':lv===2?'Moderado':'Intenso',col=lv===0?'#64748b':lv===1?'#10b981':lv===2?'#f59e0b':'#f43f5e';leg.innerHTML=zd[1]+': <span style="color:'+col+';font-weight:700">'+t+'</span>';}
+}
+
+function qBtnCol(q,n){return q.gh?(n<=3?'#f43f5e':n<=6?'#f59e0b':'#10b981'):(n<=3?'#10b981':n<=6?'#f59e0b':'#f43f5e');}
+function rpeCol(n){return n===0?'#64748b':n<=2?'#10b981':n<=4?'#22d3ee':n<=6?'#f59e0b':n<=8?'#f97316':'#f43f5e';}
+function calcWS(){var a=ANS;if(!a.sleep||!a.energy||!a.stress||!a.doms||!a.fatigue)return null;return +((a.sleep+a.energy+(10-a.stress)+(10-a.doms)+(10-a.fatigue))/5).toFixed(1);}
+
+function avHtml(name,idx,size){
+  var s=size||52;
+  var url=SB+'/storage/v1/object/public/avatars/'+TID+'/'+idx+'.jpg';
+  var nm=name.split(' ');
+  var ini=((nm[0]||'')[0]||'')+((nm[1]||'')[0]||'');
+  var cols=['#06d6a0','#8b5cf6','#f59e0b','#f43f5e','#3b82f6','#22d3ee','#a855f7','#14b8a6'];
+  var col=cols[idx%cols.length];
+  var fs=Math.round(s*0.38);
+  return '<div style="position:relative;width:'+s+'px;height:'+s+'px;border-radius:50%;overflow:hidden;flex-shrink:0;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:800;color:rgba(0,0,0,.75)">'
+    +'<span>'+ini.toUpperCase()+'</span>'
+    +'<img src="'+url+'" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">'
+    +'</div>';
+}
+
+function showLoading(){
+  document.getElementById('app').innerHTML='<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px"><div class="spin"></div><div style="font-size:13px;color:var(--mut)">Cargando...</div></div>';
+}
+function showError(msg){
+  document.getElementById('app').innerHTML='<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center"><div style="font-size:52px;margin-bottom:16px">😕</div><div style="font-size:18px;font-weight:800;margin-bottom:8px">Link inválido</div><div style="font-size:13px;color:var(--mut)">'+msg+'</div></div>';
+}
+
+function renderForm(){
+  var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var mes=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var now=new Date();
+  var fecha=dias[now.getDay()]+' '+now.getDate()+' '+mes[now.getMonth()];
+
+  var wqs=CIQ.map(function(q){
+    var btns=[1,2,3,4,5,6,7,8,9,10].map(function(n){
+      var sel=ANS[q.id]===n;
+      var c=qBtnCol(q,n);
+      return '<button class="q-btn'+(sel?' sel':'')+'" onclick="pickQ(\''+q.id+'\','+n+')" style="background:'+(sel?c:'#0f172a')+';border:'+( sel?'2px':'1.5px')+' solid '+(sel?c:'rgba(255,255,255,.1)')+';color:'+(sel?'rgba(0,0,0,.8)':c)+'">'+n+'</button>';
+    }).join('');
+    return '<div class="card fi"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:26px">'+q.em+'</span><div><div class="q-label">'+q.lbl+'</div><div style="font-size:14px;font-weight:700">'+q.txt+'</div></div></div><div class="q-grid">'+btns+'</div><div class="q-hints"><span>'+q.lo+'</span><span>'+q.hi+'</span></div></div>';
+  }).join('');
+
+  var mapContent='';
+  if(SHOW_MAP){
+    mapContent='<div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:12px">'
+      +bpSvg(BP_F,'Vista Frontal')+bpSvg(BP_B,'Vista Trasera')+'</div>'
+      +'<div id="bp-leg" style="text-align:center;font-size:12px;color:var(--mut);margin-top:8px;min-height:18px">Tocá la zona · 4x para quitar</div>';
+  }
+
+  var rpeContent='';
+  if(TRAINED===true){
+    var rpeBtns=[0,1,2,3,4,5,6,7,8,9,10].map(function(n){
+      var sel=RPE_VAL===n;
+      var c=rpeCol(n);
+      return '<button class="rpe-btn'+(sel?' sel':'')+'" onclick="pickRPE('+n+')" style="background:'+(sel?c:'#0f172a')+';border:'+( sel?'2px':'1.5px')+' solid '+(sel?c:'rgba(255,255,255,.1)')+';color:'+(sel?'rgba(0,0,0,.8)':c)+'">'+n+'</button>';
+    }).join('');
+    rpeContent='<div style="margin-top:14px">'
+      +'<div style="font-size:13px;font-weight:700;margin-bottom:4px">Esfuerzo percibido (CR-10)</div>'
+      +'<div class="rpe-grid">'+rpeBtns+'</div>'
+      +'<div style="text-align:center;font-size:13px;color:'+(RPE_VAL!==null?rpeCol(RPE_VAL):'#64748b')+';font-weight:700;margin-bottom:12px">'+(RPE_VAL!==null?RPED[RPE_VAL]:'—')+'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px">'
+      +'<label style="font-size:12px;color:#64748b;white-space:nowrap">Duración (min)</label>'
+      +'<input type="number" value="'+RPE_DUR+'" min="10" max="240" style="flex:1;background:#0f172a;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:15px;font-weight:700" oninput="RPE_DUR=parseInt(this.value)||90">'
+      +'</div></div>';
+  }
+
+  var doneBanner=DONE?
+    '<div style="background:rgba(6,214,160,.07);border:1px solid rgba(6,214,160,.2);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:14px">'
+    +'<span style="font-size:18px">✅</span><div><div style="font-size:13px;font-weight:700;color:var(--acc)">Ya completaste el check-in de hoy</div><div style="font-size:11px;color:#64748b;margin-top:1px">Podés actualizarlo si querés</div></div></div>':'';
+
+  document.getElementById('app').innerHTML=
+    '<div style="max-width:480px;margin:0 auto;padding:20px 16px;padding-bottom:calc(36px + env(safe-area-inset-bottom))">'
+    // Header
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">'
+    +'<div style="font-size:22px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#06d6a0,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">ATLAS</div>'
+    +'<div style="font-size:11px;color:#64748b">'+TNAME+'</div>'
+    +'</div>'
+    // Player card
+    +'<div style="display:flex;align-items:center;gap:12px;background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 16px;margin-bottom:18px">'
+    +avHtml(PLAYER.name,PIDX,50)
+    +'<div><div style="font-size:16px;font-weight:800">'+PLAYER.name+'</div>'
+    +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+PLAYER.pos+' · #'+PLAYER.num+' · '+fecha+'</div>'
+    +'</div></div>'
+    +doneBanner
+    // Wellness
+    +'<div class="sec-title">Bienestar del día</div>'
+    +wqs
+    // Body map
+    +'<div class="card"><div style="display:flex;align-items:flex-start;justify-content:space-between"><div><div style="font-size:15px;font-weight:700;margin-bottom:2px">🗺️ Mapa de dolor</div><div style="font-size:11px;color:#64748b">¿Tenés algún dolor específico hoy?</div></div></div>'
+    +'<div class="tog-row"><button class="tog'+(SHOW_MAP?' sel':'')+'" onclick="setMap(true)">Sí</button><button class="tog'+(!SHOW_MAP?' sel':'')+'" onclick="setMap(false)">No</button></div>'
+    +'<div id="map-wrap">'+mapContent+'</div>'
+    +'</div>'
+    // RPE
+    +'<div class="card"><div style="font-size:15px;font-weight:700;margin-bottom:2px">📊 RPE del entrenamiento</div>'
+    +'<div style="font-size:11px;color:#64748b;margin-bottom:10px">¿Entrenaron hoy?</div>'
+    +'<div class="tog-row"><button class="tog'+(TRAINED===true?' sel':'')+'" onclick="setTrained(true)">Sí</button><button class="tog'+(TRAINED===false?' sel':'')+'" onclick="setTrained(false)">No entrenamos</button></div>'
+    +rpeContent
+    +'</div>'
+    // Submit
+    +'<button class="btn-main" id="sub-btn" onclick="submit()">Enviar check-in ✓</button>'
+    +'</div>';
+}
+
+function renderDone(){
+  var ws=calcWS();
+  var wc=ws>=7?'#10b981':ws>=5?'#f59e0b':'#f43f5e';
+  var fn=PLAYER.name.split(' ')[0];
+  var boxes=CIQ.map(function(q){
+    var v=ANS[q.id];
+    var c=v?(q.gh?(v>=7?'#10b981':v>=4?'#f59e0b':'#f43f5e'):(v<=3?'#10b981':v<=6?'#f59e0b':'#f43f5e')):'#64748b';
+    return '<div style="background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 8px;text-align:center;min-width:0">'
+      +'<div style="font-size:20px;font-weight:900;color:'+c+'">'+(v||'—')+'</div>'
+      +'<div style="font-size:16px;margin-top:2px">'+q.em+'</div>'
+      +'</div>';
+  }).join('');
+  var rpeBox=TRAINED===true&&RPE_VAL!==null
+    ?'<div style="background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:16px;text-align:center;margin-top:12px">'
+    +'<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">RPE · sRPE</div>'
+    +'<div style="font-size:28px;font-weight:900;color:'+rpeCol(RPE_VAL)+'">'+RPE_VAL+' <span style="font-size:13px;color:#64748b">/ '+Math.round(RPE_VAL*RPE_DUR)+' AU</span></div>'
+    +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+RPED[RPE_VAL]+'</div>'
+    +'</div>':'';
+  document.getElementById('app').innerHTML=
+    '<div style="max-width:480px;margin:0 auto;padding:40px 20px;text-align:center;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center">'
+    +'<div style="font-size:64px;margin-bottom:14px">🙌</div>'
+    +'<div style="font-size:24px;font-weight:900;margin-bottom:6px">¡Listo, '+fn+'!</div>'
+    +'<div style="font-size:13px;color:#64748b;margin-bottom:28px">Check-in registrado correctamente</div>'
+    +(ws!==null?'<div style="background:rgba(6,214,160,.07);border:1px solid rgba(6,214,160,.2);border-radius:14px;padding:20px;width:100%;margin-bottom:14px"><div style="font-size:10px;color:#06d6a0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wellness Score</div><div style="font-size:48px;font-weight:900;color:'+wc+'">'+ws+'</div><div style="font-size:10px;color:#64748b;margin-top:3px">'+(ws>=7?'Excelente':ws>=5?'Bien':'A trabajar')+'</div></div>':'')
+    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:100%;margin-bottom:0">'+boxes+'</div>'
+    +rpeBox
+    +'</div>';
+}
+
+function setY(scrollY){window.scrollTo(0,scrollY);}
+function pickQ(id,n){ANS[id]=n;var sy=scrollY;renderForm();setY(sy);}
+function pickRPE(n){RPE_VAL=n;var sy=scrollY;renderForm();setY(sy);}
+function setMap(v){SHOW_MAP=v;if(!v)DOLOR={};var sy=scrollY;renderForm();setY(sy);}
+function setTrained(v){TRAINED=v;if(!v)RPE_VAL=null;var sy=scrollY;renderForm();setY(sy);}
+
+async function submit(){
+  if(!ANS.sleep||!ANS.energy||!ANS.stress||!ANS.doms||!ANS.fatigue){
+    alert('Por favor completá todas las preguntas de bienestar antes de enviar.');
+    return;
+  }
+  var btn=document.getElementById('sub-btn');
+  if(btn){btn.textContent='Enviando...';btn.style.opacity='.6';btn.disabled=true;}
+  try{
+    await sbUp('wellness',{team_id:TID,player_idx:PIDX,date:TODAY,sleep:ANS.sleep,energy:ANS.energy,stress:ANS.stress,doms:ANS.doms,fatigue:ANS.fatigue});
+    await sbUp('dolor',{team_id:TID,player_idx:PIDX,date:TODAY,zones:DOLOR||{}});
+    if(TRAINED===true&&RPE_VAL!==null){
+      await sbUp('rpe',{team_id:TID,player_idx:PIDX,date:TODAY,rpe_value:RPE_VAL,duration:RPE_DUR,srpe:RPE_VAL*RPE_DUR});
+    }
+    renderDone();
+  }catch(e){
+    if(btn){btn.textContent='Enviar check-in ✓';btn.style.opacity='';btn.disabled=false;}
+    alert('Error al guardar: '+e.message);
+  }
+}
+
+async function init(){
+  showLoading();
+  if(!TID||isNaN(PIDX)||PIDX<0){showError('Link de jugador inválido. Pedile al cuerpo técnico que te mande el link correcto.');return;}
+  try{
+    var rows=await sbGet('teams','id=eq.'+TID+'&select=name,players');
+    if(!rows||!rows.length){showError('Equipo no encontrado.');return;}
+    TNAME=rows[0].name||'ATLAS';
+    var pls=rows[0].players||[];
+    if(PIDX>=pls.length){showError('Jugador no encontrado en el equipo.');return;}
+    PLAYER=pls[PIDX];
+    // Load today's data if already submitted
+    try{var wr=await sbGet('wellness','team_id=eq.'+TID+'&player_idx=eq.'+PIDX+'&date=eq.'+TODAY);
+      if(wr&&wr.length){DONE=true;var w=wr[0];ANS={sleep:w.sleep,energy:w.energy,stress:w.stress,doms:w.doms,fatigue:w.fatigue};}
+    }catch(e){}
+    try{var dr=await sbGet('dolor','team_id=eq.'+TID+'&player_idx=eq.'+PIDX+'&date=eq.'+TODAY);
+      if(dr&&dr.length&&dr[0].zones){DOLOR=dr[0].zones;if(Object.keys(DOLOR).length>0)SHOW_MAP=true;}
+    }catch(e){}
+    try{var rr=await sbGet('rpe','team_id=eq.'+TID+'&player_idx=eq.'+PIDX+'&date=eq.'+TODAY);
+      if(rr&&rr.length){TRAINED=true;RPE_VAL=rr[0].rpe_value;RPE_DUR=rr[0].duration||90;}
+    }catch(e){}
+    renderForm();
+  }catch(e){showError('Error de conexión. Verificá tu internet e intentá de nuevo.');}
+}
+init();
+</script>
+</body>
+</html>
