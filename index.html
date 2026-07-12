@@ -516,34 +516,46 @@ async function handlePhotoUpload(pidx,input){
   }
 }
 var _PLINKS=[];
+function teamSlug(name){
+  // Extract the most distinctive word (longest word) from team name, lowercase
+  var words=(name||'').split(/\s+/).filter(function(w){return w.length>2;});
+  return (words.sort(function(a,b){return b.length-a.length;})[0]||name).toLowerCase();
+}
 function showPlayerLinks(){
   if(!TM_EDIT)return;
-  _PLINKS=TM_EDIT.players.map(function(p,i){
-    return 'https://guidoanfuso97-code.github.io/ctsantiagofleitas/player.html?t='+TM_EDIT.id+'&p='+i;
-  });
+  var slug=teamSlug(TM_EDIT.name);
+  var baseUrl='https://guidoanfuso97-code.github.io/ctsantiagofleitas/player.html?e='+slug;
+  _PLINKS=TM_EDIT.players.map(function(p){return baseUrl;});
   var list=TM_EDIT.players.map(function(p,i){
     var nm=p.name.split(' ');var ini=((nm[0]||'')[0]||'')+((nm[1]||'')[0]||'');
     var cols=['#06d6a0','#8b5cf6','#f59e0b','#f43f5e','#3b82f6','#22d3ee'];
     var col=cols[i%cols.length];
     var avUrl=SUPABASE_URL+'/storage/v1/object/public/avatars/'+TM_EDIT.id+'/'+i+'.jpg';
-    var av='<div style="position:relative;width:34px;height:34px;border-radius:50%;overflow:hidden;flex-shrink:0;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:rgba(0,0,0,.75)">'
+    var av='<div style="position:relative;width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:rgba(0,0,0,.75)">'
       +'<span>'+ini.toUpperCase()+'</span>'
       +'<img src="'+avUrl+'" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">'
       +'</div>';
-    return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+    return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:9px 12px;display:flex;align-items:center;gap:9px;margin-bottom:5px">'
       +av
       +'<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700">'+p.name+'</div>'
-      +'<div style="font-size:10px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+_PLINKS[i]+'</div></div>'
-      +'<button onclick="copyTxt(_PLINKS['+i+'],this)" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.25);color:var(--acc);border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0">Copiar</button>'
+      +'<div style="font-size:10px;color:var(--mut)">entra su número <span style="color:var(--acc);font-weight:700">#'+p.num+'</span></div></div>'
       +'</div>';
   }).join('');
   $('team-modal-body').innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
     +'<div><button onclick="renderPlayerManager()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;margin-bottom:6px">← Volver</button>'
-    +'<div style="font-size:15px;font-weight:800">Links de Check-in</div>'
-    +'<div style="font-size:11px;color:var(--mut)">Mandá el link a cada jugador por WhatsApp</div></div>'
+    +'<div style="font-size:15px;font-weight:800">Portal de Jugadores</div>'
+    +'<div style="font-size:11px;color:var(--mut)">Compartí este link con todo el plantel por WhatsApp</div></div>'
     +'<button onclick="closeTeamModal()" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>'
-    +'</div><div style="max-height:400px;overflow-y:auto">'+list+'</div>';
+    +'</div>'
+    // One link for the whole team
+    +'<div style="background:rgba(6,214,160,.07);border:1px solid rgba(6,214,160,.25);border-radius:12px;padding:14px 16px;margin-bottom:12px">'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--acc);margin-bottom:6px">Link del equipo</div>'
+    +'<div style="font-size:12px;font-family:monospace;color:var(--txt);word-break:break-all;margin-bottom:10px">'+baseUrl+'</div>'
+    +'<button onclick="copyTxt(\''+baseUrl+'\',this)" style="width:100%;padding:10px;border-radius:8px;background:rgba(6,214,160,.15);border:1px solid rgba(6,214,160,.3);color:var(--acc);font-size:12px;font-weight:800;cursor:pointer">📋 Copiar link</button>'
+    +'</div>'
+    +'<div style="font-size:10px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Cada jugador ingresa su número</div>'
+    +'<div style="max-height:260px;overflow-y:auto">'+list+'</div>';
 }
 function copyTxt(txt,btn){
   navigator.clipboard.writeText(txt).then(function(){
