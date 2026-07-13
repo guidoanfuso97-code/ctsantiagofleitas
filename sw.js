@@ -1,4 +1,4 @@
-var CACHE = 'atlas-v15';
+var CACHE = 'atlas-v16';
 var SHELL = [
   '/ctsantiagofleitas/',
   '/ctsantiagofleitas/index.html',
