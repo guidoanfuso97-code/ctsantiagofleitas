@@ -6493,65 +6493,69 @@ async function renderMicrociclo(){
 }
 
 // ===== BODY MAP =====
-var _BG='rgba(79,98,121,.92)';
+var _BG='rgba(120,135,155,.96)';
 var BP_F=[
-  ['head',       'Cabeza',        'path','d="M50,2 C62,2 68,9 68,17 C68,25 62,30 50,30 C38,30 32,25 32,17 C32,9 38,2 50,2 Z"'],
-  ['neck_f',     'Cuello',        'path','d="M45,30 L55,30 L55,41 L45,41 Z"'],
-  ['l_shoulder', 'Hombro Izq',    'path','d="M45,41 L28,41 Q14,49 12,60 L12,70 Q20,66 28,63 L28,41 Z"'],
-  ['r_shoulder', 'Hombro Der',    'path','d="M55,41 L72,41 L72,63 Q80,66 88,70 L88,60 Q86,49 72,41 Z"'],
-  ['chest',      'Pecho',         'path','d="M28,63 Q50,60 72,63 L70,95 Q50,97 30,95 Z"'],
-  ['abdomen',    'Abdomen',       'path','d="M30,95 Q50,97 70,95 L68,117 Q50,119 32,117 Z"'],
-  ['l_arm',      'Bícep Izq',     'path','d="M12,70 Q4,76 3,92 L3,108 L17,108 Q15,90 12,70 Z"'],
-  ['r_arm',      'Bícep Der',     'path','d="M88,70 Q96,76 97,92 L97,108 L83,108 Q85,90 88,70 Z"'],
-  ['l_forearm',  'Anteb. Izq',    'path','d="M3,108 L17,108 L17,148 L4,148 Z"'],
-  ['r_forearm',  'Anteb. Der',    'path','d="M97,108 L83,108 L83,148 L96,148 Z"'],
-  ['l_groin',    'Ingle Izq',     'path','d="M32,117 Q50,119 50,117 L49,133 Q37,137 25,133 Q24,124 27,119 Z"'],
-  ['r_groin',    'Ingle Der',     'path','d="M68,117 Q50,119 50,117 L51,133 Q63,137 75,133 Q76,124 73,119 Z"'],
-  ['l_quad',     'Cuádric. Izq',  'path','d="M25,133 Q37,137 49,133 L47,179 Q41,184 34,182 L21,172 Q20,152 25,133 Z"'],
-  ['r_quad',     'Cuádric. Der',  'path','d="M75,133 Q63,137 51,133 L53,179 Q59,184 66,182 L79,172 Q80,152 75,133 Z"'],
-  ['l_knee_f',   'Rodilla Izq',   'path','d="M21,172 L34,182 L47,182 L47,200 L19,200 Q17,190 19,174 Z"'],
-  ['r_knee_f',   'Rodilla Der',   'path','d="M79,172 L66,182 L53,182 L53,200 L81,200 Q83,190 81,174 Z"'],
-  ['l_shin',     'Tibial Izq',    'path','d="M19,200 L47,200 Q46,220 44,238 L17,238 Q17,220 19,200 Z"'],
-  ['r_shin',     'Tibial Der',    'path','d="M81,200 L53,200 Q54,220 56,238 L83,238 Q83,220 81,200 Z"'],
-  ['l_foot_f',   'Pie Izq',       'path','d="M15,238 L44,238 Q42,249 27,251 Q12,249 12,244 Z"'],
-  ['r_foot_f',   'Pie Der',       'path','d="M85,238 L56,238 Q58,249 73,251 Q88,249 88,244 Z"']
+  ['head',       'Cabeza',        'path','d="M50,2 C63,2 69,9 69,18 C69,27 63,32 50,32 C37,32 31,27 31,18 C31,9 37,2 50,2 Z"'],
+  ['neck_f',     'Cuello',        'path','d="M45,32 L55,32 L55,44 L45,44 Z"'],
+  ['l_shoulder', 'Hombro Izq',    'path','d="M45,44 L25,44 Q11,53 9,66 L9,76 Q17,71 25,68 L25,44 Z"'],
+  ['r_shoulder', 'Hombro Der',    'path','d="M55,44 L75,44 Q89,53 91,66 L91,76 Q83,71 75,68 L75,44 Z"'],
+  ['chest',      'Pecho',         'path','d="M25,68 Q50,63 75,68 L73,100 Q50,103 27,100 Z"'],
+  ['abdomen',    'Abdomen',       'path','d="M27,100 Q50,103 73,100 L72,122 L28,122 Z"'],
+  ['l_arm',      'Bícep Izq',     'path','d="M9,76 Q1,83 0,100 L0,116 L14,116 Q12,98 9,76 Z"'],
+  ['r_arm',      'Bícep Der',     'path','d="M91,76 Q99,83 100,100 L100,116 L86,116 Q88,98 91,76 Z"'],
+  ['l_forearm',  'Anteb. Izq',    'path','d="M0,116 L14,116 L14,154 L1,154 Z"'],
+  ['r_forearm',  'Anteb. Der',    'path','d="M100,116 L86,116 L86,154 L99,154 Z"'],
+  ['l_hand_f',   'Mano Izq',      'path','d="M1,154 L14,154 L15,163 Q14,167 13,171 Q11,168 9,171 Q7,168 6,171 Q4,168 3,165 Q1,161 1,154 Z"'],
+  ['r_hand_f',   'Mano Der',      'path','d="M99,154 L86,154 L85,163 Q86,167 87,171 Q89,168 91,171 Q93,168 94,171 Q96,168 97,165 Q99,161 99,154 Z"'],
+  ['l_groin',    'Ingle Izq',     'path','d="M28,122 L50,122 L49,138 Q36,142 23,138 Q22,130 25,124 Z"'],
+  ['r_groin',    'Ingle Der',     'path','d="M72,122 L50,122 L51,138 Q64,142 77,138 Q78,130 75,124 Z"'],
+  ['l_quad',     'Cuádric. Izq',  'path','d="M23,138 Q36,142 49,138 L47,186 Q40,192 32,190 L18,178 Q17,158 23,138 Z"'],
+  ['r_quad',     'Cuádric. Der',  'path','d="M77,138 Q64,142 51,138 L53,186 Q60,192 68,190 L82,178 Q83,158 77,138 Z"'],
+  ['l_knee_f',   'Rodilla Izq',   'path','d="M18,178 L32,190 L47,190 L47,208 L16,208 Q14,196 16,180 Z"'],
+  ['r_knee_f',   'Rodilla Der',   'path','d="M82,178 L68,190 L53,190 L53,208 L84,208 Q86,196 84,180 Z"'],
+  ['l_shin',     'Tibial Izq',    'path','d="M16,208 L47,208 Q46,228 44,246 L14,246 Q14,228 16,208 Z"'],
+  ['r_shin',     'Tibial Der',    'path','d="M84,208 L53,208 Q54,228 56,246 L86,246 Q86,228 84,208 Z"'],
+  ['l_foot_f',   'Pie Izq',       'path','d="M12,246 L44,246 Q42,256 27,258 Q10,255 10,250 Z"'],
+  ['r_foot_f',   'Pie Der',       'path','d="M88,246 L56,246 Q58,256 73,258 Q90,255 90,250 Z"']
 ];
 var BP_B=[
-  ['head_b',     'Cabeza',        'path','d="M50,2 C62,2 68,9 68,17 C68,25 62,30 50,30 C38,30 32,25 32,17 C32,9 38,2 50,2 Z"'],
-  ['nuca',       'Nuca',          'path','d="M45,30 L55,30 L55,41 L45,41 Z"'],
-  ['l_trap',     'Trap. Izq',     'path','d="M45,41 L28,41 Q14,49 12,60 L12,70 Q20,66 28,63 L28,41 Z"'],
-  ['r_trap',     'Trap. Der',     'path','d="M55,41 L72,41 L72,63 Q80,66 88,70 L88,60 Q86,49 72,41 Z"'],
-  ['upper_back', 'Espalda Alta',  'path','d="M28,63 Q50,60 72,63 L70,95 Q50,97 30,95 Z"'],
-  ['lower_back', 'Lumbar',        'path','d="M30,95 Q50,97 70,95 L68,117 Q50,119 32,117 Z"'],
-  ['l_arm_b',    'Trícep Izq',    'path','d="M12,70 Q4,76 3,92 L3,108 L17,108 Q15,90 12,70 Z"'],
-  ['r_arm_b',    'Trícep Der',    'path','d="M88,70 Q96,76 97,92 L97,108 L83,108 Q85,90 88,70 Z"'],
-  ['l_forearm_b','Anteb. Izq',    'path','d="M3,108 L17,108 L17,148 L4,148 Z"'],
-  ['r_forearm_b','Anteb. Der',    'path','d="M97,108 L83,108 L83,148 L96,148 Z"'],
-  ['l_glute',    'Glúteo Izq',    'path','d="M32,117 Q50,119 50,117 L49,133 Q37,137 25,133 Q24,124 27,119 Z"'],
-  ['r_glute',    'Glúteo Der',    'path','d="M68,117 Q50,119 50,117 L51,133 Q63,137 75,133 Q76,124 73,119 Z"'],
-  ['l_hamstring','Isquio Izq',    'path','d="M25,133 Q37,137 49,133 L47,179 Q41,184 34,182 L21,172 Q20,152 25,133 Z"'],
-  ['r_hamstring','Isquio Der',    'path','d="M75,133 Q63,137 51,133 L53,179 Q59,184 66,182 L79,172 Q80,152 75,133 Z"'],
-  ['l_knee_b',   'Rodilla Izq',   'path','d="M21,172 L34,182 L47,182 L47,200 L19,200 Q17,190 19,174 Z"'],
-  ['r_knee_b',   'Rodilla Der',   'path','d="M79,172 L66,182 L53,182 L53,200 L81,200 Q83,190 81,174 Z"'],
-  ['l_calf',     'Gemelo Izq',    'path','d="M19,200 L47,200 Q46,220 44,238 L17,238 Q17,220 19,200 Z"'],
-  ['r_calf',     'Gemelo Der',    'path','d="M81,200 L53,200 Q54,220 56,238 L83,238 Q83,220 81,200 Z"'],
-  ['l_heel',     'Talón Izq',     'path','d="M15,238 L44,238 Q42,249 27,251 Q12,249 12,244 Z"'],
-  ['r_heel',     'Talón Der',     'path','d="M85,238 L56,238 Q58,249 73,251 Q88,249 88,244 Z"']
+  ['head_b',     'Cabeza',        'path','d="M50,2 C63,2 69,9 69,18 C69,27 63,32 50,32 C37,32 31,27 31,18 C31,9 37,2 50,2 Z"'],
+  ['nuca',       'Nuca',          'path','d="M45,32 L55,32 L55,44 L45,44 Z"'],
+  ['l_trap',     'Trap. Izq',     'path','d="M45,44 L25,44 Q11,53 9,66 L9,76 Q17,71 25,68 L25,44 Z"'],
+  ['r_trap',     'Trap. Der',     'path','d="M55,44 L75,44 Q89,53 91,66 L91,76 Q83,71 75,68 L75,44 Z"'],
+  ['upper_back', 'Espalda Alta',  'path','d="M25,68 Q50,63 75,68 L73,100 Q50,103 27,100 Z"'],
+  ['lower_back', 'Lumbar',        'path','d="M27,100 Q50,103 73,100 L72,122 L28,122 Z"'],
+  ['l_arm_b',    'Trícep Izq',    'path','d="M9,76 Q1,83 0,100 L0,116 L14,116 Q12,98 9,76 Z"'],
+  ['r_arm_b',    'Trícep Der',    'path','d="M91,76 Q99,83 100,100 L100,116 L86,116 Q88,98 91,76 Z"'],
+  ['l_forearm_b','Anteb. Izq',    'path','d="M0,116 L14,116 L14,154 L1,154 Z"'],
+  ['r_forearm_b','Anteb. Der',    'path','d="M100,116 L86,116 L86,154 L99,154 Z"'],
+  ['l_hand_b',   'Mano Izq',      'path','d="M1,154 L14,154 L15,163 Q14,167 13,171 Q11,168 9,171 Q7,168 6,171 Q4,168 3,165 Q1,161 1,154 Z"'],
+  ['r_hand_b',   'Mano Der',      'path','d="M99,154 L86,154 L85,163 Q86,167 87,171 Q89,168 91,171 Q93,168 94,171 Q96,168 97,165 Q99,161 99,154 Z"'],
+  ['l_glute',    'Glúteo Izq',    'path','d="M28,122 L50,122 L49,138 Q36,142 23,138 Q22,130 25,124 Z"'],
+  ['r_glute',    'Glúteo Der',    'path','d="M72,122 L50,122 L51,138 Q64,142 77,138 Q78,130 75,124 Z"'],
+  ['l_hamstring','Isquio Izq',    'path','d="M23,138 Q36,142 49,138 L47,186 Q40,192 32,190 L18,178 Q17,158 23,138 Z"'],
+  ['r_hamstring','Isquio Der',    'path','d="M77,138 Q64,142 51,138 L53,186 Q60,192 68,190 L82,178 Q83,158 77,138 Z"'],
+  ['l_knee_b',   'Rodilla Izq',   'path','d="M18,178 L32,190 L47,190 L47,208 L16,208 Q14,196 16,180 Z"'],
+  ['r_knee_b',   'Rodilla Der',   'path','d="M82,178 L68,190 L53,190 L53,208 L84,208 Q86,196 84,180 Z"'],
+  ['l_calf',     'Gemelo Izq',    'path','d="M16,208 L47,208 Q46,228 44,246 L14,246 Q14,228 16,208 Z"'],
+  ['r_calf',     'Gemelo Der',    'path','d="M84,208 L53,208 Q54,228 56,246 L86,246 Q86,228 84,208 Z"'],
+  ['l_heel',     'Talón Izq',     'path','d="M12,246 L44,246 Q42,256 27,258 Q10,255 10,250 Z"'],
+  ['r_heel',     'Talón Der',     'path','d="M88,246 L56,246 Q58,256 73,258 Q90,255 90,250 Z"']
 ];
 function bpC(lv){
-  return lv===0?[_BG,'rgba(255,255,255,.18)']:
-         lv===1?['rgba(22,163,74,.88)','rgba(255,255,255,.75)']:
-         lv===2?['rgba(234,179,8,.92)','rgba(255,255,255,.75)']:
-                ['rgba(220,38,38,.94)','rgba(255,255,255,.75)'];
+  return lv===0?[_BG,'rgba(255,255,255,.48)']:
+         lv===1?['rgba(22,163,74,.90)','rgba(255,255,255,.80)']:
+         lv===2?['rgba(234,179,8,.93)','rgba(255,255,255,.80)']:
+                ['rgba(220,38,38,.95)','rgba(255,255,255,.80)'];
 }
 function bpZone(z){
   var c=bpC((CIST.dolor||{})[z[0]]||0);
-  return '<path id="bz-'+z[0]+'" '+z[3]+' fill="'+c[0]+'" stroke="'+c[1]+'" stroke-width="0.7" stroke-linejoin="round" onclick="bpClick(\''+z[0]+'\')" style="cursor:pointer"/>';
+  return '<path id="bz-'+z[0]+'" '+z[3]+' fill="'+c[0]+'" stroke="'+c[1]+'" stroke-width="1.2" stroke-linejoin="round" onclick="bpClick(\''+z[0]+'\')" style="cursor:pointer"/>';
 }
 function bpSVG(zones,title){
   return '<div style="text-align:center">'
     +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin-bottom:8px">'+title+'</div>'
-    +'<svg viewBox="-2 0 104 256" xmlns="http://www.w3.org/2000/svg" style="width:150px;max-width:46vw;overflow:visible">'
+    +'<svg viewBox="-2 0 104 262" xmlns="http://www.w3.org/2000/svg" style="width:150px;max-width:46vw;overflow:visible">'
     +zones.map(bpZone).join('')
     +'</svg></div>';
 }
