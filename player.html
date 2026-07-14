@@ -127,9 +127,9 @@ async function sbUp(t,d){
   if(!r.ok)throw new Error(await r.text());
 }
 
-function bpC(lv){return lv===0?[_BG,'rgba(255,255,255,.48)']:lv===1?['rgba(22,163,74,.90)','rgba(255,255,255,.80)']:lv===2?['rgba(234,179,8,.93)','rgba(255,255,255,.80)']:['rgba(220,38,38,.95)','rgba(255,255,255,.80)'];}
+function bpC(lv){return lv===0?['transparent','rgba(255,255,255,.55)']:lv===1?['rgba(22,163,74,.90)','rgba(255,255,255,.80)']:lv===2?['rgba(234,179,8,.93)','rgba(255,255,255,.80)']:['rgba(220,38,38,.95)','rgba(255,255,255,.80)'];}
 function bpZH(z){var c=bpC(DOLOR[z[0]]||0);return '<path id="pbz-'+z[0]+'" '+z[3]+' fill="'+c[0]+'" stroke="'+c[1]+'" stroke-width="1.2" stroke-linejoin="round" onclick="bpTap(\''+z[0]+'\')" style="cursor:pointer"/>';}
-function bpSvg(z,t){return '<div><div class="bp-title">'+t+'</div><svg viewBox="-2 0 104 262" xmlns="http://www.w3.org/2000/svg" style="width:140px;max-width:43vw;overflow:visible">'+z.map(bpZH).join('')+'</svg></div>';}
+function bpSvg(z,t){var silo=z.map(function(z){return z[3].slice(3,-1);}).join(' ');return '<div><div class="bp-title">'+t+'</div><svg viewBox="-2 0 104 262" xmlns="http://www.w3.org/2000/svg" style="width:140px;max-width:43vw;overflow:visible"><path d="'+silo+'" fill="'+_BG+'" stroke="none" pointer-events="none"/>'+z.map(bpZH).join('')+'</svg></div>';}
 function bpTap(id){
   DOLOR[id]=((DOLOR[id]||0)+1)%4;
   var c=bpC(DOLOR[id]);
