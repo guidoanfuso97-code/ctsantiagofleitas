@@ -6576,13 +6576,16 @@ function bpZone(z){
   return '<path id="bz-'+z[0]+'" '+z[3]+' fill="'+c[0]+'" stroke="'+c[1]+'" stroke-width="1.2" stroke-linejoin="round" onclick="bpClick(\''+z[0]+'\')" style="cursor:pointer"/>';
 }
 function bpSVG(zones,title){
-  // Genera silueta unificada concatenando los mismos paths de las zonas
   var silo=zones.map(function(z){return z[3].slice(3,-1);}).join(' ');
+  var uid='bc'+title.replace(/\W/g,'');
   return '<div style="text-align:center">'
     +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin-bottom:8px">'+title+'</div>'
     +'<svg viewBox="-5 -1 110 270" xmlns="http://www.w3.org/2000/svg" style="width:150px;max-width:46vw;overflow:visible">'
+    +'<defs><clipPath id="'+uid+'"><path d="'+silo+'"/></clipPath></defs>'
     +'<path d="'+silo+'" fill="'+_BG+'" stroke="none" pointer-events="none"/>'
+    +'<g clip-path="url(#'+uid+')">'
     +zones.map(bpZone).join('')
+    +'</g>'
     +'</svg></div>';
 }
 function bpClick(id){
