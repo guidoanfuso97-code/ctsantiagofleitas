@@ -6761,14 +6761,29 @@ function checkAuth(){
   }catch(e){return false;}
 }
 
-function doLogin(){
+async function doLogin(){
   var pass=document.getElementById('login-pass');
   var err=document.getElementById('login-error');
   if(!pass)return;
   if(pass.value===CT_PASSWORD){
     try{localStorage.setItem(SESSION_KEY,CT_PASSWORD);}catch(e){}
     document.getElementById('login-screen').classList.add('hidden');
-    initATLAS();
+    // Show loading indicator (same as auto-login path)
+    var loadDiv=document.createElement('div');
+    loadDiv.id='atlas-loading';
+    loadDiv.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
+    loadDiv.innerHTML='<div style="font-size:32px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent">CT SF</div>'
+      +'<div style="font-size:13px;color:var(--mut)">Cargando datos...</div>'
+      +'<div style="width:200px;height:3px;background:var(--b);border-radius:2px;overflow:hidden"><div id="load-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:2px;transition:width .5s"></div></div>';
+    document.body.appendChild(loadDiv);
+    var bar=document.getElementById('load-bar');
+    if(bar)bar.style.width='30%';
+    function removeLoader(){var ld=document.getElementById('atlas-loading');if(ld)ld.parentNode.removeChild(ld);}
+    var loaderGuard=setTimeout(removeLoader,12000);
+    try{await initATLAS();}catch(e){console.error('initATLAS:',e);}
+    clearTimeout(loaderGuard);
+    if(bar)bar.style.width='100%';
+    setTimeout(removeLoader,300);
   } else {
     err.textContent='Contraseña incorrecta';
     pass.value='';
