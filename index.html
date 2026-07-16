@@ -13,7 +13,7 @@
 :root{--bg:#050c1a;--bg2:#091220;--c:rgba(255,255,255,.04);--b:rgba(255,255,255,.08);--acc:#06d6a0;--pur:#8b5cf6;--grn:#10b981;--yel:#f59e0b;--red:#f43f5e;--txt:#e2e8f0;--mut:#64748b;--dim:#94a3b8}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans-serif}
 #app{display:flex;height:100vh;overflow:hidden}
-.sb{width:200px;background:linear-gradient(180deg,var(--bg2) 0%,rgba(5,12,26,.98) 100%);border-right:1px solid var(--b);display:flex;flex-direction:column;flex-shrink:0}
+.sb{width:200px;background:linear-gradient(180deg,var(--bg2) 0%,rgba(5,12,26,.98) 100%);border-right:1px solid var(--b);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
 .logo{padding:16px;border-bottom:1px solid var(--b);cursor:pointer;transition:.2s}
 .logo:hover{background:rgba(255,255,255,.03)}
 .logo-t{font-size:22px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
@@ -187,7 +187,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="logo-t">CT SF</div>
     <div class="logo-s" id="club-lbl">CARGANDO ⚙</div>
   </div>
-  <div style="padding:8px 0">
+  <div style="padding:8px 0;flex:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent">
     <div class="nav on" data-tab="plantel" data-title="Vista de Plantel">⚽&nbsp; Plantel</div>
     <div class="nav" data-tab="carga" data-title="Análisis de Carga">📊&nbsp; Carga</div>
     <div class="nav" data-tab="wellness" data-title="Monitor de Wellness">💚&nbsp; Wellness</div>
