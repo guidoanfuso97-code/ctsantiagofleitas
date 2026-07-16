@@ -4857,6 +4857,10 @@ function fvDrawRadar(idx, ds, meanF, meanV){
 
 // ===== EVALUACIONES MODULE =====
 var EVAL_TYPES=[
+  {id:'cmj',     label:'CMJ Bilateral', unit:'cm',  icon:'⬆️', desc:'Salto con contramovimiento bilateral'},
+  {id:'cmj_l',   label:'CMJ 1P Izq',   unit:'cm',  icon:'🦵', desc:'Single leg CMJ · Pierna izquierda'},
+  {id:'cmj_r',   label:'CMJ 1P Der',   unit:'cm',  icon:'🦵', desc:'Single leg CMJ · Pierna derecha'},
+  {id:'broad',   label:'Broad Jump',   unit:'cm',  icon:'↔️', desc:'Salto horizontal máximo'},
   {id:'t10_5',   label:'10/5 RSI',     unit:'',    icon:'🔁', desc:'Reactive Strength Index'},
   {id:'sprint10',label:'10m Lanzado',  unit:'s',   icon:'⚡', desc:'Velocidad aceleración'},
   {id:'t1000',   label:'Test 1000m',   unit:'s',   icon:'🏃', desc:'Resistencia'},
@@ -4901,7 +4905,7 @@ function renderEvaluaciones(){
   var html=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
     +'<div><div style="font-size:15px;font-weight:700">📊 Evaluaciones Físicas</div>'
-    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">CMJ · 10/5 · Sprint · 1000m · 30-15 IFT</div></div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">CMJ · CMJ 1P · Broad Jump · 10/5 · Sprint · 1000m · 30-15 IFT</div></div>'
     +'<select onchange="renderEvaluaciones()" id="eval-player-sel" style="background:var(--bg2);border:1px solid var(--acc);border-radius:8px;padding:8px 14px;color:var(--acc);font-size:12px;font-weight:700;outline:none;cursor:pointer">'
     +PL.map(function(pl,i){return '<option value="'+i+'"'+(i===idx?' selected':'')+'>'+pl.name+'</option>';}).join('')
     +'</select>'
@@ -4944,6 +4948,41 @@ function renderEvaluaciones(){
       +'</div>';
   });
   html+='</div>';
+
+  // Asymmetry card: CMJ single leg L vs R
+  var cmjLEntries=(pData['cmj_l']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  var cmjREntries=(pData['cmj_r']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  var latL=cmjLEntries[0], latR=cmjREntries[0];
+  if(latL&&latR){
+    var vL=+latL.value, vR=+latR.value;
+    var asym=+(Math.abs(vR-vL)/Math.max(vL,vR)*100).toFixed(1);
+    var asymCol=asym<10?'var(--grn)':asym<15?'var(--yel)':'var(--red)';
+    var dominant=vL>=vR?'Izquierda':'Derecha';
+    var barL=+(vL/Math.max(vL,vR)*100).toFixed(1);
+    var barR=+(vR/Math.max(vL,vR)*100).toFixed(1);
+    html+='<div class="card" style="margin-bottom:16px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">⚖️ Asimetría CMJ · Pierna Única</div>'
+      +'<div style="display:flex;gap:16px;align-items:flex-end;margin-bottom:12px">'
+      +'<div style="flex:1;text-align:center">'
+        +'<div style="font-size:28px;font-weight:900;color:var(--txt)">'+vL+'</div>'
+        +'<div style="font-size:10px;color:var(--mut);margin-bottom:6px">cm · Izq</div>'
+        +'<div style="height:8px;background:var(--b);border-radius:4px"><div style="height:100%;width:'+barL+'%;background:var(--acc);border-radius:4px"></div></div>'
+      +'</div>'
+      +'<div style="text-align:center;min-width:60px">'
+        +'<div style="font-size:22px;font-weight:900;color:'+asymCol+'">'+asym+'%</div>'
+        +'<div style="font-size:9px;color:var(--mut)">asimetría</div>'
+      +'</div>'
+      +'<div style="flex:1;text-align:center">'
+        +'<div style="font-size:28px;font-weight:900;color:var(--txt)">'+vR+'</div>'
+        +'<div style="font-size:10px;color:var(--mut);margin-bottom:6px">cm · Der</div>'
+        +'<div style="height:8px;background:var(--b);border-radius:4px"><div style="height:100%;width:'+barR+'%;background:var(--pur);border-radius:4px"></div></div>'
+      +'</div>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--mut)">Pierna dominante: <span style="color:var(--txt);font-weight:700">'+dominant+'</span>'
+        +(asym<10?' · <span style="color:var(--grn)">Asimetría normal ✓</span>':asym<15?' · <span style="color:var(--yel)">Asimetría moderada ⚠️</span>':' · <span style="color:var(--red)">Asimetría elevada ⛔</span>')
+      +'</div>'
+      +'</div>';
+  }
 
   // Anthropometría section
   html+='<div class="card">'
