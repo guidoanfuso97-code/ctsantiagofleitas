@@ -206,6 +206,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="nav" data-tab="campo" data-title="Contenido de Campo · CT">📋&nbsp; Campo CT</div>
     <div class="nav" data-tab="docs" data-title="Documentos · Informes">📄&nbsp; Documentos</div>
     <div class="nav" data-tab="lesiones" data-title="Registro de Lesiones">🩺&nbsp; Lesiones</div>
+    <div class="nav" data-tab="semaforo" data-title="Semáforo · Disponibilidad">🚦&nbsp; Semáforo</div>
     <div class="nav" data-tab="microciclo" data-title="Planificación Microciclo">📅&nbsp; Microciclo</div>
     <div class="nav" data-tab="graficos" data-title="Gráficos · Analytics">📈&nbsp; Gráficos</div>
   </div>
@@ -250,6 +251,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="tab" id="t-campo"></div>
     <div class="tab" id="t-docs"><select class="psel" id="docs-player-sel"></select><div id="docs-body"></div></div>
     <div class="tab" id="t-lesiones"><div id="lesiones-body"></div></div>
+    <div class="tab" id="t-semaforo"></div>
     <div class="tab" id="t-microciclo"><div id="microciclo-body"></div></div>
     <div class="tab" id="t-graficos"></div>
   </div>
@@ -6855,9 +6857,235 @@ var TABS={
   campo:{title:'Campo CT · Contenido',render:renderCampo},
   docs:{title:'Documentos · Informes',render:renderDocs},
   lesiones:{title:'Registro de Lesiones',render:renderLesiones},
+  semaforo:{title:'Semáforo · Disponibilidad del Plantel',render:renderSemaforo},
   microciclo:{title:'Planificación Microciclo',render:renderMicrociclo},
   graficos:{title:'Gráficos · Analytics',render:renderGraficos}
 };
+
+// ══════════════════════════════════════════════════
+//  SEMÁFORO · Disponibilidad del Plantel
+// ══════════════════════════════════════════════════
+function calcReadiness(p){
+  var score=100, reasons=[], positives=[];
+  // ACWR (35 pts)
+  var acwr=p.acwr||null;
+  if(acwr!==null){
+    if(acwr>1.5){score-=35;reasons.push('Carga muy alta (ACWR '+acwr.toFixed(2)+')');}
+    else if(acwr>1.3){score-=20;reasons.push('Carga alta (ACWR '+acwr.toFixed(2)+')');}
+    else if(acwr<0.8&&acwr>0){score-=10;reasons.push('Subcarga (ACWR '+acwr.toFixed(2)+')');}
+    else if(acwr>=0.8&&acwr<=1.3){positives.push('Carga óptima');}
+  }
+  // Wellness hoy (35 pts)
+  var ws=p.wellness[27];
+  if(ws!==null&&ws!==undefined){
+    if(ws<3.5){score-=35;reasons.push('Bienestar crítico ('+ws.toFixed(1)+'/10)');}
+    else if(ws<5){score-=20;reasons.push('Bienestar bajo ('+ws.toFixed(1)+'/10)');}
+    else if(ws<6.5){score-=8;reasons.push('Bienestar moderado ('+ws.toFixed(1)+'/10)');}
+    else{positives.push('Bienestar bueno ('+ws.toFixed(1)+'/10)');}
+  } else {
+    score-=8;reasons.push('Sin check-in hoy');
+  }
+  // CMJ delta (20 pts)
+  var cd=p.cmjDelta||0;
+  if(cd<-10){score-=20;reasons.push('CMJ muy bajo ('+cd+'%)');}
+  else if(cd<-5){score-=10;reasons.push('CMJ reducido ('+cd+'%)');}
+  else if(cd>=0){positives.push('CMJ estable');}
+  // Asistencia última semana (10 pts)
+  var recent=p.wellness.slice(21,27).filter(function(v){return v!==null;}).length;
+  if(recent===0){score-=10;reasons.push('Sin datos últimos 7 días');}
+  score=Math.max(0,Math.min(100,Math.round(score)));
+  var color=score>=75?'var(--grn)':score>=50?'var(--yel)':'var(--red)';
+  var emoji=score>=75?'🟢':score>=50?'🟡':'🔴';
+  return{score:score,color:color,emoji:emoji,reasons:reasons,positives:positives,acwr:acwr,ws:ws,cmjDelta:cd};
+}
+
+function renderSemaforo(){
+  var tab=document.getElementById('t-semaforo');if(!tab)return;
+  var dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  var meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var now=new Date();
+  var fechaHdr=dias[now.getDay()]+' '+now.getDate()+' '+meses[now.getMonth()]+' '+now.getFullYear();
+
+  var readiness=PL.map(function(p){return{p:p,r:calcReadiness(p)};});
+  var greens=readiness.filter(function(x){return x.r.score>=75;});
+  var yellows=readiness.filter(function(x){return x.r.score>=50&&x.r.score<75;});
+  var reds=readiness.filter(function(x){return x.r.score<50;});
+
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">'
+    +'<div>'
+    +'<div style="font-size:15px;font-weight:700">🚦 Disponibilidad del Plantel</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">'+fechaHdr+' · ACWR + Wellness + CMJ + Asistencia</div>'
+    +'</div>'
+    +'<button onclick="generarInforme()" style="padding:10px 18px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer">📄 Informe Semanal</button>'
+    +'</div>';
+
+  // Summary strip
+  html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">'
+    +'<div class="card" style="text-align:center;border:1px solid rgba(16,185,129,.25)">'
+      +'<div style="font-size:28px;font-weight:900;color:var(--grn)">'+greens.length+'</div>'
+      +'<div style="font-size:10px;color:var(--mut);margin-top:2px">🟢 Disponibles</div>'
+    +'</div>'
+    +'<div class="card" style="text-align:center;border:1px solid rgba(245,158,11,.25)">'
+      +'<div style="font-size:28px;font-weight:900;color:var(--yel)">'+yellows.length+'</div>'
+      +'<div style="font-size:10px;color:var(--mut);margin-top:2px">🟡 Monitorear</div>'
+    +'</div>'
+    +'<div class="card" style="text-align:center;border:1px solid rgba(244,63,94,.25)">'
+      +'<div style="font-size:28px;font-weight:900;color:var(--red)">'+reds.length+'</div>'
+      +'<div style="font-size:10px;color:var(--mut);margin-top:2px">🔴 Atención</div>'
+    +'</div>'
+    +'</div>';
+
+  // Player grid — sorted by score asc (worst first)
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">';
+  readiness.slice().sort(function(a,b){return a.r.score-b.r.score;}).forEach(function(x){
+    var r=x.r, p=x.p;
+    var borderCol=r.score>=75?'rgba(16,185,129,.3)':r.score>=50?'rgba(245,158,11,.3)':'rgba(244,63,94,.3)';
+    html+='<div class="card" style="border:1px solid '+borderCol+';position:relative">'
+      // Score circle
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+        +'<div style="width:44px;height:44px;border-radius:50%;background:'+r.color+';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0">'+r.score+'</div>'
+        +'<div>'
+          +'<div style="font-size:13px;font-weight:700;color:var(--txt)">'+p.name.split(' ')[0]+' '+( p.name.split(' ')[1]||'')+'</div>'
+          +'<div style="font-size:10px;color:var(--mut)">'+p.pos+(p.num?' · #'+p.num:'')+'</div>'
+        +'</div>'
+      +'</div>'
+      // Mini metrics
+      +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:8px">'
+        +[{label:'ACWR',val:r.acwr!==null?r.acwr.toFixed(2):'—',col:r.acwr===null?'var(--mut)':r.acwr>1.3?'var(--red)':r.acwr<0.8?'var(--yel)':'var(--grn)'},
+          {label:'Wellness',val:r.ws!==null&&r.ws!==undefined?r.ws.toFixed(1):'—',col:r.ws===null||r.ws===undefined?'var(--mut)':r.ws<3.5?'var(--red)':r.ws<5?'var(--yel)':'var(--grn)'},
+          {label:'CMJ Δ',val:(r.cmjDelta>0?'+':'')+r.cmjDelta+'%',col:r.cmjDelta<-10?'var(--red)':r.cmjDelta<-5?'var(--yel)':'var(--grn)'}
+        ].map(function(m){return '<div style="background:var(--bg2);border-radius:6px;padding:5px;text-align:center">'
+          +'<div style="font-size:12px;font-weight:700;color:'+m.col+'">'+m.val+'</div>'
+          +'<div style="font-size:9px;color:var(--mut)">'+m.label+'</div>'
+          +'</div>';}).join('')
+      +'</div>'
+      // Reasons / flags
+      +(r.reasons.length
+        ?'<div style="font-size:10px;color:var(--red);line-height:1.6">'+r.reasons.map(function(x){return '⚠ '+x;}).join('<br>')+'</div>'
+        :'<div style="font-size:10px;color:var(--grn)">✓ Sin alertas</div>'
+      )
+      +'</div>';
+  });
+  html+='</div>';
+  tab.innerHTML=html;
+}
+
+// ══════════════════════════════════════════════════
+//  INFORME SEMANAL
+// ══════════════════════════════════════════════════
+function generarInforme(){
+  var now=new Date();
+  var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  // Date range: last 7 days
+  var d0=new Date(now);d0.setDate(d0.getDate()-6);
+  var fmtD=function(d){return d.getDate()+'/'+( d.getMonth()+1)+'/'+d.getFullYear();};
+  var rangoFecha=fmtD(d0)+' – '+fmtD(now);
+  var semana=dias[now.getDay()]+' '+now.getDate()+' de '+meses[now.getMonth()]+' '+now.getFullYear();
+
+  // Compute session load this week
+  var weekAgo=new Date(now);weekAgo.setDate(weekAgo.getDate()-7);
+  var weekSessions=SESSIONS.filter(function(s){return new Date(s.date)>=weekAgo;});
+  var avgLoad=weekSessions.length?Math.round(weekSessions.reduce(function(a,s){return a+(s.teamAvgLoad||0);},0)/weekSessions.length):0;
+  var avgWellness=0,wellCount=0;
+  PL.forEach(function(p){var w=p.wellness[27];if(w!==null&&w!==undefined){avgWellness+=w;wellCount++;}});
+  avgWellness=wellCount?(avgWellness/wellCount).toFixed(1):'—';
+
+  var readiness=PL.map(function(p,i){return{p:p,i:i,r:calcReadiness(p)};}).sort(function(a,b){return a.r.score-b.r.score;});
+  var alerts=readiness.filter(function(x){return x.r.score<75;});
+  var greens=readiness.filter(function(x){return x.r.score>=75;}).length;
+
+  // Build printable HTML
+  var pStyle='font-family:-apple-system,sans-serif;max-width:700px;margin:0 auto;color:#0f172a;background:#fff;padding:32px';
+  var hdStyle='font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin:20px 0 8px';
+  var thS='padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#64748b;border-bottom:2px solid #e2e8f0;text-align:left';
+  var tdS='padding:8px 10px;font-size:12px;border-bottom:1px solid #f1f5f9';
+
+  var body='<div style="'+pStyle+'">'
+    // Header
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #0f172a">'
+      +'<div>'
+        +'<div style="font-size:22px;font-weight:900;letter-spacing:-0.5px">ATLAS · Informe Semanal</div>'
+        +'<div style="font-size:13px;color:#64748b;margin-top:2px">'+(TEAM?TEAM.name:'CT SF')+' · '+rangoFecha+'</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+        +'<div style="font-size:11px;color:#64748b">Generado</div>'
+        +'<div style="font-size:12px;font-weight:600">'+semana+'</div>'
+      +'</div>'
+    +'</div>'
+    // Summary boxes
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">'
+    +[
+      {label:'Sesiones',val:weekSessions.length,sub:'esta semana'},
+      {label:'Carga prom.',val:avgLoad?avgLoad+' UA':'—',sub:'sRPE equipo'},
+      {label:'Wellness',val:avgWellness+'/10',sub:'promedio hoy'},
+      {label:'Disponibles',val:greens+'/'+PL.length,sub:'sin alertas'}
+    ].map(function(b){return '<div style="background:#f8fafc;border-radius:10px;padding:12px;text-align:center">'
+      +'<div style="font-size:20px;font-weight:900;color:#0f172a">'+b.val+'</div>'
+      +'<div style="font-size:10px;font-weight:700;color:#0f172a;margin-top:2px">'+b.label+'</div>'
+      +'<div style="font-size:9px;color:#64748b">'+b.sub+'</div>'
+      +'</div>';}).join('')
+    +'</div>'
+    // Alerts section
+    +(alerts.length
+      ?'<div style="'+hdStyle+'">⚠ Jugadores a monitorear ('+alerts.length+')</div>'
+       +'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:16px">'
+       +alerts.map(function(x){
+         return '<div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.05)">'
+           +'<span style="font-size:14px">'+(x.r.score<50?'🔴':'🟡')+'</span>'
+           +'<span style="font-size:12px;font-weight:700;min-width:130px">'+x.p.name+'</span>'
+           +'<span style="font-size:11px;color:#7f1d1d">'+x.r.reasons.join(' · ')+'</span>'
+           +'</div>';}).join('')
+       +'</div>'
+      :'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:#166534">✓ Sin alertas críticas esta semana</div>'
+    )
+    // Full player table
+    +'<div style="'+hdStyle+'">Estado del Plantel</div>'
+    +'<table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr>'
+    +'<th style="'+thS+'">Jugador</th><th style="'+thS+'">Pos</th>'
+    +'<th style="'+thS+';text-align:center">Estado</th>'
+    +'<th style="'+thS+';text-align:right">Score</th>'
+    +'<th style="'+thS+';text-align:right">ACWR</th>'
+    +'<th style="'+thS+';text-align:right">Wellness</th>'
+    +'<th style="'+thS+';text-align:right">CMJ Δ</th>'
+    +'</tr></thead><tbody>'
+    +readiness.map(function(x){
+      var r=x.r,p=x.p;
+      var statusLabel=r.score>=75?'Disponible':r.score>=50?'Monitorear':'Atención';
+      var statusCol=r.score>=75?'#166534':r.score>=50?'#92400e':'#991b1b';
+      var statusBg=r.score>=75?'#dcfce7':r.score>=50?'#fef3c7':'#fee2e2';
+      return '<tr>'
+        +'<td style="'+tdS+';font-weight:700">'+p.name+'</td>'
+        +'<td style="'+tdS+';color:#64748b">'+p.pos+'</td>'
+        +'<td style="'+tdS+';text-align:center"><span style="background:'+statusBg+';color:'+statusCol+';border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700">'+statusLabel+'</span></td>'
+        +'<td style="'+tdS+';text-align:right;font-weight:700">'+r.score+'</td>'
+        +'<td style="'+tdS+';text-align:right">'+(r.acwr!==null?r.acwr.toFixed(2):'—')+'</td>'
+        +'<td style="'+tdS+';text-align:right">'+(r.ws!==null&&r.ws!==undefined?r.ws.toFixed(1):'—')+'</td>'
+        +'<td style="'+tdS+';text-align:right">'+(r.cmjDelta>0?'+':'')+r.cmjDelta+'%</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table>'
+    +'<div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between">'
+      +'<span>ATLAS · Sistema de Monitoreo Deportivo</span>'
+      +'<span>'+semana+'</span>'
+    +'</div>'
+    +'</div>';
+
+  // Open in printable modal
+  var existing=document.getElementById('informe-modal');if(existing)existing.parentNode.removeChild(existing);
+  var modal=document.createElement('div');
+  modal.id='informe-modal';
+  modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:10000;overflow-y:auto;display:flex;flex-direction:column';
+  modal.innerHTML='<div style="background:#fff;flex:1">'
+    +'<div style="display:flex;gap:10px;padding:12px 20px;background:#0f172a;position:sticky;top:0;z-index:1">'
+      +'<button onclick="window.print()" style="padding:9px 18px;border-radius:8px;background:linear-gradient(135deg,#06d6a0,#8b5cf6);color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer">🖨 Imprimir / Guardar PDF</button>'
+      +'<button onclick="document.getElementById(\'informe-modal\').parentNode.removeChild(document.getElementById(\'informe-modal\'))" style="padding:9px 14px;border-radius:8px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);font-size:12px;cursor:pointer">✕ Cerrar</button>'
+    +'</div>'
+    +body
+    +'</div>';
+  document.body.appendChild(modal);
+}
 
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
