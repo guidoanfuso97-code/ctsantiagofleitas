@@ -6865,7 +6865,7 @@ var TABS={
 // ══════════════════════════════════════════════════
 //  SEMÁFORO · Disponibilidad del Plantel
 // ══════════════════════════════════════════════════
-function calcReadiness(p){
+function calcReadinessScore(p){
   var score=100, reasons=[], positives=[];
   // ACWR (35 pts)
   var acwr=p.acwr||null;
@@ -6906,7 +6906,7 @@ function renderSemaforo(){
   var now=new Date();
   var fechaHdr=dias[now.getDay()]+' '+now.getDate()+' '+meses[now.getMonth()]+' '+now.getFullYear();
 
-  var readiness=PL.map(function(p){return{p:p,r:calcReadiness(p)};});
+  var readiness=PL.map(function(p){return{p:p,r:calcReadinessScore(p)};});
   var greens=readiness.filter(function(x){return x.r.score>=75;});
   var yellows=readiness.filter(function(x){return x.r.score>=50&&x.r.score<75;});
   var reds=readiness.filter(function(x){return x.r.score<50;});
@@ -6991,7 +6991,7 @@ function generarInforme(){
   PL.forEach(function(p){var w=p.wellness[27];if(w!==null&&w!==undefined){avgWellness+=w;wellCount++;}});
   avgWellness=wellCount?(avgWellness/wellCount).toFixed(1):'—';
 
-  var readiness=PL.map(function(p,i){return{p:p,i:i,r:calcReadiness(p)};}).sort(function(a,b){return a.r.score-b.r.score;});
+  var readiness=PL.map(function(p,i){return{p:p,i:i,r:calcReadinessScore(p)};}).sort(function(a,b){return a.r.score-b.r.score;});
   var alerts=readiness.filter(function(x){return x.r.score<75;});
   var greens=readiness.filter(function(x){return x.r.score>=75;}).length;
 
