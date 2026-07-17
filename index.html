@@ -4868,6 +4868,7 @@ var EVAL_TYPES=[
 ];
 
 var EVAL_DATA = {}; // {playerIdx: {cmj:[{date,value,notes}], ...}}
+var EVAL_VIEW = 'individual'; // 'individual' | 'equipo'
 
 function evalsKey(){return 'evals:'+TEAM.id;}
 
@@ -4897,30 +4898,39 @@ async function saveEvals(){
 function renderEvaluaciones(){
   var tab=document.getElementById('t-evaluaciones');if(!tab)return;
   var idx=parseInt($('carga-sel').value)||0;
-  var p=PL[idx];
 
-  // Build eval data for this player
-  var pData=EVAL_DATA[idx]||{};
+  var btnStyle=function(active){return 'padding:7px 16px;border-radius:8px;border:1px solid '+(active?'var(--acc)':'var(--b)')+';background:'+(active?'rgba(6,214,160,.1)':'var(--c)')+';color:'+(active?'var(--acc)':'var(--mut)')+';font-size:12px;font-weight:'+(active?700:500)+';cursor:pointer';};
 
-  var html=
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
     +'<div><div style="font-size:15px;font-weight:700">📊 Evaluaciones Físicas</div>'
     +'<div style="font-size:11px;color:var(--mut);margin-top:1px">CMJ · CMJ 1P · Broad Jump · 10/5 · Sprint · 1000m · 30-15 IFT</div></div>'
-    +'<select onchange="renderEvaluaciones()" id="eval-player-sel" style="background:var(--bg2);border:1px solid var(--acc);border-radius:8px;padding:8px 14px;color:var(--acc);font-size:12px;font-weight:700;outline:none;cursor:pointer">'
-    +PL.map(function(pl,i){return '<option value="'+i+'"'+(i===idx?' selected':'')+'>'+pl.name+'</option>';}).join('')
-    +'</select>'
+    +'<div style="display:flex;gap:6px">'
+    +'<button onclick="EVAL_VIEW=\'individual\';renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='individual')+'">👤 Individual</button>'
+    +'<button onclick="EVAL_VIEW=\'equipo\';renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='equipo')+'">👥 Equipo</button>'
+    +'</div>'
     +'</div>';
 
-  // Cards for each eval type
-  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px">';
+  if(EVAL_VIEW==='equipo'){
+    tab.innerHTML=html+renderEvalTeam();
+    return;
+  }
 
+  // ── INDIVIDUAL VIEW ──
+  var p=PL[idx];
+  var pData=EVAL_DATA[idx]||{};
+
+  html+='<select onchange="var s=document.getElementById(\'carga-sel\');if(s)s.value=this.value;renderEvaluaciones()" id="eval-player-sel" style="background:var(--bg2);border:1px solid var(--acc);border-radius:8px;padding:8px 14px;color:var(--acc);font-size:12px;font-weight:700;outline:none;cursor:pointer;margin-bottom:14px;display:block">'
+    +PL.map(function(pl,i){return '<option value="'+i+'"'+(i===idx?' selected':'')+'>'+pl.name+'</option>';}).join('')
+    +'</select>';
+
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px">';
   EVAL_TYPES.forEach(function(et){
     var entries=(pData[et.id]||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
     var latest=entries[0];
     var prev=entries[1];
     var delta=latest&&prev?+(latest.value-prev.value).toFixed(2):null;
-    var deltaColor=delta===null?'var(--mut)':et.id==='sprint10'||et.id==='t1000'?(delta<0?'var(--grn)':'var(--red)'):(delta>0?'var(--grn)':'var(--red)');
-
+    var lowerBetter=et.id==='sprint10'||et.id==='t1000';
+    var deltaColor=delta===null?'var(--mut)':lowerBetter?(delta<0?'var(--grn)':'var(--red)'):(delta>0?'var(--grn)':'var(--red)');
     html+='<div class="card">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'
       +'<div><div style="font-size:11px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.5px">'+et.icon+' '+et.label+'</div>'
@@ -4928,31 +4938,29 @@ function renderEvaluaciones(){
       +'<button onclick="openAddEval('+idx+',\''+et.id+'\')" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);color:var(--acc);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:700">+ Cargar</button>'
       +'</div>'
       +(latest
-        ?'<div style="font-size:32px;font-weight:900;color:var(--txt);line-height:1;margin-bottom:4px">'+latest.value+' <span style="font-size:13px;color:var(--mut)">'+et.unit+'</span></div>'
+        ?'<div style="font-size:32px;font-weight:900;color:var(--txt);line-height:1;margin-bottom:4px">'+latest.value+(et.unit?' <span style="font-size:13px;color:var(--mut)">'+et.unit+'</span>':'')+'</div>'
         +'<div style="font-size:10px;color:var(--mut);margin-bottom:8px">'+latest.date+(latest.notes?' · '+latest.notes:'')+'</div>'
-        +(delta!==null?'<div style="font-size:11px;font-weight:700;color:'+deltaColor+'">'+(delta>0?'↑ +':delta<0?'↓ ':'→ ')+Math.abs(delta)+' '+et.unit+' vs anterior</div>':'')
-        :'<div style="font-size:24px;color:var(--mut);margin-bottom:4px">—</div>'
-        +'<div style="font-size:10px;color:var(--mut)">Sin registros</div>'
+        +(delta!==null?'<div style="font-size:11px;font-weight:700;color:'+deltaColor+'">'+(delta>0?'↑ +':delta<0?'↓ ':'→ ')+Math.abs(delta)+(et.unit?' '+et.unit:'')+' vs anterior</div>':'')
+        :'<div style="font-size:24px;color:var(--mut);margin-bottom:4px">—</div><div style="font-size:10px;color:var(--mut)">Sin registros</div>'
       )
-      // Mini history
       +(entries.length>1
         ?'<div style="margin-top:10px;border-top:1px solid var(--b);padding-top:8px">'
-        +entries.slice(0,4).map(function(e){
-          return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px">'
-            +'<span style="color:var(--mut)">'+e.date+'</span>'
-            +'<span style="font-weight:700;color:var(--txt)">'+e.value+' '+et.unit+'</span>'
-            +'</div>';
-        }).join('')
-        +'</div>':''
+         +entries.slice(0,4).map(function(e){
+           return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px">'
+             +'<span style="color:var(--mut)">'+e.date+'</span>'
+             +'<span style="font-weight:700;color:var(--txt)">'+e.value+(et.unit?' '+et.unit:'')+'</span>'
+             +'</div>';
+         }).join('')+'</div>':''
       )
       +'</div>';
   });
   html+='</div>';
 
-  // Asymmetry card: CMJ single leg L vs R
-  var cmjLEntries=(pData['cmj_l']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
-  var cmjREntries=(pData['cmj_r']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
-  var latL=cmjLEntries[0], latR=cmjREntries[0];
+  // ── Asymmetry + Bilateral deficit ──
+  var latL=((pData['cmj_l']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);}))[0];
+  var latR=((pData['cmj_r']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);}))[0];
+  var latBi=((pData['cmj']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);}))[0];
+
   if(latL&&latR){
     var vL=+latL.value, vR=+latR.value;
     var asym=+(Math.abs(vR-vL)/Math.max(vL,vR)*100).toFixed(1);
@@ -4960,8 +4968,21 @@ function renderEvaluaciones(){
     var dominant=vL>=vR?'Izquierda':'Derecha';
     var barL=+(vL/Math.max(vL,vR)*100).toFixed(1);
     var barR=+(vR/Math.max(vL,vR)*100).toFixed(1);
+    var defHtml='';
+    if(latBi){
+      var vBi=+latBi.value;
+      var def=+(vBi/(vL+vR)*100).toFixed(1);
+      var defCol=def>=95?'var(--grn)':def>=80?'var(--yel)':'var(--red)';
+      var defLabel=def>=105?'Facilitación bilateral':def>=95?'Sin déficit ✓':def>=80?'Déficit leve':'Déficit elevado';
+      defHtml='<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--b);display:flex;align-items:center;gap:12px">'
+        +'<div><div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px">Déficit Bilateral</div>'
+        +'<div style="font-size:20px;font-weight:900;color:'+defCol+'">'+def+'%</div></div>'
+        +'<div style="font-size:11px;color:var(--mut)">CMJ bilateral vs suma unilateral<br><span style="color:'+defCol+';font-weight:700">'+defLabel+'</span>'
+        +' <span style="color:var(--mut)">('+vBi+' cm bi · '+(vL+vR)+' cm L+R)</span></div>'
+        +'</div>';
+    }
     html+='<div class="card" style="margin-bottom:16px">'
-      +'<div style="font-size:11px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">⚖️ Asimetría CMJ · Pierna Única</div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">⚖️ Asimetría · Déficit Bilateral</div>'
       +'<div style="display:flex;gap:16px;align-items:flex-end;margin-bottom:12px">'
       +'<div style="flex:1;text-align:center">'
         +'<div style="font-size:28px;font-weight:900;color:var(--txt)">'+vL+'</div>'
@@ -4978,31 +4999,103 @@ function renderEvaluaciones(){
         +'<div style="height:8px;background:var(--b);border-radius:4px"><div style="height:100%;width:'+barR+'%;background:var(--pur);border-radius:4px"></div></div>'
       +'</div>'
       +'</div>'
-      +'<div style="font-size:11px;color:var(--mut)">Pierna dominante: <span style="color:var(--txt);font-weight:700">'+dominant+'</span>'
-        +(asym<10?' · <span style="color:var(--grn)">Asimetría normal ✓</span>':asym<15?' · <span style="color:var(--yel)">Asimetría moderada ⚠️</span>':' · <span style="color:var(--red)">Asimetría elevada ⛔</span>')
+      +'<div style="font-size:11px;color:var(--mut)">Dominante: <span style="color:var(--txt);font-weight:700">'+dominant+'</span>'
+        +(asym<10?' · <span style="color:var(--grn)">Normal ✓</span>':asym<15?' · <span style="color:var(--yel)">Moderada ⚠️</span>':' · <span style="color:var(--red)">Elevada ⛔</span>')
       +'</div>'
+      +defHtml
       +'</div>';
   }
 
-  // Anthropometría section
+  // ── Anthropometría ──
+  var pData2=EVAL_DATA[idx]||{};
   html+='<div class="card">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
     +'<h3 style="margin-bottom:0">📐 Antropometría · '+p.name+'</h3>'
     +'<button onclick="openAddEval('+idx+',\'antro\')" style="background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.2);color:#a78bfa;border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;font-weight:700">+ Medición</button>'
     +'</div>'
-    +(pData.antro&&pData.antro.length
-      ?renderAntroTable(pData.antro)
-      :'<div style="text-align:center;padding:20px;color:var(--mut);font-size:12px">Sin mediciones antropométricas. Tocá "+ Medición" para agregar.</div>'
+    +(pData2.antro&&pData2.antro.length
+      ?renderAntroTable(pData2.antro)
+      :'<div style="text-align:center;padding:20px;color:var(--mut);font-size:12px">Sin mediciones antropométricas.</div>'
     )
     +'</div>';
 
   tab.innerHTML=html;
-  // Sync eval player sel with carga-sel
-  var evalSel=document.getElementById('eval-player-sel');
-  if(evalSel)evalSel.onchange=function(){
-    var sel=$('carga-sel');if(sel)sel.value=this.value;
-    renderEvaluaciones();
-  };
+}
+
+function renderEvalTeam(){
+  // Columns to show in team table
+  var cols=[
+    {id:'cmj',   label:'CMJ',      unit:'cm', lowerBetter:false},
+    {id:'cmj_l', label:'1P Izq',   unit:'cm', lowerBetter:false},
+    {id:'cmj_r', label:'1P Der',   unit:'cm', lowerBetter:false},
+    {id:'broad', label:'Broad',    unit:'cm', lowerBetter:false},
+    {id:'t10_5', label:'10/5',     unit:'',   lowerBetter:false},
+    {id:'sprint10',label:'10m',    unit:'s',  lowerBetter:true}
+  ];
+
+  // For each player, get latest value per col
+  var rows=PL.map(function(p,i){
+    var d=EVAL_DATA[i]||{};
+    var vals={};
+    cols.forEach(function(c){
+      var entries=(d[c.id]||[]).filter(function(e){return e.value!=null;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+      vals[c.id]=entries.length?+entries[0].value:null;
+    });
+    // Derived: asymmetry and bilateral deficit
+    var vL=vals['cmj_l'], vR=vals['cmj_r'], vBi=vals['cmj'];
+    vals._asym=(vL!=null&&vR!=null)?+(Math.abs(vR-vL)/Math.max(vL,vR)*100).toFixed(1):null;
+    vals._def=(vBi!=null&&vL!=null&&vR!=null)?+(vBi/(vL+vR)*100).toFixed(1):null;
+    return {p:p,i:i,vals:vals};
+  });
+
+  // Compute team percentile ranks per column (for color coding)
+  function pctColor(val, allVals, lowerBetter){
+    if(val===null)return 'var(--mut)';
+    var sorted=allVals.filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
+    if(!sorted.length)return 'var(--txt)';
+    var rank=sorted.indexOf(val);
+    var pct=rank/(sorted.length-1||1);
+    if(lowerBetter)pct=1-pct;
+    return pct>=0.75?'var(--grn)':pct<=0.25?'var(--red)':'var(--dim)';
+  }
+
+  var allVals={};
+  cols.forEach(function(c){allVals[c.id]=rows.map(function(r){return r.vals[c.id];});});
+  var allAsym=rows.map(function(r){return r.vals._asym;});
+  var allDef=rows.map(function(r){return r.vals._def;});
+
+  var hasSomeData=rows.some(function(r){return cols.some(function(c){return r.vals[c.id]!=null;});});
+  if(!hasSomeData)return '<div class="card" style="text-align:center;padding:32px;color:var(--mut)">Sin evaluaciones cargadas aún.<br>Cambiá a vista Individual para cargar datos.</div>';
+
+  var thStyle='padding:7px 10px;font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--b)';
+  var tdStyle='padding:7px 10px;font-size:12px;font-weight:700;text-align:right;border-bottom:1px solid rgba(255,255,255,.04)';
+
+  var h='<div class="card" style="overflow-x:auto">'
+    +'<div style="font-size:12px;font-weight:700;margin-bottom:12px">👥 Plantel · Últimas Evaluaciones <span style="font-size:10px;color:var(--mut);font-weight:400">— verde=top25% · rojo=bottom25%</span></div>'
+    +'<table style="width:100%;border-collapse:collapse;min-width:560px">'
+    +'<thead><tr>'
+    +'<th style="'+thStyle+';text-align:left">Jugador</th>'
+    +cols.map(function(c){return '<th style="'+thStyle+'">'+c.label+(c.unit?' ('+c.unit+')':'')+'</th>';}).join('')
+    +'<th style="'+thStyle+'">Asim %</th>'
+    +'<th style="'+thStyle+'">Déf Bi %</th>'
+    +'</tr></thead><tbody>';
+
+  rows.forEach(function(r){
+    var hasAny=cols.some(function(c){return r.vals[c.id]!=null;});
+    if(!hasAny)return;
+    h+='<tr>'
+      +'<td style="'+tdStyle+';text-align:left;font-size:11px;color:var(--txt)">'+r.p.name+'</td>'
+      +cols.map(function(c){
+        var v=r.vals[c.id];
+        var col=pctColor(v,allVals[c.id],c.lowerBetter);
+        return '<td style="'+tdStyle+';color:'+col+'">'+(v!=null?v:'—')+'</td>';
+      }).join('')
+      +'<td style="'+tdStyle+';color:'+(r.vals._asym!=null?(r.vals._asym<10?'var(--grn)':r.vals._asym<15?'var(--yel)':'var(--red)'):'var(--mut)')+'">'+(r.vals._asym!=null?r.vals._asym+'%':'—')+'</td>'
+      +'<td style="'+tdStyle+';color:'+(r.vals._def!=null?(r.vals._def>=95?'var(--grn)':r.vals._def>=80?'var(--yel)':'var(--red)'):'var(--mut)')+'">'+(r.vals._def!=null?r.vals._def+'%':'—')+'</td>'
+      +'</tr>';
+  });
+  h+='</tbody></table></div>';
+  return h;
 }
 
 function renderAntroTable(entries){
