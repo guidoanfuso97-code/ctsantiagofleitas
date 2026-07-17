@@ -4883,12 +4883,22 @@ async function loadEvals(){
       if(!EVAL_DATA[r.player_idx][r.eval_type])EVAL_DATA[r.player_idx][r.eval_type]=[];
       var entry={date:r.date,notes:r.notes||''};
       if(r.value!==null)entry.value=r.value;
-      // Anthropometry fields
       if(r.peso)entry.peso=r.peso;
       if(r.talla)entry.talla=r.talla;
       if(r.pliegues)entry.pliegues=r.pliegues;
       if(r.imc)entry.imc=r.imc;
       EVAL_DATA[r.player_idx][r.eval_type].push(entry);
+    });
+    // Dedup: keep only one entry per (player, type, date) — last value wins
+    Object.keys(EVAL_DATA).forEach(function(pidx){
+      Object.keys(EVAL_DATA[pidx]).forEach(function(etype){
+        var seen={};
+        EVAL_DATA[pidx][etype]=EVAL_DATA[pidx][etype].filter(function(e){
+          if(seen[e.date])return false;
+          seen[e.date]=true;
+          return true;
+        });
+      });
     });
   }catch(e){EVAL_DATA={};}
 }
@@ -5149,12 +5159,16 @@ function openAddEval(playerIdx,evalType){
     +fieldsHtml
     +'<div style="margin-bottom:14px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Notas</div>'
     +'<input type="text" id="eval-notes" placeholder="Observaciones..." style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none"></div>'
-    +'<button onclick="saveEvalEntry('+playerIdx+',\''+evalType+'\')" style="width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>'
+    +'<button id="eval-save-btn" onclick="saveEvalEntry('+playerIdx+',\''+evalType+'\')" style="width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>'
     +'</div>';
   document.body.appendChild(modal);
 }
 
 async function saveEvalEntry(playerIdx,evalType){
+  // Disable button to prevent double-save
+  var btn=document.getElementById('eval-save-btn');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+
   var date=(document.getElementById('eval-date')||{}).value||TODAY;
   var notes=(document.getElementById('eval-notes')||{}).value||'';
   var isAntro=evalType==='antro';
@@ -5166,23 +5180,42 @@ async function saveEvalEntry(playerIdx,evalType){
     });
   } else {
     var valEl=document.getElementById('eval-value');
-    if(!valEl||!valEl.value){showBanner('⚠️ Ingresá un valor','var(--yel)',2000);return;}
+    if(!valEl||!valEl.value){
+      showBanner('⚠️ Ingresá un valor','var(--yel)',2000);
+      if(btn){btn.disabled=false;btn.textContent='Guardar';}
+      return;
+    }
     entry.value=+valEl.value;
   }
+
   if(!EVAL_DATA[playerIdx])EVAL_DATA[playerIdx]={};
   if(!EVAL_DATA[playerIdx][evalType])EVAL_DATA[playerIdx][evalType]=[];
-  EVAL_DATA[playerIdx][evalType].push(entry);
-  // Save to Supabase
+
+  var arr=EVAL_DATA[playerIdx][evalType];
+  var existingIdx=arr.findIndex(function(e){return e.date===date;});
+  var isUpdate=existingIdx>=0;
+
+  if(isUpdate){
+    // Replace local entry
+    arr[existingIdx]=entry;
+    // Delete all existing rows for this player+type+date in Supabase, then re-insert
+    await sbDelete('evaluaciones',
+      'team_id=eq.'+TEAM.id+'&player_idx=eq.'+playerIdx+'&eval_type=eq.'+encodeURIComponent(evalType)+'&date=eq.'+date);
+  } else {
+    arr.push(entry);
+  }
+
   var row={team_id:TEAM.id,player_idx:playerIdx,eval_type:evalType,
     date:entry.date,notes:entry.notes||'',
     value:entry.value||null,
     peso:entry.peso||null,talla:entry.talla||null,
     pliegues:entry.pliegues||null,imc:entry.imc||null};
   await sbInsert('evaluaciones',row);
+
   var m=document.getElementById('eval-add-modal');
   if(m)m.parentNode.removeChild(m);
   renderEvaluaciones();
-  showBanner('✅ Evaluación guardada · '+PL[playerIdx].name,'var(--grn)',2500);
+  showBanner((isUpdate?'✏️ Evaluación actualizada':'✅ Evaluación guardada')+' · '+PL[playerIdx].name,'var(--grn)',2500);
 }
 
 
