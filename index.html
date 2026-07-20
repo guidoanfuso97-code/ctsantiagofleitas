@@ -5005,9 +5005,13 @@ function renderEvaluaciones(){
       +(entries.length>1
         ?'<div style="margin-top:10px;border-top:1px solid var(--b);padding-top:8px">'
          +entries.slice(0,4).map(function(e){
-           return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px">'
+           return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px">'
              +'<span style="color:var(--mut)">'+e.date+'</span>'
              +'<span style="font-weight:700;color:var(--txt)">'+e.value+(et.unit?' '+et.unit:'')+'</span>'
+             +'<span style="display:flex;gap:3px">'
+             +'<button onclick="openEditEval('+idx+',\''+et.id+'\',\''+e.date+'\')" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:#a78bfa;border-radius:4px;padding:1px 6px;font-size:9px;cursor:pointer">✏️</button>'
+             +'<button onclick="deleteEvalEntry('+idx+',\''+et.id+'\',\''+e.date+'\')" style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);color:var(--red);border-radius:4px;padding:1px 6px;font-size:9px;cursor:pointer">🗑</button>'
+             +'</span>'
              +'</div>';
          }).join('')+'</div>':''
       )
@@ -5265,6 +5269,38 @@ async function saveEvalEntry(playerIdx,evalType){
   showBanner((isUpdate?'✏️ Evaluación actualizada':'✅ Evaluación guardada')+' · '+PL[playerIdx].name,'var(--grn)',2500);
 }
 
+
+function openEditEval(playerIdx,evalType,dateStr){
+  var arr=(EVAL_DATA[playerIdx]||{})[evalType]||[];
+  var entry=arr.find(function(e){return e.date===dateStr;});
+  if(!entry)return;
+  openAddEval(playerIdx,evalType);
+  // Pre-fill fields after modal is created
+  var dateEl=document.getElementById('eval-date');
+  var notesEl=document.getElementById('eval-notes');
+  if(dateEl)dateEl.value=entry.date;
+  if(notesEl)notesEl.value=entry.notes||'';
+  if(evalType==='antro'){
+    ['peso','talla','pliegues','imc'].forEach(function(f){var el=document.getElementById('antro-'+f);if(el)el.value=entry[f]||'';});
+  } else {
+    var valEl=document.getElementById('eval-value');
+    if(valEl)valEl.value=entry.value||'';
+  }
+  // Update modal title
+  var mbox=document.querySelector('#eval-add-modal .mbox');
+  if(mbox){var t=mbox.querySelector('div>div');if(t)t.textContent='✏️ Editar evaluación · '+PL[playerIdx].name;}
+}
+
+async function deleteEvalEntry(playerIdx,evalType,dateStr){
+  if(!confirm('¿Eliminar evaluación del '+dateStr+'?'))return;
+  if(EVAL_DATA[playerIdx]&&EVAL_DATA[playerIdx][evalType]){
+    EVAL_DATA[playerIdx][evalType]=EVAL_DATA[playerIdx][evalType].filter(function(e){return e.date!==dateStr;});
+  }
+  await sbDelete('evaluaciones',
+    'team_id=eq.'+TEAM.id+'&player_idx=eq.'+playerIdx+'&eval_type=eq.'+encodeURIComponent(evalType)+'&date=eq.'+dateStr);
+  renderEvaluaciones();
+  showBanner('🗑 Evaluación eliminada','var(--mut)',2000);
+}
 
 // ===== PRE-LOADED DATA FROM SHEETS =====
 
@@ -7157,6 +7193,26 @@ function renderSemaforo(){
         ?'<div style="font-size:10px;color:var(--red);line-height:1.6">'+r.reasons.map(function(x){return '⚠ '+x;}).join('<br>')+'</div>'
         :'<div style="font-size:10px;color:var(--grn)">✓ Sin alertas</div>'
       )
+      // Recomendaciones
+      +(function(){
+        var recs=[];
+        if(r.acwr!==null){
+          if(r.acwr>1.5)recs.push('Descarga urgente — reducir carga 40-50%');
+          else if(r.acwr>1.3)recs.push('Reducir intensidad — sesión regenerativa');
+          else if(r.acwr<0.8&&r.acwr>0)recs.push('Carga insuficiente — aumentar progresivamente');
+        }
+        if(r.ws!==null&&r.ws!==undefined){
+          if(r.ws<3.5)recs.push('Wellness crítico — charla individual urgente');
+          else if(r.ws<5)recs.push('Wellness bajo — reforzar recuperación');
+        }
+        if(r.cmjDelta<-10)recs.push('Fatiga neuromuscular — evitar pliometría');
+        else if(r.cmjDelta<-5)recs.push('CMJ reducido — carga neuromuscular moderada');
+        if(!recs.length)return'';
+        return'<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)">'
+          +'<div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">💡 Recomendación</div>'
+          +recs.slice(0,2).map(function(t){return'<div style="font-size:10px;color:var(--dim);line-height:1.6">→ '+t+'</div>';}).join('')
+          +'</div>';
+      })()
       +'</div>';
   });
   html+='</div>';
