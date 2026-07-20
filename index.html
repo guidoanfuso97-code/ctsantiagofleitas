@@ -5145,14 +5145,20 @@ function renderEvaluaciones(){
       +'<button onclick="openAddEval('+idx+',\''+et.id+'\')" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);color:var(--acc);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:700">+ Cargar</button>'
       +'</div>'
       +(latest
-        ?'<div style="font-size:32px;font-weight:900;color:var(--txt);line-height:1;margin-bottom:4px">'+latest.value+(et.unit?' <span style="font-size:13px;color:var(--mut)">'+et.unit+'</span>':'')+'</div>'
+        ?'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">'
+        +'<div style="font-size:32px;font-weight:900;color:var(--txt);line-height:1">'+latest.value+(et.unit?' <span style="font-size:13px;color:var(--mut)">'+et.unit+'</span>':'')+'</div>'
+        +'<span style="display:flex;gap:3px;margin-top:2px">'
+        +'<button onclick="openEditEval('+idx+',\''+et.id+'\',\''+latest.date+'\')" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:#a78bfa;border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer">✏️</button>'
+        +'<button onclick="deleteEvalEntry('+idx+',\''+et.id+'\',\''+latest.date+'\')" style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);color:var(--red);border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer">🗑</button>'
+        +'</span>'
+        +'</div>'
         +'<div style="font-size:10px;color:var(--mut);margin-bottom:8px">'+latest.date+(latest.notes?' · '+latest.notes:'')+'</div>'
         +(delta!==null?'<div style="font-size:11px;font-weight:700;color:'+deltaColor+'">'+(delta>0?'↑ +':delta<0?'↓ ':'→ ')+Math.abs(delta)+(et.unit?' '+et.unit:'')+' vs anterior</div>':'')
         :'<div style="font-size:24px;color:var(--mut);margin-bottom:4px">—</div><div style="font-size:10px;color:var(--mut)">Sin registros</div>'
       )
       +(entries.length>1
         ?'<div style="margin-top:10px;border-top:1px solid var(--b);padding-top:8px">'
-         +entries.slice(0,4).map(function(e){
+         +entries.slice(1,4).map(function(e){
            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px">'
              +'<span style="color:var(--mut)">'+e.date+'</span>'
              +'<span style="font-weight:700;color:var(--txt)">'+e.value+(et.unit?' '+et.unit:'')+'</span>'
@@ -5225,7 +5231,7 @@ function renderEvaluaciones(){
     +'<button onclick="openAddEval('+idx+',\'antro\')" style="background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.2);color:#a78bfa;border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;font-weight:700">+ Medición</button>'
     +'</div>'
     +(pData2.antro&&pData2.antro.length
-      ?renderAntroTable(pData2.antro)
+      ?renderAntroTable(pData2.antro,idx)
       :'<div style="text-align:center;padding:20px;color:var(--mut);font-size:12px">Sin mediciones antropométricas.</div>'
     )
     +'</div>';
@@ -5309,8 +5315,7 @@ function renderEvalTeam(){
   return h;
 }
 
-function renderAntroTable(entries){
-  var latest=entries[entries.length-1];
+function renderAntroTable(entries,playerIdx){
   var fields=['peso','talla','pliegues','imc','notas'];
   var labels=['Peso (kg)','Talla (cm)','Pliegues (mm)','IMC','Notas'];
   return '<div style="overflow-x:auto">'
@@ -5318,11 +5323,16 @@ function renderAntroTable(entries){
     +'<thead><tr style="border-bottom:1px solid var(--b)">'
     +'<th style="padding:6px 8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase">Fecha</th>'
     +labels.map(function(l){return '<th style="padding:6px;text-align:right;font-size:9px;color:var(--mut);text-transform:uppercase">'+l+'</th>';}).join('')
+    +'<th></th>'
     +'</tr></thead><tbody>'
     +entries.slice().reverse().slice(0,5).map(function(e){
       return '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
         +'<td style="padding:7px 8px;font-size:11px;font-weight:600">'+e.date+'</td>'
         +fields.map(function(f){return '<td style="padding:7px;text-align:right;font-size:11px;color:var(--dim)">'+(e[f]||'—')+'</td>';}).join('')
+        +'<td style="padding:4px 6px;white-space:nowrap">'
+        +'<button onclick="openEditEval('+playerIdx+',\'antro\',\''+e.date+'\')" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:#a78bfa;border-radius:4px;padding:1px 6px;font-size:9px;cursor:pointer;margin-right:2px">✏️</button>'
+        +'<button onclick="deleteEvalEntry('+playerIdx+',\'antro\',\''+e.date+'\')" style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);color:var(--red);border-radius:4px;padding:1px 6px;font-size:9px;cursor:pointer">🗑</button>'
+        +'</td>'
         +'</tr>';
     }).join('')
     +'</tbody></table></div>';
