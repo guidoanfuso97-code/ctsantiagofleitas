@@ -200,6 +200,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="nav" data-tab="rpe" data-title="Evaluar RPE Post-Sesión">🎯&nbsp; Evaluar RPE</div>
     <div class="nav" data-tab="checkin" data-title="Check-in Wellness Diario">💚&nbsp; Check-in</div>
     <div class="nav" data-tab="historial" data-title="Historial GPS · Sesiones">📅&nbsp; Historial GPS</div>
+    <div class="nav" data-tab="acumulados" data-title="Acumulados GPS · EWMA">📡&nbsp; Acumulados GPS</div>
     <div class="nav" data-tab="comparaciones" data-title="Comparaciones de Carga">⚖️&nbsp; Comparaciones</div>
     <div class="nav" data-tab="estadisticas" data-title="Estadísticas y Fixture">📋&nbsp; Estadísticas</div>
     <div class="nav" data-tab="evaluaciones" data-title="Evaluaciones Físicas">📊&nbsp; Evaluaciones</div>
@@ -245,6 +246,7 @@ input:focus,select.fi:focus{border-color:var(--acc)}
     <div class="tab" id="t-rpe"></div>
     <div class="tab" id="t-checkin"></div>
     <div class="tab" id="t-historial"></div>
+    <div class="tab" id="t-acumulados"></div>
     <div class="tab" id="t-comparaciones"></div>
     <div class="tab" id="t-estadisticas"></div>
     <div class="tab" id="t-evaluaciones"></div>
@@ -589,6 +591,51 @@ var SESSION_HOY = null;
 var DEFAULT_PLAYERS=[];
 
 var TEAMS=[],TEAM=null,PL=[],CH={},selP=0,SESSIONS=[],IMP_DATA=null;
+var _acuSelPlayer=0,_acuSelMetric=0;
+var ACU_METRICS=[
+  {key:'pl',    label:'Player Load', sKey:'pl',         unit:'AU', color:'#a78bfa'},
+  {key:'dist',  label:'Distancia',   sKey:'dist',       unit:'m',  color:'#06d6a0'},
+  {key:'hi',    label:'HI +21 km/h', sKey:'hiDist',     unit:'m',  color:'#f59e0b'},
+  {key:'sprint',label:'Sprint +24',  sKey:'sprintDist', unit:'m',  color:'#f43f5e'},
+  {key:'acc',   label:'Acc+Dec Ef.', sKey:'accDec',     unit:'ef', color:'#10b981'},
+];
+function acuGetVal(metrics,sKey){
+  if(!metrics)return 0;
+  var v=+(metrics[sKey]||0);
+  if(sKey==='accDec'&&!v)v=(+(metrics.accDecEff||0))||(+(metrics.accEff||0)+(+(metrics.decEff||0)));
+  return v;
+}
+function buildAcuEWMA(player,sKey){
+  var ALPHA_FAST=0.28,ALPHA_SLOW=0.069;
+  if(!SESSIONS.length)return{daily:[],dates:[],ac:[],ch:[],acwr:null,weekSum:0,hasData:false};
+  var sorted=SESSIONS.slice().sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+  var firstDate=new Date(sorted[0].date);
+  var lastDate=new Date(TODAY);
+  var maxBack=new Date(lastDate);maxBack.setDate(maxBack.getDate()-364);
+  var startDate=firstDate>maxBack?firstDate:maxBack;
+  var sIdx={};sorted.forEach(function(s){sIdx[s.date]=s;});
+  var daily=[],dates=[];
+  var d=new Date(startDate);
+  while(d<=lastDate){
+    var ds=d.toISOString().split('T')[0];
+    dates.push(ds);
+    var sess=sIdx[ds];
+    var val=0;
+    if(sess){
+      var pm=sess._pidx&&sess._pidx[player.idx]?sess._pidx[player.idx]:null;
+      if(!pm){var fp=sess.players.find(function(pd){return pd.playerIdx===player.idx&&pd.participated;});pm=fp?fp.metrics:null;}
+      val=pm?acuGetVal(pm,sKey):0;
+    }
+    daily.push(val);
+    d.setDate(d.getDate()+1);
+  }
+  var ac=ewma(daily,ALPHA_FAST),ch=ewma(daily,ALPHA_SLOW);
+  var lastAc=ac[ac.length-1],lastCh=ch[ch.length-1];
+  var acwrVal=lastCh>2?+((lastAc/lastCh).toFixed(2)):null;
+  var weekSum=daily.slice(-7).reduce(function(a,b){return a+b;},0);
+  var n=Math.min(56,daily.length);
+  return{daily:daily.slice(-n),dates:dates.slice(-n),ac:ac.slice(-n),ch:ch.slice(-n),acwr:acwrVal,weekSum:weekSum,hasData:daily.some(function(v){return v>0;})};
+}
 
 async function loadTeams(){
   try{
@@ -6871,6 +6918,118 @@ async function renderWellnessTrend(){
   },options:Object.assign({},CBASE,{scales:{x:XY.x,y:Object.assign({},XY.y,{min:0,max:10,ticks:Object.assign({},XY.y.ticks,{stepSize:2})})}})});
 }
 
+// ===== ACUMULADOS GPS =====
+function renderAcumulados(){
+  var el=$('t-acumulados');if(!el)return;
+  var gpsP=PL.filter(function(p){return p.hasGPSDevice;});
+  if(!gpsP.length){
+    el.innerHTML='<div class="card" style="text-align:center;padding:40px;color:var(--mut)">No hay jugadores con dispositivo GPS configurado.</div>';
+    return;
+  }
+  var M=ACU_METRICS;
+  var playerData=gpsP.map(function(p){return M.map(function(m){return buildAcuEWMA(p,m.sKey);});});
+  var hasSomeSessions=SESSIONS.length>0;
+  var tHtml='<div style="overflow-x:auto"><table style="border-collapse:separate;border-spacing:0;width:100%;font-size:11px;min-width:680px">'
+    +'<thead><tr style="border-bottom:1px solid rgba(255,255,255,.09)">'
+    +'<th style="text-align:left;padding:8px 10px;color:var(--mut);font-weight:600;min-width:120px">Jugador</th>'
+    +M.map(function(m){return '<th style="text-align:center;padding:6px 4px;min-width:82px">'
+      +'<div style="color:'+m.color+';font-size:10px;font-weight:700">'+m.label+'</div>'
+      +'<div style="color:var(--dim);font-size:8px;margin-top:1px">7 días · ACWR</div></th>';}).join('')
+    +'</tr></thead><tbody>';
+  gpsP.forEach(function(p,pi){
+    tHtml+='<tr style="border-bottom:1px solid rgba(255,255,255,.03)">'
+      +'<td style="padding:8px 10px"><div style="font-size:11px;font-weight:600;color:var(--txt)">'+p.name+'</div>'
+      +'<div style="font-size:9px;color:var(--mut)">'+p.pos+'</div></td>';
+    M.forEach(function(m,mi){
+      var d=playerData[pi][mi];
+      var ws=d.weekSum,aVal=d.acwr;
+      var dv=d.hasData?(m.key==='dist'?(ws/1000).toFixed(2)+' km':Math.round(ws)+(m.unit==='ef'?' ef':' '+m.unit)):'—';
+      var aC=aVal?ac(aVal):'var(--dim)';
+      tHtml+='<td style="text-align:center;padding:8px 4px">'
+        +(d.hasData
+          ?'<div style="font-weight:700;font-size:13px;color:var(--txt)">'+dv+'</div>'
+            +'<div style="font-size:10px;color:'+aC+';font-weight:700;margin-top:2px">'+(aVal?aVal.toFixed(2):'—')+'</div>'
+          :'<span style="color:var(--dim);font-size:10px">—</span>')
+        +'</td>';
+    });
+    tHtml+='</tr>';
+  });
+  tHtml+='</tbody></table></div>'
+    +'<div style="display:flex;gap:14px;margin-top:8px;font-size:9px;color:var(--mut);flex-wrap:wrap">'
+    +'ACWR: <span style="color:var(--grn)">● 0.8–1.3 Óptimo</span>'
+    +' <span style="color:var(--yel)">● &lt;0.8 o &gt;1.3 Precaución</span>'
+    +' <span style="color:var(--red)">● &gt;1.5 Riesgo</span>'
+    +'</div>';
+  if(!hasSomeSessions)tHtml='<div style="padding:24px;text-align:center;color:var(--mut);font-size:12px">Sin sesiones GPS. Importá desde "+ GPS" para ver datos.</div>';
+  var pOpts=gpsP.map(function(p,i){return '<option value="'+i+'">'+p.name+'</option>';}).join('');
+  var mBtns=M.map(function(m,mi){var a=(mi===_acuSelMetric);
+    return '<button onclick="_acuSelMetric='+mi+';renderAcuChart()" style="padding:4px 12px;border-radius:20px;border:1px solid '
+      +(a?m.color:'rgba(255,255,255,.1)')+';background:'+(a?m.color+'22':'transparent')
+      +';color:'+(a?m.color:'var(--mut)')+';font-size:10px;font-weight:'+(a?'700':'400')
+      +';cursor:pointer;transition:.2s;white-space:nowrap">'+m.label+'</button>';}).join('');
+  el.innerHTML='<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div class="card">'
+    +'<h3>📡 Acumulados Semanales · Jugadores GPS</h3>'
+    +'<p style="font-size:11px;color:var(--mut);margin:0 0 10px">Suma últimos 7 días · EWMA calculado desde todas las sesiones disponibles (α aguda=0.28, α crónica=0.069).</p>'
+    +tHtml+'</div>'
+    +'<div class="card">'
+    +'<h3>📈 Tendencia Individual · EWMA Histórico</h3>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">'
+    +'<select class="psel" id="acu-psel" onchange="_acuSelPlayer=+this.value;renderAcuChart()" style="flex:0 0 auto">'
+    +pOpts+'</select>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:5px">'+mBtns+'</div>'
+    +'</div>'
+    +'<div id="acu-kpis" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>'
+    +'<div class="cw"><canvas id="acu-c"></canvas></div>'
+    +'</div></div>';
+  var ps=$('acu-psel');if(ps)ps.value=Math.min(_acuSelPlayer,gpsP.length-1);
+  renderAcuChart();
+}
+function renderAcuChart(){
+  destC('acu-c');
+  var kpis=$('acu-kpis');
+  var gpsP=PL.filter(function(p){return p.hasGPSDevice;});
+  if(!gpsP.length)return;
+  if(_acuSelPlayer>=gpsP.length)_acuSelPlayer=0;
+  var p=gpsP[_acuSelPlayer],m=ACU_METRICS[_acuSelMetric];
+  if(!p||!m)return;
+  var d=buildAcuEWMA(p,m.sKey);
+  var aC=d.acwr?ac(d.acwr):'var(--mut)';
+  var aZ=!d.acwr?'Sin datos':d.acwr>1.5?'Riesgo':d.acwr>1.3?'Sobreentrenamiento':d.acwr<0.8?'Subentrenamiento':'Óptimo';
+  var dw=m.key==='dist'?(d.weekSum/1000).toFixed(2)+' km':Math.round(d.weekSum)+(m.unit==='ef'?' ef':' '+m.unit);
+  function kpiBox(lbl,val,color,sub){
+    return '<div style="flex:1;min-width:90px;background:rgba(255,255,255,.04);border-radius:10px;padding:10px 14px">'
+      +'<div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+lbl+'</div>'
+      +'<div style="font-size:20px;font-weight:800;color:'+color+'">'+val+'</div>'
+      +(sub?'<div style="font-size:9px;color:'+color+';margin-top:2px">'+sub+'</div>':'')
+      +'</div>';
+  }
+  if(kpis)kpis.innerHTML=
+    kpiBox('Acum. 7 días',d.hasData?dw:'—',m.color,'')
+    +kpiBox('ACWR '+m.label,d.acwr?d.acwr.toFixed(2):'—',aC,aZ)
+    +kpiBox('EWMA Aguda',d.ac.length?Math.round(d.ac[d.ac.length-1])+' '+m.unit:'—','#f59e0b','α=0.28')
+    +kpiBox('EWMA Crónica',d.ch.length?Math.round(d.ch[d.ch.length-1])+' '+m.unit:'—','#64748b','α=0.069');
+  if(!d.hasData){
+    var cv=$('acu-c');
+    if(cv&&cv.parentElement)cv.parentElement.innerHTML='<div style="text-align:center;padding:32px;color:var(--mut)">Sin datos GPS para <strong>'+p.name+'</strong>. Los datos aparecerán al importar sesiones GPS.</div>';
+    return;
+  }
+  var labels=d.dates.map(function(ds){return ds.slice(5);});
+  mkC('acu-c',{type:'bar',data:{labels:labels,datasets:[
+    {label:m.label+' (diario)',data:d.daily,
+      backgroundColor:d.daily.map(function(v){return v>0?m.color+'33':'rgba(255,255,255,.02)';}),
+      borderColor:d.daily.map(function(v){return v>0?m.color+'99':'transparent';}),
+      borderWidth:1,borderRadius:3,order:3},
+    {label:'EWMA Aguda (α=0.28)',data:d.ac,type:'line',
+      borderColor:'#f59e0b',backgroundColor:'transparent',
+      borderWidth:2.5,tension:.35,pointRadius:0,pointHoverRadius:4,order:1},
+    {label:'EWMA Crónica (α=0.069)',data:d.ch,type:'line',
+      borderColor:'rgba(100,116,139,.85)',backgroundColor:'transparent',
+      borderWidth:2,tension:.35,borderDash:[5,3],pointRadius:0,pointHoverRadius:4,order:0}
+  ]},options:Object.assign({},CBASE,{scales:{x:XY.x,y:Object.assign({},XY.y,{
+    title:{display:true,text:m.unit,color:'#64748b',font:{size:9}}})}})});
+}
+
 var TABS={
   plantel:{title:'Vista de Plantel',render:function(){renderPlantel();showAlertasPanel();}},
   carga:{title:'Análisis de Carga',render:renderCarga},
@@ -6884,6 +7043,7 @@ var TABS={
   rpe:{title:'Evaluar RPE Post-Sesión',render:renderRPETab},
   checkin:{title:'Check-in Wellness Diario',render:renderCheckinTab},
   historial:{title:'Historial GPS · Sesiones',render:renderHistorial},
+  acumulados:{title:'Acumulados GPS · EWMA',render:renderAcumulados},
   comparaciones:{title:'Comparaciones de Carga',render:renderComparaciones},
   estadisticas:{title:'Estadísticas y Fixture',render:renderEstadisticas},
   evaluaciones:{title:'Evaluaciones Físicas',render:renderEvaluaciones},
