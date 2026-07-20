@@ -5071,7 +5071,7 @@ function evalsKey(){return 'evals:'+TEAM.id;}
 
 async function loadEvals(){
   try{
-    var rows=await sbGet('evaluaciones','team_id=eq.'+TEAM.id);
+    var rows=await sbGet('evaluaciones','team_id=eq.'+TEAM.id+'&limit=10000&order=date.asc');
     EVAL_DATA={};
     rows.forEach(function(r){
       if(!EVAL_DATA[r.player_idx])EVAL_DATA[r.player_idx]={};
