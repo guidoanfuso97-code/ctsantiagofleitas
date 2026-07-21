@@ -2072,7 +2072,12 @@ async function saveRPEList(){
     rows.push({team_id:TEAM.id,player_idx:+i,date:TODAY,
       rpe_value:RPEST.res[i],duration:RPEST.dur,srpe:RPEST.res[i]*RPEST.dur});
   }
-  if(rows.length)await sbUpsert('rpe',rows);
+  var ok=rows.length?await sbUpsert('rpe',rows):true;
+  if(!ok){
+    if(btn){btn.textContent='💾 Guardar';btn.style.opacity='1';}
+    showBanner('❌ Error al guardar RPE — chequeá la conexión e intentá de nuevo','var(--red)',6000);
+    return;
+  }
   await loadRealRPE();updateTopStats();
   if(btn){btn.textContent='✓ Guardado';btn.style.background='rgba(16,185,129,.2)';btn.style.color='var(--grn)';}
   setTimeout(function(){if(btn){btn.textContent='💾 Guardar';btn.style.background='';btn.style.color='';}},3000);
@@ -2170,9 +2175,11 @@ function ciPick(n){
 }
 async function ciSave(){
   var a=CIST.ans,ws=calcWS(a),wco=ws>=7?'var(--grn)':ws>=5?'var(--yel)':'var(--red)';
-  try{await sbUpsert('wellness',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,
+  var okW=false,okD=false;
+  try{okW=await sbUpsert('wellness',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,
     sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue});}catch(e){}
-  try{await sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}});}catch(e){}
+  try{okD=await sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}});}catch(e){}
+  if(!okW){showBanner('❌ Error al guardar check-in — chequeá la conexión e intentá de nuevo','var(--red)',6000);return;}
   await loadRealWellness();updateTopStats();
   var fn=PL[CIST.player].name.split(' ')[0];
   var dimBoxes=CIQ.map(function(q){
