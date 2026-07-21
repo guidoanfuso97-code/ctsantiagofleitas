@@ -798,11 +798,12 @@ async function loadTeams(){
   if(!TEAM)setTimeout(openTeamModal,400);
 }
 async function saveTeam(t){
-  await fetch(SUPABASE_URL+'/rest/v1/teams?on_conflict=id',{
+  var r=await fetch(SUPABASE_URL+'/rest/v1/teams?on_conflict=id',{
     method:'POST',
     headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
     body:JSON.stringify({id:t.id,name:t.name,season:t.season,players:t.players})
   });
+  if(!r.ok)showBanner('❌ Error al guardar equipo — chequeá la conexión','var(--red)',4000);
 }
 async function saveTeams(){for(var i=0;i<TEAMS.length;i++)await saveTeam(TEAMS[i]);}
 function updateClubLabel(){var el=$('club-lbl');if(el)el.textContent=(TEAM?TEAM.name.toUpperCase():'ATLAS')+' ⚙';}
@@ -1980,6 +1981,7 @@ function renderIndCharts(p,metIdx){
   destC('ind-radar-c');
   var tw=p.tw;
   var scl={g:'var(--grn)',y:'var(--yel)',r:'var(--red)'};
+  if(!tw){destC('ind-radar-c');return;}
   mkC('ind-radar-c',{type:'radar',data:{labels:['Sueño','Energía','Sin Estrés','Sin DOMS','Sin Fatiga'],datasets:[{data:[tw.sleep,tw.energy,10-tw.stress,10-tw.doms,10-tw.fatigue],backgroundColor:'rgba(6,214,160,.1)',borderColor:scl[p.status],borderWidth:2,pointBackgroundColor:scl[p.status],pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{min:0,max:10,grid:{color:'rgba(255,255,255,.07)'},angleLines:{color:'rgba(255,255,255,.07)'},pointLabels:{color:'#94a3b8',font:{size:9}},ticks:{display:false}}}}});
 }
 
@@ -3549,7 +3551,7 @@ async function saveGPSConfig(){
   });
   // Save GPS flags into TEAM.players and persist to Supabase
   PL.forEach(function(p,i){if(TEAM.players[i])TEAM.players[i].gps=p.hasGPSDevice;});
-  saveTeam(TEAM);
+  await saveTeam(TEAM);
   closeGPSConfig();
   // Rebuild PL and refresh
   buildPL();
@@ -4237,7 +4239,7 @@ async function saveSprintManual(){
   var row={team_id:TEAM.id,player_idx:pidx,date:date,t5:t5,t10:t10,t20:t20,t30:t30,notes:notes,source:'manual'};
   try{
     var res=await sbInsertReturn('sprints',row);
-    if(res&&res.length)SPRINT_DATA.push(res[0]);
+    if(res&&res.id)SPRINT_DATA.push(res);
     else SPRINT_DATA.push(Object.assign({id:'tmp_'+Date.now()},row));
   }catch(e){SPRINT_DATA.push(Object.assign({id:'tmp_'+Date.now()},row));}
   SPRINT_PLAYER=pidx;SPRINT_VIEW='individual';
@@ -4353,7 +4355,7 @@ async function importSprintCSV(){
   try{
     for(var i=0;i<rows.length;i++){
       var res=await sbInsertReturn('sprints',rows[i]);
-      if(res&&res.length)SPRINT_DATA.push(res[0]);
+      if(res&&res.id)SPRINT_DATA.push(res);
       else SPRINT_DATA.push(Object.assign({id:'tmp_'+Date.now()+'_'+i},rows[i]));
     }
   }catch(e){rows.forEach(function(r,i){SPRINT_DATA.push(Object.assign({id:'tmp_'+Date.now()+'_'+i},r));});}
@@ -4495,7 +4497,7 @@ function renderZonasView(){
   VZ_ZONES.forEach(function(z){
     html+='<div style="display:flex;align-items:center;gap:5px;background:var(--c);border-radius:6px;padding:4px 10px">'
       +'<div style="width:8px;height:8px;border-radius:50%;background:'+z.col+'"></div>'
-      +'<span style="font-size:10px;color:var(--mut)">Z'+VZ_ZONES.indexOf(z)+1+' '+z.name+' <strong style="color:var(--txt)">'+z.pmin+'-'+z.pmax+'%</strong></span>'
+      +'<span style="font-size:10px;color:var(--mut)">Z'+(VZ_ZONES.indexOf(z)+1)+' '+z.name+' <strong style="color:var(--txt)">'+z.pmin+'-'+z.pmax+'%</strong></span>'
       +'</div>';
   });
   html+='</div>';
@@ -4756,8 +4758,9 @@ async function saveVmaxEdit(pidx){
   var row={team_id:TEAM.id,player_idx:pidx,vmax_kmh:val,source:'manual',test_date:date,notes:''};
   try{
     var url=SUPABASE_URL+'/rest/v1/player_vmax?on_conflict=team_id,player_idx';
-    await fetch(url,{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(row)});
-  }catch(e){}
+    var r=await fetch(url,{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(row)});
+    if(!r.ok){showBanner('❌ Error al guardar Vmax — chequeá la conexión','var(--red)',4000);return;}
+  }catch(e){showBanner('❌ Error al guardar Vmax — chequeá la conexión','var(--red)',4000);return;}
   // update local
   VMAX_DATA=VMAX_DATA.filter(function(r){return r.player_idx!==pidx;});
   VMAX_DATA.push(row);
@@ -5450,6 +5453,7 @@ async function saveEvalEntry(playerIdx,evalType){
   var arr=EVAL_DATA[playerIdx][evalType];
   var existingIdx=arr.findIndex(function(e){return e.date===date;});
   var isUpdate=existingIdx>=0;
+  var oldEntry=isUpdate?arr[existingIdx]:null;
 
   if(isUpdate){
     // Replace local entry
@@ -5470,7 +5474,7 @@ async function saveEvalEntry(playerIdx,evalType){
 
   if(!ok){
     // Revert local state on failure
-    if(isUpdate){arr[existingIdx]=arr[existingIdx];}
+    if(isUpdate){arr[existingIdx]=oldEntry;}
     else{arr.pop();}
     if(btn){btn.disabled=false;btn.textContent='Guardar';}
     showBanner('❌ Error al guardar — chequeá la conexión e intentá de nuevo','var(--red)',6000);
@@ -6898,6 +6902,7 @@ async function saveMicrocicloDay(dayIdx){
     headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
     body:JSON.stringify(row)
   });
+  if(!r.ok){showBanner('❌ Error al guardar microciclo — chequeá la conexión','var(--red)',4000);return;}
   if(_mcCache[weekStart])_mcCache[weekStart].days[dayIdx]=Object.assign(_mcCache[weekStart].days[dayIdx]||{},row);
   var ind=document.getElementById('mc-saved-'+dayIdx);
   if(ind){ind.style.opacity='1';setTimeout(function(){if(ind)ind.style.opacity='0';},1500);}
@@ -7319,7 +7324,7 @@ function calcReadinessScore(p){
     else if(acwr>=0.8&&acwr<=1.3){positives.push('Carga óptima');}
   }
   // Wellness hoy (35 pts)
-  var ws=p.wellness[27];
+  var ws=p.wscore;
   if(ws!==null&&ws!==undefined){
     if(ws<3.5){score-=35;reasons.push('Bienestar crítico ('+ws.toFixed(1)+'/10)');}
     else if(ws<5){score-=20;reasons.push('Bienestar bajo ('+ws.toFixed(1)+'/10)');}
@@ -7333,8 +7338,8 @@ function calcReadinessScore(p){
   if(cd<-10){score-=20;reasons.push('CMJ muy bajo ('+cd+'%)');}
   else if(cd<-5){score-=10;reasons.push('CMJ reducido ('+cd+'%)');}
   else if(cd>=0){positives.push('CMJ estable');}
-  // Asistencia última semana (10 pts)
-  var recent=p.wellness.slice(21,27).filter(function(v){return v!==null;}).length;
+  // Asistencia última semana (10 pts) — usa wscore de hoy como proxy de check-in reciente
+  var recent=p.wscore!==null?1:0;
   if(recent===0){score-=10;reasons.push('Sin datos últimos 7 días');}
   score=Math.max(0,Math.min(100,Math.round(score)));
   var color=score>=75?'var(--grn)':score>=50?'var(--yel)':'var(--red)';
@@ -7619,7 +7624,7 @@ function generarInforme(){
   var weekSessions=SESSIONS.filter(function(s){return new Date(s.date)>=weekAgo;});
   var avgLoad=weekSessions.length?Math.round(weekSessions.reduce(function(a,s){return a+(s.teamAvgLoad||0);},0)/weekSessions.length):0;
   var avgWellness=0,wellCount=0;
-  PL.forEach(function(p){var w=p.wellness[27];if(w!==null&&w!==undefined){avgWellness+=w;wellCount++;}});
+  PL.forEach(function(p){var w=p.wscore;if(w!==null&&w!==undefined){avgWellness+=w;wellCount++;}});
   avgWellness=wellCount?(avgWellness/wellCount).toFixed(1):'—';
 
   var readiness=PL.map(function(p,i){return{p:p,i:i,r:calcReadinessScore(p)};}).sort(function(a,b){return a.r.score-b.r.score;});
