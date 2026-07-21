@@ -793,6 +793,7 @@ async function loadTeams(){
   var aid=null;
   try{var ra=localStorage.getItem('atlas_active_team');if(ra)aid=ra;}catch(e){}
   TEAM=TEAMS.find(function(t){return t.id===aid;})||TEAMS[0]||null;
+  if(TEAM)try{localStorage.setItem('atlas_active_team',TEAM.id);}catch(e){}
   buildPL();updateClubLabel();
   if(!TEAM)setTimeout(openTeamModal,400);
 }
@@ -5108,14 +5109,33 @@ function renderEvaluaciones(){
 
   var btnStyle=function(active){return 'padding:7px 16px;border-radius:8px;border:1px solid '+(active?'var(--acc)':'var(--b)')+';background:'+(active?'rgba(6,214,160,.1)':'var(--c)')+';color:'+(active?'var(--acc)':'var(--mut)')+';font-size:12px;font-weight:'+(active?700:500)+';cursor:pointer';};
 
-  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
+  var totalEvals=Object.keys(EVAL_DATA).reduce(function(sum,k){return sum+Object.keys(EVAL_DATA[k]).length;},0);
+  var teamName=TEAM?TEAM.name:'—';
+
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">'
     +'<div><div style="font-size:15px;font-weight:700">📊 Evaluaciones Físicas</div>'
     +'<div style="font-size:11px;color:var(--mut);margin-top:1px">CMJ · CMJ 1P · Broad Jump · 10/5 · Sprint · 1000m · 30-15 IFT</div></div>'
-    +'<div style="display:flex;gap:6px">'
+    +'<div style="display:flex;gap:6px;align-items:center">'
     +'<button onclick="EVAL_VIEW=\'individual\';renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='individual')+'">👤 Individual</button>'
     +'<button onclick="EVAL_VIEW=\'equipo\';renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='equipo')+'">👥 Equipo</button>'
+    +'<button onclick="loadEvals().then(renderEvaluaciones)" style="padding:7px 12px;border-radius:8px;border:1px solid var(--b);background:var(--c);color:var(--mut);font-size:11px;cursor:pointer" title="Recargar datos">🔄</button>'
     +'</div>'
+    +'</div>'
+    +'<div style="font-size:10px;color:var(--mut);margin-bottom:12px;padding:6px 10px;background:rgba(255,255,255,.03);border-radius:6px;border:1px solid rgba(255,255,255,.06)">'
+    +'Equipo activo: <span style="color:var(--acc);font-weight:700">'+teamName+'</span>'
+    +(totalEvals===0?'  ·  <span style="color:var(--red);font-weight:700">⚠ Sin evaluaciones cargadas para este equipo</span>':'  ·  <span style="color:var(--grn)">'+totalEvals+' tipos con datos</span>')
     +'</div>';
+
+  if(totalEvals===0){
+    html+='<div class="card" style="text-align:center;padding:28px 20px;border:1px solid rgba(244,63,94,.2);background:rgba(244,63,94,.04)">'
+      +'<div style="font-size:28px;margin-bottom:8px">⚠️</div>'
+      +'<div style="font-size:14px;font-weight:700;margin-bottom:6px">No hay evaluaciones para <span style="color:var(--acc)">'+teamName+'</span></div>'
+      +'<div style="font-size:12px;color:var(--mut);margin-bottom:16px">Si evaluaste jugadores de otro equipo, cambiá el equipo activo desde el ícono ⚙ arriba.</div>'
+      +'<button onclick="loadEvals().then(renderEvaluaciones)" style="padding:10px 20px;border-radius:8px;background:rgba(6,214,160,.15);border:1px solid var(--acc);color:var(--acc);font-size:12px;font-weight:700;cursor:pointer">🔄 Recargar datos</button>'
+      +'</div>';
+    tab.innerHTML=html;
+    return;
+  }
 
   if(EVAL_VIEW==='equipo'){
     tab.innerHTML=html+renderEvalTeam();
