@@ -3756,7 +3756,8 @@ async function saveFPManual(playerIdx,testType){
   var row={team_id:TEAM.id,player_idx:playerIdx,date:date,test_type:testType,notes:notes,source:'manual'};
   tt.metrics.forEach(function(m){var el=document.getElementById('fp-'+m.key);row[m.key]=el&&el.value!==''?+el.value:null;});
   var saved=await sbInsertReturn('force_plates',row);
-  if(saved)row.id=saved.id;
+  if(!saved){showBanner('❌ Error al guardar — chequeá la conexión','var(--red)',4000);return;}
+  row.id=saved.id;
   FP_DATA.push(row);
   var m=document.getElementById('fp-manual-modal');if(m)m.parentNode.removeChild(m);
   renderForcePlates();
@@ -6535,7 +6536,8 @@ async function saveCampoEntry(){
     title:entry.title,author:entry.author,url:entry.url||'',
     text_content:entry.text||'',image_data:entry.imageData||'',folder_name:folder};
   var saved=await sbInsertReturn('campo',row);
-  if(saved&&saved.id)entry.id=saved.id;
+  if(!saved){showBanner('❌ Error al guardar — chequeá la conexión','var(--red)',4000);return;}
+  entry.id=saved.id;
   CAMPO_ENTRIES.unshift(entry);
   closeCampoModal();renderCampo();
   showBanner('✅ Guardado · '+entry.sessionType+' · '+entry.date,'var(--grn)',2500);
