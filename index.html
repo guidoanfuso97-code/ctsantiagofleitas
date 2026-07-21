@@ -3431,7 +3431,7 @@ function openGPSConfig(){
       +'<span style="font-size:10px;color:var(--mut)">GPS</span>'
       +'<div style="position:relative;width:36px;height:20px">'
       +'<input type="checkbox" id="gps-chk-'+i+'" '+(p.hasGPSDevice?'checked':'')+' style="opacity:0;width:0;height:0;position:absolute" onchange="toggleGPSDevice('+i+',this.checked)">'
-      +'<div id="gps-tog-'+i+'" style="position:absolute;top:0;left:0;right:0;bottom:0;border-radius:10px;background:'+(p.hasGPSDevice?'var(--acc)':'rgba(100,116,139,.4)')+';transition:.2s;cursor:pointer" onclick="document.getElementById(\'gps-chk-'+i+'\').click()">'
+      +'<div id="gps-tog-'+i+'" style="position:absolute;top:0;left:0;right:0;bottom:0;border-radius:10px;background:'+(p.hasGPSDevice?'var(--acc)':'rgba(100,116,139,.4)')+';transition:.2s;pointer-events:none">'
       +'<div style="position:absolute;top:2px;left:'+(p.hasGPSDevice?'18':'2')+'px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s"></div>'
       +'</div></div>'
       +'</label>'
