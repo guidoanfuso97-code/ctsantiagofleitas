@@ -5146,9 +5146,26 @@ function renderEvaluaciones(){
   var p=PL[idx];
   var pData=EVAL_DATA[idx]||{};
 
-  html+='<select onchange="var s=document.getElementById(\'carga-sel\');if(s)s.value=this.value;renderEvaluaciones()" id="eval-player-sel" style="background:var(--bg2);border:1px solid var(--acc);border-radius:8px;padding:8px 14px;color:var(--acc);font-size:12px;font-weight:700;outline:none;cursor:pointer;margin-bottom:14px;display:block">'
-    +PL.map(function(pl,i){return '<option value="'+i+'"'+(i===idx?' selected':'')+'>'+pl.name+'</option>';}).join('')
+  // Players with evaluations for quick navigation
+  var evalPlayers=PL.map(function(pl,i){return{i:i,name:pl.name,hasData:!!EVAL_DATA[i]&&Object.keys(EVAL_DATA[i]).length>0};}).filter(function(x){return x.hasData;});
+
+  html+='<select onchange="var s=document.getElementById(\'carga-sel\');if(s)s.value=this.value;renderEvaluaciones()" id="eval-player-sel" style="background:var(--bg2);border:1px solid var(--acc);border-radius:8px;padding:8px 14px;color:var(--acc);font-size:12px;font-weight:700;outline:none;cursor:pointer;margin-bottom:8px;display:block">'
+    +PL.map(function(pl,i){
+      var hasData=!!EVAL_DATA[i]&&Object.keys(EVAL_DATA[i]).length>0;
+      return '<option value="'+i+'"'+(i===idx?' selected':'')+'>'+(hasData?'● ':'')+pl.name+'</option>';
+    }).join('')
     +'</select>';
+
+  if(evalPlayers.length>0&&!Object.keys(pData).length){
+    html+='<div class="card" style="margin-bottom:12px;padding:14px 16px;border:1px solid rgba(6,214,160,.2);background:rgba(6,214,160,.04)">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--acc);margin-bottom:8px">Este jugador no tiene evaluaciones · Jugadores con datos:</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+      +evalPlayers.map(function(ep){
+        return '<button onclick="var s=document.getElementById(\'carga-sel\');if(s)s.value='+ep.i+';document.getElementById(\'eval-player-sel\').value='+ep.i+';renderEvaluaciones()" '
+          +'style="padding:5px 10px;border-radius:6px;background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.25);color:var(--acc);font-size:11px;font-weight:600;cursor:pointer">'+ep.name+'</button>';
+      }).join('')
+      +'</div></div>';
+  }
 
   html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px">';
   EVAL_TYPES.forEach(function(et){
