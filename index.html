@@ -3334,8 +3334,8 @@ function renderComparaciones(){
 
     html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">';
     COMP_METRICS.slice(0,4).forEach(function(m){
-      var vMatch=isTeam?teamAvgSession(mPV,m.key):metricVal(mPV,p.idx,m.key);
-      var vMicro=isTeam?teamAvgMicro(microPV,m.key):microTotal(microPV,p.idx,m.key);
+      var vMatch=isTeam?teamTotalMicro([mPV],m.key):metricVal(mPV,p.idx,m.key);
+      var vMicro=isTeam?teamTotalMicro(microPV,m.key):microTotal(microPV,p.idx,m.key);
       var pct=vMicro>0?Math.round(vMatch/vMicro*100):0;
       html+='<div class="card" style="text-align:center">'
         +'<div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">'+m.label+'</div>'
@@ -3354,8 +3354,8 @@ function renderComparaciones(){
     tab.innerHTML=html;
     setTimeout(function(){
       var labels=COMP_METRICS.map(function(m){return m.label;});
-      var dMatch=COMP_METRICS.map(function(m){return isTeam?+teamAvgSession(mPV,m.key).toFixed(1):+metricVal(mPV,p.idx,m.key).toFixed(1);});
-      var dMicro=COMP_METRICS.map(function(m){return isTeam?+teamAvgMicro(microPV,m.key).toFixed(1):+microTotal(microPV,p.idx,m.key).toFixed(1);});
+      var dMatch=COMP_METRICS.map(function(m){return isTeam?Math.round(teamTotalMicro([mPV],m.key)):+metricVal(mPV,p.idx,m.key).toFixed(1);});
+      var dMicro=COMP_METRICS.map(function(m){return isTeam?Math.round(teamTotalMicro(microPV,m.key)):+microTotal(microPV,p.idx,m.key).toFixed(1);});
       mkC('comp-c',{type:'bar',data:{labels:labels,datasets:[
         {label:'Partido · '+lblPV,data:dMatch,backgroundColor:'rgba(244,63,94,.7)',borderRadius:4},
         {label:'Total Microciclo',data:dMicro,backgroundColor:'rgba(100,116,139,.45)',borderRadius:4}
@@ -3389,7 +3389,8 @@ function buildMetricCards(vA,vB,showTotal,microA,microB){
   COMP_METRICS.slice(4).forEach(function(m){
     var a=+vA(m.key).toFixed(1),b=+vB(m.key).toFixed(1);
     var diff=a-b;var pct=b>0?Math.round(diff/b*100):0;
-    var dc=diff===0?'var(--mut)':diff<0?'var(--grn)':'var(--red)';
+    var goodSecond=m.key==='maxVel'?diff>0:diff<0;
+    var dc=diff===0?'var(--mut)':goodSecond?'var(--grn)':'var(--red)';
     html+='<div class="card">'
       +'<div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">'+m.label+'</div>'
       +'<div style="display:flex;justify-content:space-around;align-items:flex-end">'
