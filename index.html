@@ -5456,7 +5456,16 @@ async function saveEvalEntry(playerIdx,evalType){
     value:entry.value||null,
     peso:entry.peso||null,talla:entry.talla||null,
     pliegues:entry.pliegues||null,imc:entry.imc||null};
-  await sbInsert('evaluaciones',row);
+  var ok=await sbInsert('evaluaciones',row);
+
+  if(!ok){
+    // Revert local state on failure
+    if(isUpdate){arr[existingIdx]=arr[existingIdx];}
+    else{arr.pop();}
+    if(btn){btn.disabled=false;btn.textContent='Guardar';}
+    showBanner('❌ Error al guardar — chequeá la conexión e intentá de nuevo','var(--red)',6000);
+    return;
+  }
 
   var m=document.getElementById('eval-add-modal');
   if(m)m.parentNode.removeChild(m);
