@@ -5118,6 +5118,8 @@ function renderEvaluaciones(){
     +'<div style="display:flex;gap:6px;align-items:center">'
     +'<button onclick="EVAL_VIEW=\'individual\';renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='individual')+'">👤 Individual</button>'
     +'<button onclick="EVAL_VIEW=\'equipo\';renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='equipo')+'">👥 Equipo</button>'
+    +'<button onclick="generarInformeEvaluaciones()" style="padding:7px 14px;border-radius:8px;border:1px solid rgba(6,214,160,.3);background:rgba(6,214,160,.1);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">📄 PDF</button>'
+    +'<button onclick="exportEvalCSV()" style="padding:7px 14px;border-radius:8px;border:1px solid rgba(139,92,246,.3);background:rgba(139,92,246,.1);color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer">⬇ CSV</button>'
     +'<button onclick="loadEvals().then(renderEvaluaciones)" style="padding:7px 12px;border-radius:8px;border:1px solid var(--b);background:var(--c);color:var(--mut);font-size:11px;cursor:pointer" title="Recargar datos">🔄</button>'
     +'</div>'
     +'</div>'
@@ -7421,6 +7423,174 @@ function renderSemaforo(){
   });
   html+='</div>';
   tab.innerHTML=html;
+}
+
+// ══════════════════════════════════════════════════
+//  EXPORT EVALUACIONES — CSV y PDF
+// ══════════════════════════════════════════════════
+function exportEvalCSV(){
+  var cols=['cmj','cmj_l','cmj_r','broad','t10_5','sprint10','t1000','ift3015'];
+  var labels=['CMJ (cm)','CMJ 1P Izq (cm)','CMJ 1P Der (cm)','Broad Jump (cm)','10/5 RSI','10m Lanzado (s)','Test 1000m (s)','30-15 IFT (km/h)'];
+  var rows=[['Jugador','Posición','Fecha'].concat(labels)];
+  PL.forEach(function(p,i){
+    var d=EVAL_DATA[i]||{};
+    var hasSome=cols.some(function(c){return (d[c]||[]).length>0;});
+    if(!hasSome)return;
+    var latestDate='—';
+    cols.forEach(function(c){var e=(d[c]||[]).sort(function(a,b){return new Date(b.date)-new Date(a.date);})[0];if(e&&e.date>latestDate)latestDate=e.date;});
+    var vals=cols.map(function(c){
+      var e=(d[c]||[]).sort(function(a,b){return new Date(b.date)-new Date(a.date);})[0];
+      return e&&e.value!=null?e.value:'';
+    });
+    rows.push([p.name,p.pos,latestDate].concat(vals));
+  });
+  var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
+  a.download='ATLAS_evaluaciones_'+(TEAM?TEAM.name.replace(/\s/g,'_'):'plantel')+'_'+TODAY+'.csv';
+  a.click();
+}
+
+function generarInformeEvaluaciones(){
+  var now=new Date();
+  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var fechaHoy=now.getDate()+' de '+meses[now.getMonth()]+' '+now.getFullYear();
+  var teamName=TEAM?TEAM.name:'Plantel';
+
+  var cols=[
+    {id:'cmj',   label:'CMJ',    unit:'cm'},
+    {id:'cmj_l', label:'1P Izq', unit:'cm'},
+    {id:'cmj_r', label:'1P Der', unit:'cm'},
+    {id:'broad', label:'Broad',  unit:'cm'},
+    {id:'t10_5', label:'10/5',   unit:''}
+  ];
+
+  // Collect rows with data
+  var playerRows=[];
+  PL.forEach(function(p,i){
+    var d=EVAL_DATA[i]||{};
+    var vals={};
+    var latestDate=null;
+    cols.forEach(function(c){
+      var entries=(d[c.id]||[]).filter(function(e){return e.value!=null;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+      vals[c.id]=entries.length?+entries[0].value:null;
+      if(entries.length&&(!latestDate||entries[0].date>latestDate))latestDate=entries[0].date;
+    });
+    var hasSome=cols.some(function(c){return vals[c.id]!=null;});
+    if(!hasSome)return;
+    var vL=vals['cmj_l'],vR=vals['cmj_r'],vBi=vals['cmj'];
+    vals._asym=(vL!=null&&vR!=null)?+(Math.abs(vR-vL)/Math.max(vL,vR)*100).toFixed(1):null;
+    vals._def=(vBi!=null&&vL!=null&&vR!=null)?+(vBi/(vL+vR)*100).toFixed(1):null;
+    vals._date=latestDate||'—';
+    playerRows.push({p:p,vals:vals});
+  });
+
+  // Percentile color per column
+  function pctCol(val,allVals){
+    if(val===null)return '#94a3b8';
+    var sorted=allVals.filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
+    if(sorted.length<2)return '#0f172a';
+    var pct=sorted.indexOf(val)/(sorted.length-1);
+    return pct>=0.75?'#166534':pct<=0.25?'#991b1b':'#0f172a';
+  }
+  function pctBg(val,allVals){
+    if(val===null)return 'transparent';
+    var sorted=allVals.filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
+    if(sorted.length<2)return 'transparent';
+    var pct=sorted.indexOf(val)/(sorted.length-1);
+    return pct>=0.75?'#dcfce7':pct<=0.25?'#fee2e2':'transparent';
+  }
+  var allVals={};
+  cols.forEach(function(c){allVals[c.id]=playerRows.map(function(r){return r.vals[c.id];});});
+  var allAsym=playerRows.map(function(r){return r.vals._asym;});
+  var allDef=playerRows.map(function(r){return r.vals._def;});
+
+  var tdB='padding:8px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;text-align:right';
+  var thB='padding:9px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;border-bottom:2px solid #e2e8f0;text-align:right;white-space:nowrap';
+
+  var tableRows=playerRows.map(function(r){
+    return '<tr>'
+      +'<td style="'+tdB+';text-align:left;font-weight:700;color:#0f172a">'+r.p.name+'</td>'
+      +'<td style="'+tdB+';text-align:center;font-size:10px;color:#64748b">'+r.p.pos+'</td>'
+      +'<td style="'+tdB+';text-align:center;font-size:10px;color:#64748b">'+r.vals._date+'</td>'
+      +cols.map(function(c){
+        var v=r.vals[c.id];
+        var bg=pctBg(v,allVals[c.id]);
+        var col=pctCol(v,allVals[c.id]);
+        return '<td style="'+tdB+';color:'+col+';background:'+bg+';font-weight:700">'+(v!=null?v+'<span style="font-size:9px;font-weight:400;color:#94a3b8"> '+c.unit+'</span>':'—')+'</td>';
+      }).join('')
+      +'<td style="'+tdB+';color:'+(r.vals._asym!=null?(r.vals._asym<10?'#166534':r.vals._asym<15?'#92400e':'#991b1b'):'#94a3b8')+';font-weight:700">'
+        +(r.vals._asym!=null?r.vals._asym+'%':'—')+'</td>'
+      +'<td style="'+tdB+';color:'+(r.vals._def!=null?(r.vals._def>=95?'#166534':r.vals._def>=80?'#92400e':'#991b1b'):'#94a3b8')+';font-weight:700">'
+        +(r.vals._def!=null?r.vals._def+'%':'—')+'</td>'
+      +'</tr>';
+  }).join('');
+
+  // Alerts: asymmetry > 10%
+  var asimAlerts=playerRows.filter(function(r){return r.vals._asym!=null&&r.vals._asym>=10;});
+
+  var html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+    +'<title>Evaluaciones Físicas · '+teamName+'</title>'
+    +'<style>@media print{body{margin:0}button{display:none!important}}body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;background:#fff;color:#0f172a}tr:hover td{background:#f8fafc!important}</style>'
+    +'</head><body>'
+    +'<div style="max-width:860px;margin:0 auto;padding:32px 24px">'
+    // Header
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:16px;border-bottom:3px solid #0f172a">'
+      +'<div>'
+        +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:4px">ATLAS · Sistema de Monitoreo Deportivo</div>'
+        +'<div style="font-size:24px;font-weight:900;letter-spacing:-.5px">Evaluaciones Físicas</div>'
+        +'<div style="font-size:13px;color:#64748b;margin-top:3px">'+teamName+'</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+        +'<div style="font-size:11px;color:#64748b">Generado</div>'
+        +'<div style="font-size:13px;font-weight:700">'+fechaHoy+'</div>'
+        +'<button onclick="window.print()" style="margin-top:8px;padding:7px 14px;background:#0f172a;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">🖨 Imprimir / Guardar PDF</button>'
+      +'</div>'
+    +'</div>'
+    // Summary
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">'
+    +[
+      {l:'Jugadores evaluados',v:playerRows.length},
+      {l:'Con datos completos',v:playerRows.filter(function(r){return cols.slice(0,4).every(function(c){return r.vals[c.id]!=null;});}).length},
+      {l:'Asimetría > 10%',v:asimAlerts.length,warn:asimAlerts.length>0},
+      {l:'Fecha más reciente',v:playerRows.reduce(function(mx,r){return r.vals._date>mx?r.vals._date:mx;},'—')}
+    ].map(function(b){return '<div style="background:#f8fafc;border-radius:8px;padding:12px;text-align:center;border:1px solid #e2e8f0">'
+      +'<div style="font-size:22px;font-weight:900;color:'+(b.warn?'#991b1b':'#0f172a')+'">'+b.v+'</div>'
+      +'<div style="font-size:9px;font-weight:700;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:.3px">'+b.l+'</div>'
+    +'</div>';}).join('')
+    +'</div>'
+    // Asymmetry alerts
+    +(asimAlerts.length?'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin-bottom:20px">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#991b1b;margin-bottom:8px">⚠ Asimetría > 10% — Requiere atención</div>'
+      +asimAlerts.map(function(r){return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;gap:16px">'
+        +'<span style="font-weight:700;min-width:160px">'+r.p.name+'</span>'
+        +'<span>Asimetría: <strong style="color:#991b1b">'+r.vals._asym+'%</strong></span>'
+        +(r.vals['cmj_l']!=null&&r.vals['cmj_r']!=null?'<span style="color:#64748b">Izq '+r.vals['cmj_l']+' cm · Der '+r.vals['cmj_r']+' cm</span>':'')
+        +'</div>';}).join('')
+      +'</div>':'')
+    // Main table
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:8px">Resultados del Plantel</div>'
+    +'<div style="font-size:9px;color:#94a3b8;margin-bottom:10px">Verde = top 25% · Rojo = bottom 25% del grupo evaluado</div>'
+    +'<table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr style="background:#f8fafc">'
+    +'<th style="'+thB+';text-align:left">Jugador</th>'
+    +'<th style="'+thB+';text-align:center">Pos</th>'
+    +'<th style="'+thB+';text-align:center">Fecha</th>'
+    +cols.map(function(c){return '<th style="'+thB+'">'+c.label+(c.unit?' ('+c.unit+')':'')+'</th>';}).join('')
+    +'<th style="'+thB+'">Asim %</th>'
+    +'<th style="'+thB+'">Déf Bi %</th>'
+    +'</tr></thead>'
+    +'<tbody>'+tableRows+'</tbody>'
+    +'</table>'
+    // Footer
+    +'<div style="margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8">'
+      +'<span>ATLAS · Sistema de Monitoreo Deportivo</span>'
+      +'<span>'+teamName+' · '+fechaHoy+'</span>'
+    +'</div>'
+    +'</div></body></html>';
+
+  var w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
 }
 
 // ══════════════════════════════════════════════════
