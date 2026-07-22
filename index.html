@@ -5119,7 +5119,8 @@ var EVAL_TYPES=[
   {id:'t10_5',   label:'10/5 RSI',     unit:'',    icon:'🔁', desc:'Reactive Strength Index'},
   {id:'sprint10',label:'10m Lanzado',  unit:'s',   icon:'⚡', desc:'Velocidad aceleración'},
   {id:'t1000',   label:'Test 1000m',   unit:'s',   icon:'🏃', desc:'Resistencia'},
-  {id:'ift3015', label:'30-15 IFT',    unit:'km/h',icon:'📈', desc:'Velocidad aeróbica máxima'}
+  {id:'ift3015', label:'30-15 IFT',    unit:'km/h',icon:'📈', desc:'Velocidad aeróbica máxima'},
+  {id:'isquios', label:'Isquios NHE',  unit:'N',   icon:'🦿', desc:'Fuerza isquiotibial · Winlaborat · Nordic', bilateral:true}
 ];
 
 var EVAL_DATA = {}; // {playerIdx: {cmj:[{date,value,notes}], ...}}
@@ -5243,22 +5244,29 @@ function renderEvaluaciones(){
       +'</div>'
       +(latest
         ?'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">'
-        +'<div style="font-size:32px;font-weight:900;color:var(--txt);line-height:1">'+latest.value+(et.unit?' <span style="font-size:13px;color:var(--mut)">'+et.unit+'</span>':'')+'</div>'
+        +(et.bilateral
+          ?(function(){var vI=+(latest.peso||0),vD=+(latest.value||0);return'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1">'+'<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:var(--txt)">'+vI+'</div><div style="font-size:9px;color:var(--mut)">N · Izq</div></div>'+'<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:var(--txt)">'+vD+'</div><div style="font-size:9px;color:var(--mut)">N · Der</div></div>'+'</div>';})()
+          :'<div style="font-size:32px;font-weight:900;color:var(--txt);line-height:1">'+latest.value+(et.unit?' <span style="font-size:13px;color:var(--mut)">'+et.unit+'</span>':'')+'</div>'
+        )
         +'<span style="display:flex;gap:3px;margin-top:2px">'
         +'<button onclick="openEditEval('+idx+',\''+et.id+'\',\''+latest.date+'\')" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:#a78bfa;border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer">✏️</button>'
         +'<button onclick="deleteEvalEntry('+idx+',\''+et.id+'\',\''+latest.date+'\')" style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);color:var(--red);border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer">🗑</button>'
         +'</span>'
         +'</div>'
         +'<div style="font-size:10px;color:var(--mut);margin-bottom:8px">'+latest.date+(latest.notes?' · '+latest.notes:'')+'</div>'
-        +(delta!==null?'<div style="font-size:11px;font-weight:700;color:'+deltaColor+'">'+(delta>0?'↑ +':delta<0?'↓ ':'→ ')+Math.abs(delta)+(et.unit?' '+et.unit:'')+' vs anterior</div>':'')
+        +(et.bilateral
+          ?(function(){var vI=+(latest.peso||0),vD=+(latest.value||0);var asy=(vI&&vD)?+(Math.abs(vD-vI)/Math.max(vI,vD)*100).toFixed(1):null;var asyC=asy===null?'var(--mut)':asy<10?'var(--grn)':asy<15?'var(--yel)':'var(--red)';return asy!==null?'<div style="font-size:11px;font-weight:700;color:'+asyC+'">⚖️ Asimetría: '+asy+'%'+(asy<10?' ✓':asy<15?' ⚠️':' ⛔')+'</div>':''})()
+          :(delta!==null?'<div style="font-size:11px;font-weight:700;color:'+deltaColor+'">'+(delta>0?'↑ +':delta<0?'↓ ':'→ ')+Math.abs(delta)+(et.unit?' '+et.unit:'')+' vs anterior</div>':'')
+        )
         :'<div style="font-size:24px;color:var(--mut);margin-bottom:4px">—</div><div style="font-size:10px;color:var(--mut)">Sin registros</div>'
       )
       +(entries.length>1
         ?'<div style="margin-top:10px;border-top:1px solid var(--b);padding-top:8px">'
          +entries.slice(1,4).map(function(e){
+           var dispVal=et.bilateral?(+(e.peso||0))+' / '+(+(e.value||0))+' N':(e.value+(et.unit?' '+et.unit:''));
            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px">'
              +'<span style="color:var(--mut)">'+e.date+'</span>'
-             +'<span style="font-weight:700;color:var(--txt)">'+e.value+(et.unit?' '+et.unit:'')+'</span>'
+             +'<span style="font-weight:700;color:var(--txt)">'+dispVal+'</span>'
              +'<span style="display:flex;gap:3px">'
              +'<button onclick="openEditEval('+idx+',\''+et.id+'\',\''+e.date+'\')" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:#a78bfa;border-radius:4px;padding:1px 6px;font-size:9px;cursor:pointer">✏️</button>'
              +'<button onclick="deleteEvalEntry('+idx+',\''+et.id+'\',\''+e.date+'\')" style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);color:var(--red);border-radius:4px;padding:1px 6px;font-size:9px;cursor:pointer">🗑</button>'
@@ -5320,6 +5328,41 @@ function renderEvaluaciones(){
       +'</div>';
   }
 
+  // ── Isquios asymmetry ──
+  var isqEnt=(pData['isquios']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  var latIsq=isqEnt[0];
+  if(latIsq&&latIsq.peso!=null&&latIsq.value!=null){
+    var isqI=+latIsq.peso,isqD=+latIsq.value;
+    var isqAsym=+(Math.abs(isqD-isqI)/Math.max(isqI,isqD)*100).toFixed(1);
+    var isqCol=isqAsym<10?'var(--grn)':isqAsym<15?'var(--yel)':'var(--red)';
+    var isqDom=isqI>=isqD?'Izquierda':'Derecha';
+    var isqBarI=+(isqI/Math.max(isqI,isqD)*100).toFixed(1);
+    var isqBarD=+(isqD/Math.max(isqI,isqD)*100).toFixed(1);
+    html+='<div class="card" style="margin-bottom:16px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🦿 Isquios NHE · Asimetría</div>'
+      +'<div style="display:flex;gap:16px;align-items:flex-end;margin-bottom:12px">'
+      +'<div style="flex:1;text-align:center">'
+        +'<div style="font-size:28px;font-weight:900;color:var(--txt)">'+isqI+'</div>'
+        +'<div style="font-size:10px;color:var(--mut);margin-bottom:6px">N · Izq</div>'
+        +'<div style="height:8px;background:var(--b);border-radius:4px"><div style="height:100%;width:'+isqBarI+'%;background:var(--acc);border-radius:4px"></div></div>'
+      +'</div>'
+      +'<div style="text-align:center;min-width:60px">'
+        +'<div style="font-size:22px;font-weight:900;color:'+isqCol+'">'+isqAsym+'%</div>'
+        +'<div style="font-size:9px;color:var(--mut)">asimetría</div>'
+      +'</div>'
+      +'<div style="flex:1;text-align:center">'
+        +'<div style="font-size:28px;font-weight:900;color:var(--txt)">'+isqD+'</div>'
+        +'<div style="font-size:10px;color:var(--mut);margin-bottom:6px">N · Der</div>'
+        +'<div style="height:8px;background:var(--b);border-radius:4px"><div style="height:100%;width:'+isqBarD+'%;background:var(--pur);border-radius:4px"></div></div>'
+      +'</div>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--mut)">Dominante: <span style="color:var(--txt);font-weight:700">'+isqDom+'</span>'
+        +(isqAsym<10?' · <span style="color:var(--grn)">Normal ✓</span>':isqAsym<15?' · <span style="color:var(--yel)">Moderada ⚠️</span>':' · <span style="color:var(--red)">Elevada ⛔</span>')
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--mut);margin-top:4px">'+latIsq.date+(latIsq.notes?' · '+latIsq.notes:'')+'</div>'
+      +'</div>';
+  }
+
   // ── Anthropometría ──
   var pData2=EVAL_DATA[idx]||{};
   html+='<div class="card">'
@@ -5359,6 +5402,10 @@ function renderEvalTeam(){
     var vL=vals['cmj_l'], vR=vals['cmj_r'], vBi=vals['cmj'];
     vals._asym=(vL!=null&&vR!=null)?+(Math.abs(vR-vL)/Math.max(vL,vR)*100).toFixed(1):null;
     vals._def=(vBi!=null&&vL!=null&&vR!=null)?+(vBi/(vL+vR)*100).toFixed(1):null;
+    var isqEnt2=(d['isquios']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    vals._isq_izq=null;vals._isq_der=null;vals._isq_asym=null;
+    if(isqEnt2.length){var li=isqEnt2[0];vals._isq_izq=li.peso!=null?+li.peso:null;vals._isq_der=li.value!=null?+li.value:null;}
+    if(vals._isq_izq!=null&&vals._isq_der!=null)vals._isq_asym=+(Math.abs(vals._isq_der-vals._isq_izq)/Math.max(vals._isq_izq,vals._isq_der)*100).toFixed(1);
     return {p:p,i:i,vals:vals};
   });
 
@@ -5392,6 +5439,9 @@ function renderEvalTeam(){
     +cols.map(function(c){return '<th style="'+thStyle+'">'+c.label+(c.unit?' ('+c.unit+')':'')+'</th>';}).join('')
     +'<th style="'+thStyle+'">Asim %</th>'
     +'<th style="'+thStyle+'">Déf Bi %</th>'
+    +'<th style="'+thStyle+'">Isq Izq (N)</th>'
+    +'<th style="'+thStyle+'">Isq Der (N)</th>'
+    +'<th style="'+thStyle+'">Isq Asim %</th>'
     +'</tr></thead><tbody>';
 
   rows.forEach(function(r){
@@ -5406,6 +5456,9 @@ function renderEvalTeam(){
       }).join('')
       +'<td style="'+tdStyle+';color:'+(r.vals._asym!=null?(r.vals._asym<10?'var(--grn)':r.vals._asym<15?'var(--yel)':'var(--red)'):'var(--mut)')+'">'+(r.vals._asym!=null?r.vals._asym+'%':'—')+'</td>'
       +'<td style="'+tdStyle+';color:'+(r.vals._def!=null?(r.vals._def>=95?'var(--grn)':r.vals._def>=80?'var(--yel)':'var(--red)'):'var(--mut)')+'">'+(r.vals._def!=null?r.vals._def+'%':'—')+'</td>'
+      +'<td style="'+tdStyle+';color:'+(r.vals._isq_izq!=null?'var(--dim)':'var(--mut)')+'">'+(r.vals._isq_izq!=null?r.vals._isq_izq:'—')+'</td>'
+      +'<td style="'+tdStyle+';color:'+(r.vals._isq_der!=null?'var(--dim)':'var(--mut)')+'">'+(r.vals._isq_der!=null?r.vals._isq_der:'—')+'</td>'
+      +'<td style="'+tdStyle+';color:'+(r.vals._isq_asym!=null?(r.vals._isq_asym<10?'var(--grn)':r.vals._isq_asym<15?'var(--yel)':'var(--red)'):'var(--mut)')+'">'+(r.vals._isq_asym!=null?r.vals._isq_asym+'%':'—')+'</td>'
       +'</tr>';
   });
   h+='</tbody></table></div>';
@@ -5435,6 +5488,19 @@ function renderAntroTable(entries,playerIdx){
     +'</tbody></table></div>';
 }
 
+function calcIsqAsym(){
+  var izqEl=document.getElementById('eval-izq');
+  var derEl=document.getElementById('eval-der');
+  var prev=document.getElementById('isq-asym-preview');
+  if(!prev)return;
+  var vI=+(izqEl&&izqEl.value||0),vD=+(derEl&&derEl.value||0);
+  if(!vI||!vD){prev.textContent='Asimetría: — %';prev.style.color='var(--mut)';return;}
+  var asy=+(Math.abs(vD-vI)/Math.max(vI,vD)*100).toFixed(1);
+  var col=asy<10?'var(--grn)':asy<15?'var(--yel)':'var(--red)';
+  prev.textContent='Asimetría: '+asy+'%'+(asy<10?' ✓':asy<15?' ⚠️':' ⛔');
+  prev.style.color=col;
+}
+
 function openAddEval(playerIdx,evalType){
   var existing=document.getElementById('eval-add-modal');
   if(existing)existing.parentNode.removeChild(existing);
@@ -5445,6 +5511,7 @@ function openAddEval(playerIdx,evalType){
 
   var et=EVAL_TYPES.find(function(e){return e.id===evalType;})||{label:'Antropometría',unit:'',icon:'📐'};
   var isAntro=evalType==='antro';
+  var isBilateral=!isAntro&&et&&et.bilateral;
 
   var fieldsHtml=isAntro
     ?['peso','talla','pliegues','imc'].map(function(f,i){
@@ -5452,6 +5519,14 @@ function openAddEval(playerIdx,evalType){
       return '<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">'+labels2[i]+'</div>'
         +'<input type="number" step="0.1" id="antro-'+f+'" placeholder="0" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:8px 10px;color:var(--txt);font-size:13px;outline:none"></div>';
     }).join('')
+    :isBilateral
+    ?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+     +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">🦵 Izquierda (N)</div>'
+     +'<input type="number" step="0.1" id="eval-izq" placeholder="0" oninput="calcIsqAsym()" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:12px;color:var(--txt);font-size:20px;font-weight:700;outline:none;text-align:center"></div>'
+     +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">🦵 Derecha (N)</div>'
+     +'<input type="number" step="0.1" id="eval-der" placeholder="0" oninput="calcIsqAsym()" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:12px;color:var(--txt);font-size:20px;font-weight:700;outline:none;text-align:center"></div>'
+     +'</div>'
+     +'<div id="isq-asym-preview" style="text-align:center;font-size:11px;color:var(--mut);margin-bottom:10px;padding:6px;background:var(--bg2);border-radius:6px">Asimetría: — %</div>'
     :'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">'+et.label+' ('+et.unit+')</div>'
     +'<input type="number" step="0.01" id="eval-value" placeholder="0" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:12px;color:var(--txt);font-size:20px;font-weight:700;outline:none;text-align:center"></div>';
 
@@ -5485,13 +5560,27 @@ async function saveEvalEntry(playerIdx,evalType){
       entry[f]=el?+(el.value)||0:0;
     });
   } else {
-    var valEl=document.getElementById('eval-value');
-    if(!valEl||!valEl.value){
-      showBanner('⚠️ Ingresá un valor','var(--yel)',2000);
-      if(btn){btn.disabled=false;btn.textContent='Guardar';}
-      return;
+    var et=EVAL_TYPES.find(function(t){return t.id===evalType;});
+    var isBilateral=et&&et.bilateral;
+    if(isBilateral){
+      var izqEl=document.getElementById('eval-izq');
+      var derEl=document.getElementById('eval-der');
+      if(!izqEl||!izqEl.value||!derEl||!derEl.value){
+        showBanner('⚠️ Ingresá ambos valores (Izquierda y Derecha)','var(--yel)',2000);
+        if(btn){btn.disabled=false;btn.textContent='Guardar';}
+        return;
+      }
+      entry.peso=+izqEl.value;
+      entry.value=+derEl.value;
+    } else {
+      var valEl=document.getElementById('eval-value');
+      if(!valEl||!valEl.value){
+        showBanner('⚠️ Ingresá un valor','var(--yel)',2000);
+        if(btn){btn.disabled=false;btn.textContent='Guardar';}
+        return;
+      }
+      entry.value=+valEl.value;
     }
-    entry.value=+valEl.value;
   }
 
   if(!EVAL_DATA[playerIdx])EVAL_DATA[playerIdx]={};
@@ -5548,8 +5637,16 @@ function openEditEval(playerIdx,evalType,dateStr){
   if(evalType==='antro'){
     ['peso','talla','pliegues','imc'].forEach(function(f){var el=document.getElementById('antro-'+f);if(el)el.value=entry[f]||'';});
   } else {
-    var valEl=document.getElementById('eval-value');
-    if(valEl)valEl.value=entry.value||'';
+    var et2=EVAL_TYPES.find(function(t){return t.id===evalType;});
+    if(et2&&et2.bilateral){
+      var izqEl=document.getElementById('eval-izq');
+      var derEl=document.getElementById('eval-der');
+      if(izqEl)izqEl.value=entry.peso||'';
+      if(derEl)derEl.value=entry.value||'';
+    } else {
+      var valEl=document.getElementById('eval-value');
+      if(valEl)valEl.value=entry.value||'';
+    }
   }
   // Update modal title
   var mbox=document.querySelector('#eval-add-modal .mbox');
@@ -7624,6 +7721,10 @@ function generarInformeEvaluaciones(){
     var vL=vals['cmj_l'],vR=vals['cmj_r'],vBi=vals['cmj'];
     vals._asym=(vL!=null&&vR!=null)?+(Math.abs(vR-vL)/Math.max(vL,vR)*100).toFixed(1):null;
     vals._def=(vBi!=null&&vL!=null&&vR!=null)?+(vBi/(vL+vR)*100).toFixed(1):null;
+    var isqEnt3=(d['isquios']||[]).slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    vals._isq_izq=null;vals._isq_der=null;vals._isq_asym=null;
+    if(isqEnt3.length){var liq=isqEnt3[0];vals._isq_izq=liq.peso!=null?+liq.peso:null;vals._isq_der=liq.value!=null?+liq.value:null;}
+    if(vals._isq_izq!=null&&vals._isq_der!=null)vals._isq_asym=+(Math.abs(vals._isq_der-vals._isq_izq)/Math.max(vals._isq_izq,vals._isq_der)*100).toFixed(1);
     vals._date=latestDate||'—';
     playerRows.push({p:p,vals:vals});
   });
@@ -7647,6 +7748,7 @@ function generarInformeEvaluaciones(){
   cols.forEach(function(c){allVals[c.id]=playerRows.map(function(r){return r.vals[c.id];});});
   var allAsym=playerRows.map(function(r){return r.vals._asym;});
   var allDef=playerRows.map(function(r){return r.vals._def;});
+  var allIsqAsym=playerRows.map(function(r){return r.vals._isq_asym;});
 
   var tdB='padding:8px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;text-align:right';
   var thB='padding:9px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;border-bottom:2px solid #e2e8f0;text-align:right;white-space:nowrap';
@@ -7666,11 +7768,15 @@ function generarInformeEvaluaciones(){
         +(r.vals._asym!=null?r.vals._asym+'%':'—')+'</td>'
       +'<td style="'+tdB+';color:'+(r.vals._def!=null?(r.vals._def>=95?'#166534':r.vals._def>=80?'#92400e':'#991b1b'):'#94a3b8')+';font-weight:700">'
         +(r.vals._def!=null?r.vals._def+'%':'—')+'</td>'
+      +'<td style="'+tdB+';color:'+(r.vals._isq_izq!=null?'#0f172a':'#94a3b8')+';font-weight:700">'+(r.vals._isq_izq!=null?r.vals._isq_izq+' N':'—')+'</td>'
+      +'<td style="'+tdB+';color:'+(r.vals._isq_der!=null?'#0f172a':'#94a3b8')+';font-weight:700">'+(r.vals._isq_der!=null?r.vals._isq_der+' N':'—')+'</td>'
+      +'<td style="'+tdB+';color:'+(r.vals._isq_asym!=null?(r.vals._isq_asym<10?'#166534':r.vals._isq_asym<15?'#92400e':'#991b1b'):'#94a3b8')+';font-weight:700">'+(r.vals._isq_asym!=null?r.vals._isq_asym+'%':'—')+'</td>'
       +'</tr>';
   }).join('');
 
   // Alerts: asymmetry > 10%
   var asimAlerts=playerRows.filter(function(r){return r.vals._asym!=null&&r.vals._asym>=10;});
+  var isqAlerts=playerRows.filter(function(r){return r.vals._isq_asym!=null&&r.vals._isq_asym>=10;});
 
   var html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
     +'<title>Evaluaciones Físicas · '+teamName+'</title>'
@@ -7691,11 +7797,12 @@ function generarInformeEvaluaciones(){
       +'</div>'
     +'</div>'
     // Summary
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">'
+    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:24px">'
     +[
       {l:'Jugadores evaluados',v:playerRows.length},
       {l:'Con datos completos',v:playerRows.filter(function(r){return cols.slice(0,4).every(function(c){return r.vals[c.id]!=null;});}).length},
-      {l:'Asimetría > 10%',v:asimAlerts.length,warn:asimAlerts.length>0},
+      {l:'Asimetría CMJ > 10%',v:asimAlerts.length,warn:asimAlerts.length>0},
+      {l:'Asimetría Isquios > 10%',v:isqAlerts.length,warn:isqAlerts.length>0},
       {l:'Fecha más reciente',v:playerRows.reduce(function(mx,r){return r.vals._date>mx?r.vals._date:mx;},'—')}
     ].map(function(b){return '<div style="background:#f8fafc;border-radius:8px;padding:12px;text-align:center;border:1px solid #e2e8f0">'
       +'<div style="font-size:22px;font-weight:900;color:'+(b.warn?'#991b1b':'#0f172a')+'">'+b.v+'</div>'
@@ -7704,11 +7811,19 @@ function generarInformeEvaluaciones(){
     +'</div>'
     // Asymmetry alerts
     +(asimAlerts.length?'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin-bottom:20px">'
-      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#991b1b;margin-bottom:8px">⚠ Asimetría > 10% — Requiere atención</div>'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#991b1b;margin-bottom:8px">⚠ Asimetría CMJ > 10% — Requiere atención</div>'
       +asimAlerts.map(function(r){return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;gap:16px">'
         +'<span style="font-weight:700;min-width:160px">'+r.p.name+'</span>'
         +'<span>Asimetría: <strong style="color:#991b1b">'+r.vals._asym+'%</strong></span>'
         +(r.vals['cmj_l']!=null&&r.vals['cmj_r']!=null?'<span style="color:#64748b">Izq '+r.vals['cmj_l']+' cm · Der '+r.vals['cmj_r']+' cm</span>':'')
+        +'</div>';}).join('')
+      +'</div>':'')
+    +(isqAlerts.length?'<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-bottom:20px">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#92400e;margin-bottom:8px">🦿 Asimetría Isquios NHE > 10% — Requiere atención</div>'
+      +isqAlerts.map(function(r){return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.05);display:flex;gap:16px">'
+        +'<span style="font-weight:700;min-width:160px">'+r.p.name+'</span>'
+        +'<span>Asimetría: <strong style="color:#92400e">'+r.vals._isq_asym+'%</strong></span>'
+        +(r.vals._isq_izq!=null&&r.vals._isq_der!=null?'<span style="color:#64748b">Izq '+r.vals._isq_izq+' N · Der '+r.vals._isq_der+' N</span>':'')
         +'</div>';}).join('')
       +'</div>':'')
     // Main table
@@ -7722,6 +7837,9 @@ function generarInformeEvaluaciones(){
     +cols.map(function(c){return '<th style="'+thB+'">'+c.label+(c.unit?' ('+c.unit+')':'')+'</th>';}).join('')
     +'<th style="'+thB+'">Asim %</th>'
     +'<th style="'+thB+'">Déf Bi %</th>'
+    +'<th style="'+thB+'">Isq Izq (N)</th>'
+    +'<th style="'+thB+'">Isq Der (N)</th>'
+    +'<th style="'+thB+'">Isq Asim %</th>'
     +'</tr></thead>'
     +'<tbody>'+tableRows+'</tbody>'
     +'</table>'
