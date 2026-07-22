@@ -2335,7 +2335,8 @@ async function openRPEView(){
 // ===== SESSIONS — Supabase backed =====
 async function loadAllSessions(){
   try{
-    var rows=await sbGet('sessions','team_id=eq.'+TEAM.id+'&order=date.desc&limit=200');
+    var seasonStart=(TEAM.season||new Date().getFullYear())+'-01-01';
+    var rows=await sbGet('sessions','team_id=eq.'+TEAM.id+'&date=gte.'+seasonStart+'&order=date.desc&limit=200');
     if(!rows||!rows.length)return [];
     return rows.map(function(r){
       return {
@@ -3627,7 +3628,8 @@ var FP_TYPES=[
 ];
 
 async function loadForcePlates(){
-  try{FP_DATA=await sbGet('force_plates','team_id=eq.'+TEAM.id+'&order=date.asc');}
+  var fpSeason=(TEAM.season||new Date().getFullYear())+'-01-01';
+  try{FP_DATA=await sbGet('force_plates','team_id=eq.'+TEAM.id+'&date=gte.'+fpSeason+'&order=date.asc');}
   catch(e){FP_DATA=[];}
 }
 
@@ -3995,7 +3997,8 @@ var SP_BENCH={
 var SP_DIST=[5,10,20,30];
 
 async function loadSprints(){
-  try{SPRINT_DATA=await sbGet('sprints','team_id=eq.'+TEAM.id+'&order=date.asc');}
+  var spSeason=(TEAM.season||new Date().getFullYear())+'-01-01';
+  try{SPRINT_DATA=await sbGet('sprints','team_id=eq.'+TEAM.id+'&date=gte.'+spSeason+'&order=date.asc');}
   catch(e){SPRINT_DATA=[];}
 }
 
@@ -5110,7 +5113,8 @@ function evalsKey(){return 'evals:'+TEAM.id;}
 
 async function loadEvals(){
   try{
-    var rows=await sbGet('evaluaciones','team_id=eq.'+TEAM.id+'&limit=10000&order=date.asc');
+    var evalSeason=(TEAM.season||new Date().getFullYear())+'-01-01';
+    var rows=await sbGet('evaluaciones','team_id=eq.'+TEAM.id+'&date=gte.'+evalSeason+'&limit=2000&order=date.asc');
     EVAL_DATA={};
     rows.forEach(function(r){
       if(!EVAL_DATA[r.player_idx])EVAL_DATA[r.player_idx]={};
