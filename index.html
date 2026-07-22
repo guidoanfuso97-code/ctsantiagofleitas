@@ -849,6 +849,19 @@ async function loadRealWellness(){
     });
   }catch(e){}
 }
+var RPE_HISTORY_56={};
+async function loadHistoricalRPE(){
+  var cutoff=new Date(TODAY);cutoff.setDate(cutoff.getDate()-57);
+  var cutStr=cutoff.toISOString().split('T')[0];
+  try{
+    var rows=await sbGet('rpe','team_id=eq.'+TEAM.id+'&date=gte.'+cutStr+'&order=date.asc');
+    RPE_HISTORY_56={};
+    (rows||[]).forEach(function(r){
+      if(!RPE_HISTORY_56[r.date])RPE_HISTORY_56[r.date]={};
+      RPE_HISTORY_56[r.date][r.player_idx]=r.srpe||0;
+    });
+  }catch(e){RPE_HISTORY_56={};}
+}
 async function loadRealRPE(){
   try{
     var rows=await sbGet('rpe','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY);
@@ -895,7 +908,7 @@ async function doRefresh(){
   var btn=document.querySelector('.ref-btn');
   if(btn){btn.textContent='⏳';btn.style.opacity='.6';}
   try{
-    await Promise.all([loadRealWellness(),loadRealRPE()]);
+    await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE()]);
     var freshSessions=await loadAllSessions();
     if(freshSessions&&freshSessions.length>0){
       var sig=freshSessions.length+'|'+(freshSessions[0]?freshSessions[0].date:'');
@@ -2439,8 +2452,11 @@ async function applyHistoricalToACWR(){
         arr28:arr.slice(-28)
       };
     }
-    // PL (primary)
+    // PL (primary) — fallback to historical RPE for non-GPS players
     var plArr=metricArr('pl');
+    if(!plArr.some(function(v){return v>0;})&&Object.keys(RPE_HISTORY_56).length){
+      plArr=dateStrings.map(function(ds){return(RPE_HISTORY_56[ds]&&RPE_HISTORY_56[ds][p.idx])||0;});
+    }
     var plAcwr=calcACWR(plArr);
     p.sArr=plAcwr.arr28;p.acS=plAcwr.acArr;p.chS=plAcwr.chArr;
     p.acwrArr=plAcwr.acArr.map(function(a,i){return plAcwr.chArr[i]>2?+((a/plAcwr.chArr[i]).toFixed(2)):1.0;});
@@ -6864,12 +6880,15 @@ async function saveLesion(){
   var playerIdx=parseInt($('les-player').value);
   var fechaInicio=$('les-fecha').value;
   if(!fechaInicio){showBanner('Completá la fecha de inicio','var(--yel)',3000);return;}
+  var existingLesion=_editLesionId?LESIONES.find(function(l){return l.id===_editLesionId;}):null;
   var row={team_id:TEAM.id,player_idx:playerIdx,fecha_inicio:fechaInicio,
     fecha_alta_est:$('les-alta').value||null,tipo:$('les-tipo').value,
     zona:$('les-zona').value,gravedad:$('les-gravedad').value,
-    descripcion:$('les-desc').value.trim(),status:'activa'};
+    descripcion:$('les-desc').value.trim(),
+    status:existingLesion?existingLesion.status:'activa'};
   if(_editLesionId){
-    await sbUpdate('lesiones','id=eq.'+_editLesionId,row);
+    var ok=await sbUpdate('lesiones','id=eq.'+_editLesionId,row);
+    if(!ok){showBanner('❌ Error al guardar lesión — chequeá la conexión','var(--red)',4000);return;}
     LESIONES=LESIONES.map(function(l){return l.id===_editLesionId?Object.assign({},l,row):l;});
   }else{
     var saved=await sbInsertReturn('lesiones',row);
@@ -6879,7 +6898,8 @@ async function saveLesion(){
 }
 async function darAlta(lesionId){
   if(!confirm('¿Marcar como recuperado?'))return;
-  await sbUpdate('lesiones','id=eq.'+lesionId,{status:'recuperado',fecha_alta_est:TODAY});
+  var ok=await sbUpdate('lesiones','id=eq.'+lesionId,{status:'recuperado',fecha_alta_est:TODAY});
+  if(!ok){showBanner('❌ Error al guardar alta — chequeá la conexión','var(--red)',4000);return;}
   LESIONES=LESIONES.map(function(l){return l.id===lesionId?Object.assign({},l,{status:'recuperado',fecha_alta_est:TODAY}):l;});
   renderLesiones();showBanner('Alta registrada ✓','var(--grn)',2000);
 }
@@ -7945,6 +7965,7 @@ async function initATLAS(){
     loadAllSessions(),
     loadRealWellness(),
     loadRealRPE(),
+    loadHistoricalRPE(),
     loadCampoEntries(),
     loadEvals(),
     loadForcePlates(),
