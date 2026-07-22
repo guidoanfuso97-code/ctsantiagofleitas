@@ -1655,8 +1655,9 @@ function getPlayerAbsVmax(p){
   return (manual&&manual.vmax_kmh>0)?manual.vmax_kmh:(p.peakVel28||0);
 }
 function buildSpeedZonesCard(p,gpsHoy){
-  if(!p.peakVel28||p.peakVel28===0)return'';
   var vmax=getPlayerAbsVmax(p);
+  if(!vmax)return'';
+  var vmaxSrc=VMAX_DATA.find(function(r){return r.player_idx===p.idx;})?'test VALD/manual':'pico 28d GPS';
   var t1=+(vmax*.45).toFixed(1),t2=+(vmax*.65).toFixed(1),t3=+(vmax*.85).toFixed(1);
   var velH=gpsHoy&&gpsHoy.metrics?gpsHoy.metrics.maxVel:null;
   var zone=velH?(velH>=t3?4:velH>=t2?3:velH>=t1?2:1):0;
@@ -1665,7 +1666,7 @@ function buildSpeedZonesCard(p,gpsHoy){
   return'<div class="card mb" style="border-color:rgba(245,158,11,.2)">'
     +'<h3 style="color:var(--yel)">⚡ Zonas de Velocidad · '+p.name.split(' ')[0]+'</h3>'
     +'<div style="font-size:9px;color:var(--mut);margin-bottom:10px">'
-    +'vMax 28d: <strong style="color:var(--txt)">'+vmax.toFixed(1)+' km/h</strong>'
+    +'vMax ('+vmaxSrc+'): <strong style="color:var(--txt)">'+vmax.toFixed(1)+' km/h</strong>'
     +' · HI umbral individual: <strong style="color:var(--yel)">'+t2+' km/h</strong> ('+(hiDiff>=0?'+':'')+hiDiff+' vs fijo 21)'
     +' · Sprint: <strong style="color:var(--red)">'+t3+' km/h</strong> ('+(spDiff>=0?'+':'')+spDiff+' vs fijo 25)'
     +'</div>'
@@ -1691,7 +1692,7 @@ function buildSpeedZonesCard(p,gpsHoy){
       +'<div style="font-size:18px;font-weight:800;color:'+(velPct>=90?'var(--grn)':velPct>=80?'var(--yel)':'var(--red)')+'">'+velPct+'%</div>'
       +'</div>'
       +'<div style="font-size:9px;color:var(--mut)">'+(velPct>=90?'✅ Óptimo — expresó velocidad máxima':velPct>=80?'⚠️ Moderado — velocidad ligeramente reducida':'🔴 Bajo — posible fatiga neuromuscular')+'</div>'
-      +'<div style="font-size:9px;color:var(--mut);margin-top:3px">Vmax referencia: '+vmax.toFixed(1)+' km/h '+(VMAX_DATA.find(function(r){return r.player_idx===p.idx;})?'(test VALD/manual)':'(pico 28d GPS)')+'</div>'
+      +'<div style="font-size:9px;color:var(--mut);margin-top:3px">Vmax referencia: '+vmax.toFixed(1)+' km/h ('+vmaxSrc+')</div>'
       +'</div>'
     :'')
     +'</div>';
@@ -5720,7 +5721,7 @@ function renderEstadisticas(){
     // Header with + Partido button
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
     +'<div><div style="font-size:15px;font-weight:700">📋 Estadísticas · Temporada 2026</div>'
-    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">Primera C · CT Santiago Fleitas</div></div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">Primera C · PF Guido Anfuso</div></div>'
     +'<button onclick="openNuevoPartido()" style="background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer">+ Nuevo Partido</button>'
     +'</div>'
 
