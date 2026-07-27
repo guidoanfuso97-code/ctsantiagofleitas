@@ -312,6 +312,11 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
 </style>
 </head>
 <body>
+<!-- OFFLINE BAR -->
+<div id="offline-bar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;padding:5px 16px;border-bottom:1px solid;display:none;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;backdrop-filter:blur(8px);color:var(--txt)">
+  <span id="offline-msg"></span>
+  <button id="offline-sync-btn" onclick="syncOfflineQueue()" style="display:none;background:rgba(6,214,160,.15);border:1px solid rgba(6,214,160,.3);color:var(--acc);border-radius:5px;padding:2px 10px;font-size:10px;cursor:pointer;font-weight:700">↑ Sincronizar ahora</button>
+</div>
 <!-- ALERTAS FLOTANTES - top right, non-blocking -->
 <div id="alertas-panel" style="display:none;position:fixed;top:54px;right:16px;width:320px;max-height:400px;overflow-y:auto;background:#0d1428;border:1px solid rgba(244,63,94,.35);border-radius:12px;padding:14px;z-index:800;box-shadow:0 8px 32px rgba(0,0,0,.7)"></div>
 
@@ -520,79 +525,220 @@ if(typeof Chart!=='undefined'){
   Chart.defaults.scale.grid.color='rgba(255,255,255,.04)';
   Chart.defaults.scale.border.color='rgba(255,255,255,.06)';
 }
+// ══════════════════════════════════════════════════
+//  OFFLINE — IndexedDB cache + write queue
+// ══════════════════════════════════════════════════
+var IDB = null;
+var OFFLINE_PENDING = 0;
+
+function initIDB(){
+  return new Promise(function(resolve){
+    if(!window.indexedDB){resolve();return;}
+    var req=indexedDB.open('atlas_idb',1);
+    req.onupgradeneeded=function(e){
+      var db=e.target.result;
+      if(!db.objectStoreNames.contains('cache'))
+        db.createObjectStore('cache',{keyPath:'key'});
+      if(!db.objectStoreNames.contains('queue'))
+        db.createObjectStore('queue',{keyPath:'id',autoIncrement:true});
+    };
+    req.onsuccess=function(e){IDB=e.target.result;resolve();};
+    req.onerror=function(){resolve();};
+  });
+}
+function idbGet(store,key){
+  return new Promise(function(resolve){
+    if(!IDB){resolve(null);return;}
+    var tx=IDB.transaction(store,'readonly');
+    var req=tx.objectStore(store).get(key);
+    req.onsuccess=function(){resolve(req.result||null);};
+    req.onerror=function(){resolve(null);};
+  });
+}
+function idbSet(store,key,data){
+  return new Promise(function(resolve){
+    if(!IDB){resolve();return;}
+    var tx=IDB.transaction(store,'readwrite');
+    tx.objectStore(store).put({key:key,data:data,ts:new Date().toISOString()});
+    tx.oncomplete=resolve;tx.onerror=resolve;
+  });
+}
+function idbGetAll(store){
+  return new Promise(function(resolve){
+    if(!IDB){resolve([]);return;}
+    var tx=IDB.transaction(store,'readonly');
+    var req=tx.objectStore(store).getAll();
+    req.onsuccess=function(){resolve(req.result||[]);};
+    req.onerror=function(){resolve([]);};
+  });
+}
+function idbDel(store,key){
+  return new Promise(function(resolve){
+    if(!IDB){resolve();return;}
+    var tx=IDB.transaction(store,'readwrite');
+    tx.objectStore(store).delete(key);
+    tx.oncomplete=resolve;tx.onerror=resolve;
+  });
+}
+function idbEnqueue(item){
+  return new Promise(function(resolve){
+    if(!IDB){resolve();return;}
+    var tx=IDB.transaction('queue','readwrite');
+    tx.objectStore('queue').add(item);
+    tx.oncomplete=resolve;tx.onerror=resolve;
+  });
+}
+
+function updateOfflineUI(){
+  var bar=document.getElementById('offline-bar');
+  if(!bar)return;
+  var online=navigator.onLine;
+  var pending=OFFLINE_PENDING;
+  if(online&&pending===0){bar.style.display='none';return;}
+  bar.style.display='flex';
+  var syncBtn=document.getElementById('offline-sync-btn');
+  if(!online){
+    bar.style.background='rgba(244,63,94,.12)';
+    bar.style.borderBottomColor='rgba(244,63,94,.25)';
+    document.getElementById('offline-msg').textContent=pending>0
+      ?'📵 Sin conexión · '+pending+' cambio'+(pending!==1?'s':'')+' pendiente'+(pending!==1?'s':'')
+      :'📵 Sin conexión · Usando datos locales';
+    if(syncBtn)syncBtn.style.display='none';
+  } else {
+    bar.style.background='rgba(245,158,11,.12)';
+    bar.style.borderBottomColor='rgba(245,158,11,.3)';
+    document.getElementById('offline-msg').textContent='⚠️ '+pending+' cambio'+(pending!==1?'s':'')+' sin sincronizar';
+    if(syncBtn)syncBtn.style.display='';
+  }
+}
+
+async function syncOfflineQueue(){
+  if(!navigator.onLine)return;
+  var items=await idbGetAll('queue');
+  if(!items.length){OFFLINE_PENDING=0;updateOfflineUI();return;}
+  var synced=0;
+  for(var i=0;i<items.length;i++){
+    var item=items[i];
+    try{
+      var r;
+      if(item.method==='insert'||item.method==='upsert'){
+        r=await fetch(SUPABASE_URL+'/rest/v1/'+item.table,{method:'POST',
+          headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+          body:JSON.stringify(item.data)});
+      } else if(item.method==='insertReturn'){
+        r=await fetch(SUPABASE_URL+'/rest/v1/'+item.table,{method:'POST',
+          headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=representation'},
+          body:JSON.stringify(item.data)});
+      } else if(item.method==='update'){
+        r=await fetch(SUPABASE_URL+'/rest/v1/'+item.table+'?'+item.filter,{method:'PATCH',
+          headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+          body:JSON.stringify(item.data)});
+      } else if(item.method==='delete'){
+        r=await fetch(SUPABASE_URL+'/rest/v1/'+item.table+'?'+item.filter,{method:'DELETE',
+          headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+      }
+      if(r&&r.ok){await idbDel('queue',item.id);synced++;}
+    }catch(e){break;}
+  }
+  OFFLINE_PENDING=Math.max(0,OFFLINE_PENDING-synced);
+  updateOfflineUI();
+  if(synced>0)showBanner('✅ '+synced+' cambio'+(synced!==1?'s':'')+' sincronizado'+(synced!==1?'s':''),'var(--grn)',3000);
+}
+
 // ===== SUPABASE CLIENT =====
 var SUPABASE_URL = 'https://gbgvcipaeipanfciwylg.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3ZjaXBhZWlwYW5mY2l3eWxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjMzMzgsImV4cCI6MjA5NjIzOTMzOH0.taAZnfsb8YX50DoPVuk1az8YppWZVD_WAiW8oh9kXT8';
 
 async function sbGet(table, filters){
+  var cacheKey=table+':'+(filters||'');
   var url=SUPABASE_URL+'/rest/v1/'+table+'?';
-  if(filters) url+=filters;
+  if(filters)url+=filters;
   var ctrl=new AbortController();
   var timer=setTimeout(function(){ctrl.abort();},8000);
   try{
-    var r=await fetch(url,{
-      signal:ctrl.signal,
-      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'}
-    });
+    var r=await fetch(url,{signal:ctrl.signal,
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'}});
     clearTimeout(timer);
     if(!r.ok){
       console.warn('Supabase '+table+' error:',r.status);
-      if(r.status===403||r.status===401){
+      if(r.status===403||r.status===401)
         showBanner('⚠️ Supabase pausado — Reactivá el proyecto en supabase.com','var(--yel)',6000);
-      }
-      return[];
+      var c2=await idbGet('cache',cacheKey);
+      return c2?c2.data:[];
     }
-    return await r.json();
+    var data=await r.json();
+    idbSet('cache',cacheKey,data);
+    return data;
   }catch(e){
     clearTimeout(timer);
     console.warn('Supabase fetch error:',e.message);
+    var cached=await idbGet('cache',cacheKey);
+    if(cached){updateOfflineUI();return cached.data;}
     return[];
   }
 }
 async function sbInsert(table, data){
-  var r=await fetch(SUPABASE_URL+'/rest/v1/'+table,{
-    method:'POST',
-    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
-    body:JSON.stringify(data)
-  });
-  return r.ok;
+  try{
+    var r=await fetch(SUPABASE_URL+'/rest/v1/'+table,{method:'POST',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify(data)});
+    if(r.ok)return true;
+  }catch(e){}
+  await idbEnqueue({method:'insert',table:table,data:data,ts:new Date().toISOString()});
+  OFFLINE_PENDING++;updateOfflineUI();
+  return true;
 }
 async function sbUpsert(table, data){
-  var r=await fetch(SUPABASE_URL+'/rest/v1/'+table,{
-    method:'POST',
-    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
-    body:JSON.stringify(data)
-  });
-  return r.ok;
+  try{
+    var r=await fetch(SUPABASE_URL+'/rest/v1/'+table,{method:'POST',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify(data)});
+    if(r.ok)return true;
+  }catch(e){}
+  await idbEnqueue({method:'upsert',table:table,data:data,ts:new Date().toISOString()});
+  OFFLINE_PENDING++;updateOfflineUI();
+  return true;
 }
 async function sbDelete(table, filters){
-  var url=SUPABASE_URL+'/rest/v1/'+table+'?'+filters;
-  var r=await fetch(url,{
-    method:'DELETE',
-    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
-  });
-  return r.ok;
+  try{
+    var r=await fetch(SUPABASE_URL+'/rest/v1/'+table+'?'+filters,{method:'DELETE',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
+    if(r.ok)return true;
+  }catch(e){}
+  await idbEnqueue({method:'delete',table:table,filter:filters,ts:new Date().toISOString()});
+  OFFLINE_PENDING++;updateOfflineUI();
+  return true;
 }
 async function sbUpdate(table, filters, data){
-  var url=SUPABASE_URL+'/rest/v1/'+table+'?'+filters;
-  var r=await fetch(url,{method:'PATCH',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(data)});
-  return r.ok;
+  try{
+    var r=await fetch(SUPABASE_URL+'/rest/v1/'+table+'?'+filters,{method:'PATCH',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify(data)});
+    if(r.ok)return true;
+  }catch(e){}
+  await idbEnqueue({method:'update',table:table,filter:filters,data:data,ts:new Date().toISOString()});
+  OFFLINE_PENDING++;updateOfflineUI();
+  return true;
 }
 async function sbInsertReturn(table, data){
-  var r=await fetch(SUPABASE_URL+'/rest/v1/'+table,{
-    method:'POST',
-    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=representation'},
-    body:JSON.stringify(data)
-  });
-  if(!r.ok){
-    var errBody='';
-    try{var j=await r.json();errBody=j.message||j.hint||JSON.stringify(j);}catch(e){}
-    console.error('sbInsertReturn ['+table+'] error',r.status,errBody);
-    showBanner('DB error ('+r.status+'): '+errBody,'var(--red)',8000);
-    return null;
-  }
-  var rows=await r.json();
-  return Array.isArray(rows)?rows[0]:rows;
+  try{
+    var r=await fetch(SUPABASE_URL+'/rest/v1/'+table,{method:'POST',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=representation'},
+      body:JSON.stringify(data)});
+    if(r.ok){var rows=await r.json();return Array.isArray(rows)?rows[0]:rows;}
+    if(navigator.onLine){
+      var errBody='';
+      try{var j=await r.json();errBody=j.message||j.hint||JSON.stringify(j);}catch(e2){}
+      console.error('sbInsertReturn ['+table+'] error',r.status,errBody);
+      showBanner('DB error ('+r.status+'): '+errBody,'var(--red)',8000);
+      return null;
+    }
+  }catch(e){}
+  // Offline: queue and return synthetic row with temp id
+  var syntheticRow=Object.assign({},Array.isArray(data)?data[0]:data,{id:'tmp_'+Date.now()});
+  await idbEnqueue({method:'insertReturn',table:table,data:data,ts:new Date().toISOString()});
+  OFFLINE_PENDING++;updateOfflineUI();
+  return syntheticRow;
 }
 
 // ===== STORAGE ADAPTER =====
@@ -8067,6 +8213,16 @@ window.addEventListener('load',async function(){
 });
 
 async function initATLAS(){
+  await initIDB();
+  // Check for pending offline writes from previous session
+  var pendingItems=await idbGetAll('queue');
+  OFFLINE_PENDING=pendingItems.length;
+  if(OFFLINE_PENDING>0)updateOfflineUI();
+  if(OFFLINE_PENDING>0&&navigator.onLine)syncOfflineQueue();
+  // Online/offline events
+  window.addEventListener('offline',function(){updateOfflineUI();});
+  window.addEventListener('online',function(){updateOfflineUI();syncOfflineQueue();});
+
   var now=new Date();
   var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   var meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
