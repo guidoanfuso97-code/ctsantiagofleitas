@@ -367,7 +367,6 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
     <div class="nav" data-tab="comparaciones" data-title="Comparaciones de Carga">⚖️&nbsp; Comparaciones</div>
     <div class="nav" data-tab="estadisticas" data-title="Estadísticas y Fixture">📋&nbsp; Estadísticas</div>
     <div class="nav" data-tab="evaluaciones" data-title="Evaluaciones Físicas">📊&nbsp; Evaluaciones</div>
-    <div class="nav" data-tab="campo" data-title="Contenido de Campo · CT">📋&nbsp; Campo CT</div>
     <div class="nav" data-tab="docs" data-title="Documentos · Informes">📄&nbsp; Documentos</div>
     <div class="nav" data-tab="lesiones" data-title="Registro de Lesiones">🩺&nbsp; Lesiones</div>
     <div class="nav" data-tab="semaforo" data-title="Semáforo · Disponibilidad">🚦&nbsp; Semáforo</div>
@@ -413,7 +412,6 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
     <div class="tab" id="t-comparaciones"></div>
     <div class="tab" id="t-estadisticas"></div>
     <div class="tab" id="t-evaluaciones"></div>
-    <div class="tab" id="t-campo"></div>
     <div class="tab" id="t-docs"><select class="psel" id="docs-player-sel"></select><div id="docs-body"></div></div>
     <div class="tab" id="t-lesiones"><div id="lesiones-body"></div></div>
     <div class="tab" id="t-semaforo"></div>
@@ -443,15 +441,6 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
       <button onclick="closeWellnessHoy()" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>
     </div>
     <div id="ws-hoy-body"></div>
-  </div>
-</div>
-<div id="campo-modal" class="modal" onclick="if(event.target===this)closeCampoModal()">
-  <div class="mbox" style="max-width:620px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <div><div style="font-size:16px;font-weight:800">📋 Agregar Contenido</div><div style="font-size:11px;color:var(--mut);margin-top:2px" id="campo-modal-sub">Nueva entrada</div></div>
-      <button onclick="closeCampoModal()" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>
-    </div>
-    <div id="campo-modal-body"></div>
   </div>
 </div>
 <div id="lesion-modal" class="modal" onclick="if(event.target===this)closeLesionModal()">
@@ -6408,7 +6397,107 @@ async function deletePartidoCustom(rival,fecha){
 }
 
 // ===== NUEVO PARTIDO MODAL =====
+var _npSel = {}; // {playerIdx: {min,ta,tr,g,a}}
+
+function _npToggle(idx){
+  if(_npSel[idx]){delete _npSel[idx];}
+  else{_npSel[idx]={min:90,ta:0,tr:0,g:0,a:0};}
+  _npRenderRows();
+  _npUpdateCount();
+}
+function _npAll(min){
+  PL.forEach(function(p,i){_npSel[i]={min:min,ta:0,tr:0,g:0,a:0};});
+  _npRenderRows();_npUpdateCount();
+}
+function _npClear(){_npSel={};_npRenderRows();_npUpdateCount();}
+function _npSet(idx,field,val){if(_npSel[idx])_npSel[idx][field]=val;}
+function _npCycleTA(idx){if(!_npSel[idx])return;_npSel[idx].ta=(_npSel[idx].ta+1)%3;_npRefreshRow(idx);}
+function _npCycleTR(idx){if(!_npSel[idx])return;_npSel[idx].tr=_npSel[idx].tr?0:1;_npRefreshRow(idx);}
+function _npInc(idx,field,max){if(!_npSel[idx])return;_npSel[idx][field]=Math.min(max,(_npSel[idx][field]||0)+1);_npRefreshRow(idx);}
+function _npDec(idx,field){if(!_npSel[idx])return;_npSel[idx][field]=Math.max(0,(_npSel[idx][field]||0)-1);_npRefreshRow(idx);}
+
+function _npUpdateCount(){
+  var c=Object.keys(_npSel).length;
+  var el=document.getElementById('np-count');
+  if(el)el.textContent=c+' jugador'+(c!==1?'es':'')+' seleccionado'+(c!==1?'s':'');
+}
+
+function _npRefreshRow(idx){
+  var s=_npSel[idx];if(!s)return;
+  var taEl=document.getElementById('np-ta-btn-'+idx);
+  var trEl=document.getElementById('np-tr-btn-'+idx);
+  var gEl=document.getElementById('np-g-val-'+idx);
+  var aEl=document.getElementById('np-a-val-'+idx);
+  if(taEl){
+    var taLabels=['—','🟡','🟡🟡'];
+    taEl.textContent=taLabels[s.ta]||'—';
+    taEl.style.color=s.ta>0?'var(--yel)':'var(--mut)';
+    taEl.style.borderColor=s.ta>0?'rgba(245,158,11,.4)':'var(--b)';
+    taEl.style.background=s.ta>0?'rgba(245,158,11,.1)':'var(--c)';
+  }
+  if(trEl){
+    trEl.textContent=s.tr?'🔴':'—';
+    trEl.style.color=s.tr?'var(--red)':'var(--mut)';
+    trEl.style.borderColor=s.tr?'rgba(244,63,94,.4)':'var(--b)';
+    trEl.style.background=s.tr?'rgba(244,63,94,.1)':'var(--c)';
+  }
+  if(gEl)gEl.textContent=s.g;
+  if(aEl)aEl.textContent=s.a;
+}
+
+function _npRenderRows(){
+  var tbody=document.getElementById('np-tbody');if(!tbody)return;
+  tbody.innerHTML=PL.map(function(p,i){
+    var sel=!!_npSel[i];
+    var s=_npSel[i]||{min:90,ta:0,tr:0,g:0,a:0};
+    var taLabels=['—','🟡','🟡🟡'];
+    var rowBg=sel?'rgba(6,214,160,.04)':'transparent';
+    var namecol=sel?'var(--txt)':'var(--dim)';
+    var btnBase='border-radius:7px;padding:5px 8px;cursor:pointer;font-size:13px;font-weight:700;border:1px solid;transition:.15s;min-width:38px;text-align:center';
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,.04);background:'+rowBg+'">'
+      // Toggle button
+      +'<td style="padding:6px 4px;width:38px"><button onclick="_npToggle('+i+')" style="width:32px;height:32px;border-radius:8px;border:1px solid '+(sel?'rgba(6,214,160,.5)':'var(--b)')+';background:'+(sel?'rgba(6,214,160,.15)':'var(--c)')+';color:'+(sel?'var(--acc)':'var(--mut)')+';font-size:15px;cursor:pointer;transition:.15s">'+(sel?'✓':'○')+'</button></td>'
+      // Name
+      +'<td style="padding:6px 8px;font-size:12px;font-weight:'+(sel?'700':'400')+';color:'+namecol+';white-space:nowrap">'+p.name+'<span style="font-size:9px;color:var(--mut);margin-left:5px">'+p.pos+'</span></td>'
+      // Minutes (only active if selected)
+      +'<td style="padding:6px 4px;text-align:center">'+(sel
+        ?'<input type="number" id="np-min-'+i+'" value="'+s.min+'" min="0" max="120" oninput="_npSet('+i+',\'min\',+(this.value)||0)" style="width:46px;background:var(--bg2);border:1px solid var(--b);border-radius:6px;padding:4px;color:var(--txt);font-size:12px;text-align:center;outline:none;font-weight:700">'
+        :'<span style="font-size:11px;color:rgba(255,255,255,.15)">—</span>')
+      +'</td>'
+      // TA button (cycle 0→1→2→0)
+      +'<td style="padding:6px 4px;text-align:center">'+(sel
+        ?'<button id="np-ta-btn-'+i+'" onclick="_npCycleTA('+i+')" style="'+btnBase+';color:'+(s.ta>0?'var(--yel)':'var(--mut)')+';border-color:'+(s.ta>0?'rgba(245,158,11,.4)':'var(--b)')+';background:'+(s.ta>0?'rgba(245,158,11,.1)':'var(--c)')+'">'+taLabels[s.ta]+'</button>'
+        :'<span style="font-size:11px;color:rgba(255,255,255,.15)">—</span>')
+      +'</td>'
+      // TR button (toggle)
+      +'<td style="padding:6px 4px;text-align:center">'+(sel
+        ?'<button id="np-tr-btn-'+i+'" onclick="_npCycleTR('+i+')" style="'+btnBase+';color:'+(s.tr?'var(--red)':'var(--mut)')+';border-color:'+(s.tr?'rgba(244,63,94,.4)':'var(--b)')+';background:'+(s.tr?'rgba(244,63,94,.1)':'var(--c)')+'">'+(s.tr?'🔴':'—')+'</button>'
+        :'<span style="font-size:11px;color:rgba(255,255,255,.15)">—</span>')
+      +'</td>'
+      // Goals +/-
+      +'<td style="padding:6px 4px;text-align:center">'+(sel
+        ?'<div style="display:flex;align-items:center;gap:3px;justify-content:center">'
+          +'<button onclick="_npDec('+i+',\'g\')" style="width:20px;height:20px;border-radius:4px;border:1px solid var(--b);background:var(--c);color:var(--mut);cursor:pointer;font-size:13px;line-height:1;padding:0">-</button>'
+          +'<span id="np-g-val-'+i+'" style="font-size:13px;font-weight:800;color:var(--grn);min-width:16px;text-align:center">'+s.g+'</span>'
+          +'<button onclick="_npInc('+i+',\'g\',10)" style="width:20px;height:20px;border-radius:4px;border:1px solid var(--b);background:var(--c);color:var(--mut);cursor:pointer;font-size:13px;line-height:1;padding:0">+</button>'
+          +'</div>'
+        :'<span style="font-size:11px;color:rgba(255,255,255,.15)">—</span>')
+      +'</td>'
+      // Assists +/-
+      +'<td style="padding:6px 4px;text-align:center">'+(sel
+        ?'<div style="display:flex;align-items:center;gap:3px;justify-content:center">'
+          +'<button onclick="_npDec('+i+',\'a\')" style="width:20px;height:20px;border-radius:4px;border:1px solid var(--b);background:var(--c);color:var(--mut);cursor:pointer;font-size:13px;line-height:1;padding:0">-</button>'
+          +'<span id="np-a-val-'+i+'" style="font-size:13px;font-weight:800;color:var(--acc);min-width:16px;text-align:center">'+s.a+'</span>'
+          +'<button onclick="_npInc('+i+',\'a\',10)" style="width:20px;height:20px;border-radius:4px;border:1px solid var(--b);background:var(--c);color:var(--mut);cursor:pointer;font-size:13px;line-height:1;padding:0">+</button>'
+          +'</div>'
+        :'<span style="font-size:11px;color:rgba(255,255,255,.15)">—</span>')
+      +'</td>'
+      +'</tr>';
+  }).join('');
+}
+
 function openNuevoPartido(){
+  _npSel={};
   var existing=document.getElementById('nuevo-partido-modal');
   if(existing)existing.parentNode.removeChild(existing);
   var modal=document.createElement('div');
@@ -6416,87 +6505,93 @@ function openNuevoPartido(){
   modal.className='modal on';
   modal.onclick=function(e){if(e.target===modal)modal.parentNode.removeChild(modal);};
 
-  var playerRows=PL.map(function(p,i){
-    return '<tr>'
-      +'<td style="padding:4px 6px;font-size:11px;font-weight:600;white-space:nowrap">'+p.name+'</td>'
-      +'<td style="padding:4px"><input type="number" id="np-min-'+i+'" min="0" max="120" placeholder="0" style="width:50px;background:var(--bg2);border:1px solid var(--b);border-radius:4px;padding:4px;color:var(--txt);font-size:11px;text-align:center;outline:none"></td>'
-      +'<td style="padding:4px"><input type="text" id="np-ta-'+i+'" placeholder="—" style="width:40px;background:var(--bg2);border:1px solid var(--b);border-radius:4px;padding:4px;color:var(--yel);font-size:11px;text-align:center;outline:none"></td>'
-      +'<td style="padding:4px"><input type="checkbox" id="np-tr-'+i+'" style="cursor:pointer"></td>'
-      +'<td style="padding:4px"><input type="number" id="np-g-'+i+'" min="0" max="10" placeholder="0" style="width:36px;background:var(--bg2);border:1px solid var(--b);border-radius:4px;padding:4px;color:var(--grn);font-size:11px;text-align:center;outline:none"></td>'
-      +'<td style="padding:4px"><input type="number" id="np-a-'+i+'" min="0" max="10" placeholder="0" style="width:36px;background:var(--bg2);border:1px solid var(--b);border-radius:4px;padding:4px;color:var(--acc);font-size:11px;text-align:center;outline:none"></td>'
-      +'</tr>';
-  }).join('');
-
-  modal.innerHTML='<div class="mbox" style="max-width:640px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
-    +'<div style="font-size:16px;font-weight:800">⚽ Nuevo Partido</div>'
-    +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>'
+  modal.innerHTML='<div class="mbox" style="max-width:660px;padding:20px">'
+    // Header
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">'
+      +'<div style="font-size:17px;font-weight:800">⚽ Nuevo Partido</div>'
+      +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:16px">✕</button>'
     +'</div>'
-    // Header fields
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">'
-    +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Fecha</div>'
-    +'<input type="date" id="np-fecha" value="'+TODAY+'" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:8px;color:var(--txt);font-size:12px;outline:none"></div>'
-    +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Rival</div>'
-    +'<input type="text" id="np-rival" placeholder="Ej: Lugano" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:8px;color:var(--txt);font-size:12px;outline:none"></div>'
-    +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Resultado</div>'
-    +'<input type="text" id="np-resultado" placeholder="2-1" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:8px;color:var(--txt);font-size:12px;outline:none;font-weight:700"></div>'
+    // Match info
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 100px;gap:8px;margin-bottom:10px">'
+      +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Fecha</div>'
+        +'<input type="date" id="np-fecha" value="'+TODAY+'" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px;color:var(--txt);font-size:12px;outline:none"></div>'
+      +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Rival</div>'
+        +'<input type="text" id="np-rival" placeholder="Ej: Lugano" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px;color:var(--txt);font-size:12px;outline:none"></div>'
+      +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Resultado</div>'
+        +'<input type="text" id="np-resultado" placeholder="2-1" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px;color:var(--txt);font-size:13px;outline:none;font-weight:800;text-align:center"></div>'
     +'</div>'
-    +'<div style="display:flex;gap:12px;margin-bottom:14px;align-items:center">'
-    +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="radio" name="np-cond" id="np-local" value="local" checked> Local</label>'
-    +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="radio" name="np-cond" id="np-visita" value="visita"> Visitante</label>'
-    +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="checkbox" id="np-vi"> Valla invicta</label>'
+    +'<div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap">'
+      +'<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="radio" name="np-cond" id="np-local" value="local" checked> 🏠 Local</label>'
+      +'<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="radio" name="np-cond" id="np-visita" value="visita"> 🚌 Visitante</label>'
+      +'<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="checkbox" id="np-vi"> 🧤 Valla invicta</label>'
+    +'</div>'
+    // Quick selection buttons
+    +'<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
+      +'<div style="font-size:10px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Selección rápida:</div>'
+      +'<button onclick="_npAll(90)" style="padding:5px 12px;border-radius:7px;border:1px solid var(--b);background:var(--c);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">⚽ Todos (90\')</button>'
+      +'<button onclick="_npAll(60)" style="padding:5px 12px;border-radius:7px;border:1px solid var(--b);background:var(--c);color:var(--dim);font-size:11px;font-weight:700;cursor:pointer">Todos (60\')</button>'
+      +'<button onclick="_npClear()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--b);background:var(--c);color:var(--mut);font-size:11px;cursor:pointer">✕ Limpiar</button>'
+      +'<span id="np-count" style="font-size:11px;color:var(--mut);margin-left:4px">0 jugadores seleccionados</span>'
     +'</div>'
     // Player table
-    +'<div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Planilla de jugadores</div>'
-    +'<div style="max-height:300px;overflow-y:auto;margin-bottom:14px">'
-    +'<table style="width:100%;border-collapse:collapse">'
-    +'<thead><tr style="border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--bg2)">'
-    +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:var(--mut)">Jugador</th>'
-    +'<th style="padding:5px;font-size:9px;color:var(--mut);text-align:center">Min</th>'
-    +'<th style="padding:5px;font-size:9px;color:var(--yel);text-align:center">TA</th>'
-    +'<th style="padding:5px;font-size:9px;color:var(--red);text-align:center">TR</th>'
-    +'<th style="padding:5px;font-size:9px;color:var(--grn);text-align:center">G</th>'
-    +'<th style="padding:5px;font-size:9px;color:var(--acc);text-align:center">A</th>'
-    +'</tr></thead>'
-    +'<tbody>'+playerRows+'</tbody>'
-    +'</table></div>'
+    +'<div style="max-height:340px;overflow-y:auto;border:1px solid var(--b);border-radius:10px;margin-bottom:14px">'
+      +'<table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1">'
+          +'<th style="padding:7px 4px;width:38px"></th>'
+          +'<th style="padding:7px 8px;text-align:left;font-size:9px;color:var(--mut);font-weight:700">JUGADOR</th>'
+          +'<th style="padding:7px;font-size:9px;color:var(--mut);font-weight:700;text-align:center">MIN</th>'
+          +'<th style="padding:7px;font-size:9px;color:var(--yel);font-weight:700;text-align:center">TA</th>'
+          +'<th style="padding:7px;font-size:9px;color:var(--red);font-weight:700;text-align:center">TR</th>'
+          +'<th style="padding:7px;font-size:9px;color:var(--grn);font-weight:700;text-align:center">GOL</th>'
+          +'<th style="padding:7px;font-size:9px;color:var(--acc);font-weight:700;text-align:center">ASIST</th>'
+        +'</tr></thead>'
+        +'<tbody id="np-tbody"></tbody>'
+      +'</table>'
+    +'</div>'
     +'<div style="display:flex;gap:8px">'
-    +'<button onclick="guardarNuevoPartido()" style="flex:1;padding:13px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">✅ Guardar Partido</button>'
-    +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="padding:13px 20px;border-radius:10px;background:var(--c);border:1px solid var(--b);color:var(--mut);font-size:13px;cursor:pointer">Cancelar</button>'
+      +'<button onclick="guardarNuevoPartido()" style="flex:1;padding:14px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">✅ Guardar Partido</button>'
+      +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="padding:14px 20px;border-radius:10px;background:var(--c);border:1px solid var(--b);color:var(--mut);font-size:13px;cursor:pointer">Cancelar</button>'
     +'</div>'
     +'</div>';
+
   document.body.appendChild(modal);
+  _npRenderRows();
 }
 
 async function guardarNuevoPartido(){
   var fecha=(document.getElementById('np-fecha')||{}).value||TODAY;
-  var rival=(document.getElementById('np-rival')||{}).value||'';
-  var resultado=(document.getElementById('np-resultado')||{}).value||'';
+  var rival=(document.getElementById('np-rival')||{}).value.trim()||'';
+  var resultado=(document.getElementById('np-resultado')||{}).value.trim()||'';
   var local=(document.getElementById('np-local')||{}).checked;
   var vi=(document.getElementById('np-vi')||{}).checked;
 
   if(!rival||!resultado){showBanner('⚠️ Completá rival y resultado','var(--yel)',2000);return;}
 
+  // Read minutes from inputs (may have been typed)
+  PL.forEach(function(p,i){
+    if(!_npSel[i])return;
+    var minEl=document.getElementById('np-min-'+i);
+    if(minEl)_npSel[i].min=+(minEl.value)||0;
+  });
+
   var jugadores=[];
   PL.forEach(function(p,i){
-    var minEl=document.getElementById('np-min-'+i);
-    var min=minEl?+(minEl.value)||0:0;
-    if(min===0)return;
-    var ta=(document.getElementById('np-ta-'+i)||{}).value||0;
-    var tr=(document.getElementById('np-tr-'+i)||{}).checked?1:0;
-    var g=+((document.getElementById('np-g-'+i)||{}).value)||0;
-    var a=+((document.getElementById('np-a-'+i)||{}).value)||0;
-    jugadores.push({nombre:p.name,min:min,ta:ta,tr:tr,g:g,a:a});
+    var s=_npSel[i];
+    if(!s||!s.min)return;
+    jugadores.push({nombre:p.name,min:s.min,ta:s.ta,tr:s.tr,g:s.g,a:s.a});
   });
+
+  if(!jugadores.length){showBanner('⚠️ Seleccioná al menos un jugador','var(--yel)',2000);return;}
 
   var partido={rival:rival,resultado:resultado,local:local,fecha:fecha,vi:vi,jugadores:jugadores};
   PARTIDOS_CUSTOM.push(partido);
   await savePartidosCustom();
 
+  _npSel={};
   var m=document.getElementById('nuevo-partido-modal');
   if(m)m.parentNode.removeChild(m);
   renderEstadisticas();
-  showBanner('✅ Partido vs '+rival+' guardado · '+resultado,'var(--grn)',3000);
+  showBanner('✅ Partido vs '+rival+' guardado · '+resultado+' · '+jugadores.length+' jugadores','var(--grn)',3500);
 }
 
 
@@ -7859,7 +7954,6 @@ var TABS={
   comparaciones:{title:'Comparaciones de Carga',render:renderComparaciones},
   estadisticas:{title:'Estadísticas y Fixture',render:renderEstadisticas},
   evaluaciones:{title:'Evaluaciones Físicas',render:renderEvaluaciones},
-  campo:{title:'Campo CT · Contenido',render:renderCampo},
   docs:{title:'Documentos · Informes',render:renderDocs},
   lesiones:{title:'Registro de Lesiones',render:renderLesiones},
   semaforo:{title:'Semáforo · Disponibilidad del Plantel',render:renderSemaforo},
@@ -8792,7 +8886,6 @@ async function initATLAS(){
     loadRealWellness(),
     loadRealRPE(),
     loadHistoricalRPE(),
-    loadCampoEntries(),
     loadEvals(),
     loadForcePlates(),
     loadSprints(),
