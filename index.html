@@ -138,6 +138,9 @@ html,body{
 @keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 60px rgba(6,214,160,.15),0 20px 60px rgba(0,0,0,.5)}50%{box-shadow:0 0 80px rgba(6,214,160,.3),0 20px 60px rgba(0,0,0,.5)}}
 
 /* ── TYPOGRAPHY ── */
 .pn{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:14px;letter-spacing:-.1px}
@@ -1252,31 +1255,84 @@ function renderPlantelHero(){
   var pctOk=total?Math.round(okN/total*100):0;
   var pctWarn=total?Math.round(warnN/total*100):0;
   var pctRisk=total?Math.round(riskN/total*100):0;
+  var availPct=total?Math.round(okN/total*100):0;
+  var availColor=availPct>=80?'var(--grn)':availPct>=60?'var(--yel)':'var(--red)';
+  var availGlow=availPct>=80?'rgba(16,185,129,.12)':availPct>=60?'rgba(245,158,11,.12)':'rgba(244,63,94,.12)';
+  var availBorder=availPct>=80?'rgba(16,185,129,.3)':availPct>=60?'rgba(245,158,11,.3)':'rgba(244,63,94,.3)';
+  var nowH=new Date();
+  var weekAgoH=new Date(nowH);weekAgoH.setDate(weekAgoH.getDate()-7);
+  var weekSessH=SESSIONS.filter(function(s){return new Date(s.date)>=weekAgoH;});
+  var lesActivas=(typeof LESIONES!=='undefined')?LESIONES.filter(function(l){return l.status==='activa';}).length:0;
+  var checkinHoy=PL.filter(function(p){return p.realWellness;}).length;
+  var topRisk=PL.map(function(p){return{p:p,r:calcReadinessScore(p)};}).filter(function(x){return x.r.score<75;}).sort(function(a,b){return a.r.score-b.r.score;}).slice(0,3);
   return '<div style="margin-bottom:20px;animation:fadeInUp .4s ease">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
-    +'<div><div style="font-size:18px;font-weight:900;letter-spacing:-.3px">Dashboard · Plantel</div>'
-    +'<div style="font-size:10px;color:var(--mut);margin-top:2px">'+TODAY+' · Temporada 2026</div></div>'
-    +(riskN>0
-      ?'<div style="background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.3);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:700;color:var(--red);animation:blink 2s infinite">⚠ '+riskN+' en riesgo</div>'
-      :'<div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:600;color:var(--grn)">✓ Sin alertas críticas</div>')
+    // ── Header ──
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">'
+      +'<div>'
+        +'<div style="font-size:18px;font-weight:900;letter-spacing:-.3px">Panel Ejecutivo · Plantel</div>'
+        +'<div style="font-size:10px;color:var(--mut);margin-top:2px">'+TODAY+' · Temporada 2026</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+        +(riskN>0
+          ?'<div style="background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.3);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:700;color:var(--red);animation:blink 2s infinite">⚠ '+riskN+' en riesgo</div>'
+          :'<div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:600;color:var(--grn)">✓ Sin alertas críticas</div>')
+        +'<button onclick="generarInformeEjecutivo()" style="padding:8px 16px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 4px 16px rgba(6,214,160,.2)">📄 Informe PDF</button>'
+      +'</div>'
     +'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px">'
-    +heroKPI('👥',total,'Jugadores','var(--acc)')
-    +heroKPI('📊',acwrAvg||'—','ACWR Equipo',acwrAvg?ac(acwrAvg):'var(--mut)')
-    +heroKPI('⚡',plTot,'PL Total Hoy','var(--pur)')
-    +heroKPI('💚',wsAvg||'—','Wellness',wsAvg?wc(wsAvg):'var(--mut)')
-    +heroKPI('🔴',riskN,'En Riesgo',riskN>0?'var(--red)':'var(--grn)')
+    // ── Availability + KPIs ──
+    +'<div style="display:grid;grid-template-columns:auto 1fr;gap:14px;margin-bottom:14px;align-items:stretch">'
+      // Big availability number
+      +'<div style="background:'+availGlow+';border:1px solid '+availBorder+';border-radius:16px;padding:22px 28px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:130px;text-align:center">'
+        +'<div style="font-size:52px;font-weight:900;line-height:1;color:'+availColor+';letter-spacing:-2px">'+availPct+'%</div>'
+        +'<div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin-top:8px;font-weight:700">Disponibilidad</div>'
+        +'<div style="font-size:11px;color:var(--dim);margin-top:5px">'+okN+' de '+total+' jugadores</div>'
+      +'</div>'
+      // KPIs + status bar
+      +'<div style="display:flex;flex-direction:column;gap:10px">'
+        +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'
+          +heroKPI('📊',acwrAvg||'—','ACWR Equipo',acwrAvg?ac(acwrAvg):'var(--mut)')
+          +heroKPI('⚡',plTot,'PL Total Hoy','var(--pur)')
+          +heroKPI('💚',wsAvg||'—','Wellness',wsAvg?wc(wsAvg):'var(--mut)')
+          +heroKPI('🩹',lesActivas,'Lesionados',lesActivas>0?'#f97316':'var(--grn)')
+        +'</div>'
+        +'<div style="background:rgba(0,0,0,.25);border:1px solid var(--b);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:16px;flex:1">'
+          +'<div style="font-size:9px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Estado</div>'
+          +'<div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;border-radius:50%;background:var(--grn)"></div><span style="font-size:13px;font-weight:800;color:var(--grn)">'+okN+'</span><span style="font-size:9px;color:var(--mut)">Óptimos</span></div>'
+          +'<div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;border-radius:50%;background:var(--yel)"></div><span style="font-size:13px;font-weight:800;color:var(--yel)">'+warnN+'</span><span style="font-size:9px;color:var(--mut)">Precaución</span></div>'
+          +'<div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;border-radius:50%;background:var(--red)"></div><span style="font-size:13px;font-weight:800;color:var(--red)">'+riskN+'</span><span style="font-size:9px;color:var(--mut)">En Riesgo</span></div>'
+          +'<div style="flex:1;height:8px;background:var(--b);border-radius:4px;overflow:hidden;display:flex">'
+            +'<div style="height:100%;width:'+pctOk+'%;background:var(--grn);transition:1s ease"></div>'
+            +'<div style="height:100%;width:'+pctWarn+'%;background:var(--yel);transition:1s ease"></div>'
+            +'<div style="height:100%;width:'+pctRisk+'%;background:var(--red);transition:1s ease"></div>'
+          +'</div>'
+        +'</div>'
+      +'</div>'
     +'</div>'
-    +'<div style="background:rgba(0,0,0,.25);border:1px solid var(--b);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:20px;margin-bottom:4px">'
-    +'<div style="font-size:9px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">Estado del plantel</div>'
-    +'<div style="display:flex;align-items:center;gap:6px"><div style="width:9px;height:9px;border-radius:50%;background:var(--grn)"></div><span style="font-size:13px;font-weight:800;color:var(--grn)">'+okN+'</span><span style="font-size:10px;color:var(--mut)">Óptimos</span></div>'
-    +'<div style="display:flex;align-items:center;gap:6px"><div style="width:9px;height:9px;border-radius:50%;background:var(--yel)"></div><span style="font-size:13px;font-weight:800;color:var(--yel)">'+warnN+'</span><span style="font-size:10px;color:var(--mut)">Precaución</span></div>'
-    +'<div style="display:flex;align-items:center;gap:6px"><div style="width:9px;height:9px;border-radius:50%;background:var(--red)"></div><span style="font-size:13px;font-weight:800;color:var(--red)">'+riskN+'</span><span style="font-size:10px;color:var(--mut)">En Riesgo</span></div>'
-    +'<div style="flex:1;height:8px;background:var(--b);border-radius:4px;overflow:hidden;display:flex">'
-    +'<div style="height:100%;width:'+pctOk+'%;background:var(--grn);transition:1s ease"></div>'
-    +'<div style="height:100%;width:'+pctWarn+'%;background:var(--yel);transition:1s ease"></div>'
-    +'<div style="height:100%;width:'+pctRisk+'%;background:var(--red);transition:1s ease"></div>'
-    +'</div></div>'
+    // ── Season stats + top alerts ──
+    +'<div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start">'
+      +'<div style="background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:12px 18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
+        +'<div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;font-weight:700;white-space:nowrap">Temporada</div>'
+        +[{icon:'📅',val:SESSIONS.length,lbl:'Sesiones'},{icon:'🗓',val:weekSessH.length,lbl:'Esta semana'},{icon:'🩹',val:lesActivas,lbl:'Lesionados'},{icon:'✅',val:checkinHoy,lbl:'Check-in hoy'}]
+        .map(function(s){return'<div style="display:flex;align-items:center;gap:8px">'
+          +'<div style="width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:15px">'+s.icon+'</div>'
+          +'<div><div style="font-size:17px;font-weight:800;line-height:1">'+s.val+'</div><div style="font-size:9px;color:var(--mut)">'+s.lbl+'</div></div>'
+          +'</div>';}).join('<div style="width:1px;align-self:stretch;background:rgba(255,255,255,.06)"></div>')
+      +'</div>'
+      +(topRisk.length
+        ?'<div style="background:rgba(244,63,94,.06);border:1px solid rgba(244,63,94,.18);border-radius:12px;padding:12px 16px;min-width:210px">'
+          +'<div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:8px">⚠ Requieren atención</div>'
+          +topRisk.map(function(x){return'<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)">'
+            +'<div style="width:28px;height:28px;border-radius:50%;background:'+x.r.color+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#fff;flex-shrink:0">'+x.r.score+'</div>'
+            +'<div><div style="font-size:11px;font-weight:700">'+x.p.name.split(' ').slice(0,2).join(' ')+'</div>'
+            +'<div style="font-size:9px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">'+(x.r.reasons[0]||'—')+'</div></div>'
+            +'</div>';}).join('')
+          +'</div>'
+        :'<div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:12px;padding:12px 18px;min-width:160px;display:flex;align-items:center;gap:12px">'
+          +'<div style="font-size:30px">✅</div>'
+          +'<div><div style="font-size:13px;font-weight:800;color:var(--grn)">Plantel listo</div><div style="font-size:10px;color:var(--mut)">Sin alertas críticas</div></div>'
+          +'</div>'
+      )
+    +'</div>'
     +'</div>';
 }
 function renderPlantel(){
@@ -7860,12 +7916,70 @@ function renderSemaforo(){
   var yellows=readiness.filter(function(x){return x.r.score>=50&&x.r.score<75;});
   var reds=readiness.filter(function(x){return x.r.score<50;});
 
+  // ── Find next match ──
+  var nextMatch=null;
+  var daysToMatch=null;
+  if(typeof PARTIDOS!=='undefined'&&PARTIDOS.length){
+    var future=PARTIDOS.filter(function(p){return p.fecha>TODAY;}).sort(function(a,b){return a.fecha.localeCompare(b.fecha);});
+    if(future.length){nextMatch=future[0];daysToMatch=Math.ceil((new Date(nextMatch.fecha)-now)/(1000*60*60*24));}
+  }
+
+  // ── 7-day planning strip ──
+  var week7strip='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">';
+  for(var dd=0;dd<7;dd++){
+    var dObj=new Date(now);dObj.setDate(dObj.getDate()+dd);
+    var dStr=dObj.toISOString().slice(0,10);
+    var isMatch=nextMatch&&nextMatch.fecha===dStr;
+    var hasSess=SESSIONS.some(function(s){return s.date===dStr;});
+    var isToday=dd===0;
+    var dayLabel=dias[dObj.getDay()];
+    var dayNum=dObj.getDate();
+    var icon=isMatch?'⚽':(dd===0?'📊':(hasSess?'🏃':( dObj.getDay()===0?'😴':'🏋️')));
+    var bgCol=isMatch?'rgba(139,92,246,.15)':isToday?'rgba(0,229,160,.1)':'rgba(255,255,255,.04)';
+    var borderCol=isMatch?'rgba(139,92,246,.4)':isToday?'rgba(0,229,160,.3)':'rgba(255,255,255,.08)';
+    var txtCol=isMatch?'var(--pur)':isToday?'var(--acc)':'var(--mut)';
+    var sublabel=isMatch?'PARTIDO':(isToday?greens.length+' disp.':(hasSess?'Sesión':(dObj.getDay()===0?'Descanso':'Entren.')));
+    week7strip+='<div style="background:'+bgCol+';border:1px solid '+borderCol+';border-radius:10px;padding:8px 6px;text-align:center;'+(isToday?'box-shadow:0 0 16px rgba(0,229,160,.15)':'')+'">'
+      +'<div style="font-size:9px;color:'+txtCol+';font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+dayLabel+'</div>'
+      +'<div style="font-size:13px;font-weight:800;color:var(--txt);margin:3px 0">'+dayNum+'</div>'
+      +'<div style="font-size:16px;margin:4px 0">'+icon+'</div>'
+      +'<div style="font-size:9px;color:'+txtCol+';font-weight:700">'+sublabel+'</div>'
+      +'</div>';
+  }
+  week7strip+='</div>';
+
+  var availPct=PL.length?Math.round(greens.length/PL.length*100):0;
+  var availColor=availPct>=80?'var(--grn)':availPct>=60?'var(--yel)':'var(--red)';
+
   var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">'
     +'<div>'
     +'<div style="font-size:15px;font-weight:700">🚦 Disponibilidad del Plantel</div>'
-    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">'+fechaHdr+' · ACWR + Wellness + CMJ + Asistencia</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">'+fechaHdr+' · ACWR + Wellness + CMJ</div>'
     +'</div>'
-    +'<button onclick="generarInforme()" style="padding:10px 18px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer">📄 Informe Semanal</button>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="generarInformeEjecutivo()" style="padding:8px 14px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer">📄 Informe Ejecutivo</button>'
+    +'<button onclick="generarInforme()" style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--dim);border:1px solid var(--b);font-size:11px;font-weight:700;cursor:pointer">📋 Semanal</button>'
+    +'</div>'
+    +'</div>'
+    // Top availability + match countdown + 7-day
+    +'<div style="display:grid;grid-template-columns:auto 1fr'+(nextMatch?'  auto':'')+';gap:12px;margin-bottom:18px;align-items:center">'
+      // Big availability
+      +'<div style="background:rgba(0,0,0,.25);border:1px solid var(--b);border-radius:14px;padding:18px 24px;text-align:center;min-width:110px">'
+        +'<div style="font-size:44px;font-weight:900;color:'+availColor+';line-height:1;letter-spacing:-2px">'+availPct+'%</div>'
+        +'<div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px;margin-top:6px;font-weight:700">Disponible</div>'
+      +'</div>'
+      // 7-day strip
+      +'<div style="background:rgba(0,0,0,.2);border:1px solid var(--b);border-radius:14px;padding:14px 16px">'
+        +'<div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:10px">Planificación · Próximos 7 Días</div>'
+        +week7strip
+      +'</div>'
+      // Match countdown (if applicable)
+      +(nextMatch?'<div style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:14px;padding:18px 20px;text-align:center;min-width:120px">'
+        +'<div style="font-size:9px;color:var(--pur);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px">Próximo partido</div>'
+        +'<div style="font-size:36px;font-weight:900;color:var(--pur);line-height:1">'+daysToMatch+'</div>'
+        +'<div style="font-size:10px;color:var(--mut);margin-top:4px">días</div>'
+        +(nextMatch.rival?'<div style="font-size:10px;color:var(--dim);margin-top:8px;font-weight:600">vs '+nextMatch.rival+'</div>':'')
+        +'</div>':'')
     +'</div>';
 
   // Summary strip
@@ -8323,6 +8437,201 @@ function generarInforme(){
   document.body.appendChild(modal);
 }
 
+function generarInformeEjecutivo(){
+  var now=new Date();
+  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var semana=dias[now.getDay()]+' '+now.getDate()+' de '+meses[now.getMonth()]+' '+now.getFullYear();
+  var weekAgo=new Date(now);weekAgo.setDate(weekAgo.getDate()-7);
+  var monthAgo=new Date(now);monthAgo.setDate(monthAgo.getDate()-28);
+  var weekSess=SESSIONS.filter(function(s){return new Date(s.date)>=weekAgo;});
+  var monthSess=SESSIONS.filter(function(s){return new Date(s.date)>=monthAgo;});
+  var avgLoadWeek=weekSess.length?Math.round(weekSess.reduce(function(a,s){return a+(s.teamAvgLoad||0);},0)/weekSess.length):0;
+  var avgWellness=0,wCount=0;
+  PL.forEach(function(p){var w=p.wscore;if(w!==null&&w!==undefined){avgWellness+=w;wCount++;}});
+  avgWellness=wCount?(avgWellness/wCount).toFixed(1):'—';
+  var acwrArr=PL.filter(function(p){return p.acwr&&p.acwr>0;}).map(function(p){return p.acwr;});
+  var acwrTeam=acwrArr.length?(acwrArr.reduce(function(s,v){return s+v;},0)/acwrArr.length).toFixed(2):'—';
+  var readiness=PL.map(function(p,i){return{p:p,i:i,r:calcReadinessScore(p)};}).sort(function(a,b){return a.r.score-b.r.score;});
+  var greens=readiness.filter(function(x){return x.r.score>=75;}).length;
+  var yellows=readiness.filter(function(x){return x.r.score>=50&&x.r.score<75;}).length;
+  var reds=readiness.filter(function(x){return x.r.score<50;}).length;
+  var availPct=PL.length?Math.round(greens/PL.length*100):0;
+  var lesActivas=(typeof LESIONES!=='undefined')?LESIONES.filter(function(l){return l.status==='activa';}):[];
+  var teamName=TEAM?TEAM.name:'CT Santiago Fleitas';
+  // Weekly load by week (last 8 weeks)
+  var weeklyData=[];
+  for(var w=7;w>=0;w--){
+    var wStart=new Date(now);wStart.setDate(wStart.getDate()-w*7-6);
+    var wEnd=new Date(now);wEnd.setDate(wEnd.getDate()-w*7);
+    var wSess=SESSIONS.filter(function(s){var d=new Date(s.date);return d>=wStart&&d<=wEnd;});
+    var wAvg=wSess.length?Math.round(wSess.reduce(function(a,s){return a+(s.teamAvgLoad||0);},0)/wSess.length):0;
+    weeklyData.push({n:8-w,sess:wSess.length,avg:wAvg});
+  }
+  // Styles
+  var font='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif';
+  var pageS=font+';max-width:760px;margin:0 auto;color:#0f172a;padding:36px 40px;background:#fff';
+  var hdS='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#64748b;margin:24px 0 10px';
+  var thS='padding:9px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#475569;border-bottom:2px solid #e2e8f0;text-align:left;background:#f8fafc';
+  var tdS='padding:8px 12px;font-size:12px;border-bottom:1px solid #f1f5f9;vertical-align:middle';
+  var kpiBox=function(val,label,sub,accent){return'<div style="background:#f8fafc;border-radius:12px;padding:16px;text-align:center;border-top:3px solid '+accent+'">'
+    +'<div style="font-size:26px;font-weight:900;color:#0f172a;letter-spacing:-1px">'+val+'</div>'
+    +'<div style="font-size:11px;font-weight:700;color:#334155;margin-top:4px">'+label+'</div>'
+    +'<div style="font-size:10px;color:#94a3b8;margin-top:2px">'+sub+'</div>'
+    +'</div>';};
+  var body='<div style="'+pageS+'">'
+    // ── COVER HEADER ──
+    +'<div style="background:linear-gradient(135deg,#0a1628 0%,#0f2040 50%,#0a1628 100%);border-radius:16px;padding:36px 40px;margin-bottom:32px;color:#fff;position:relative;overflow:hidden">'
+      +'<div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:radial-gradient(ellipse,rgba(6,214,160,.15),transparent 70%);pointer-events:none"></div>'
+      +'<div style="position:absolute;bottom:-30px;left:-30px;width:150px;height:150px;background:radial-gradient(ellipse,rgba(139,92,246,.1),transparent 70%);pointer-events:none"></div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start">'
+        +'<div>'
+          +'<div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:10px">Informe Ejecutivo</div>'
+          +'<div style="font-size:28px;font-weight:900;letter-spacing:-.5px;margin-bottom:4px">'+teamName+'</div>'
+          +'<div style="font-size:13px;color:rgba(255,255,255,.6)">Análisis integral del plantel · '+semana+'</div>'
+        +'</div>'
+        +'<div style="text-align:right">'
+          +'<div style="font-size:22px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,#06d6a0,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">ATLAS</div>'
+          +'<div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px">Sistema de Monitoreo</div>'
+          +'<div style="margin-top:12px;display:inline-block;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:3px 10px;font-size:10px;color:rgba(255,255,255,.5)">Temporada 2026</div>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    // ── EXECUTIVE KPIs ──
+    +'<div style="'+hdS+'">Resumen Ejecutivo</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px">'
+      +kpiBox(availPct+'%','Disponibilidad','jugadores óptimos','#06d6a0')
+      +kpiBox(greens+'/'+PL.length,'Disponibles','listos para entrenar/jugar','#06d6a0')
+      +kpiBox(acwrTeam,'ACWR Equipo','carga aguda / crónica',+acwrTeam>1.3?'#f43f5e':+acwrTeam<0.8?'#f59e0b':'#06d6a0')
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px">'
+      +kpiBox(avgWellness+'/10','Wellness Promedio','bienestar del día',+avgWellness>=7?'#06d6a0':+avgWellness>=5?'#f59e0b':'#f43f5e')
+      +kpiBox(weekSess.length,'Sesiones esta semana','últimos 7 días','#8b5cf6')
+      +kpiBox(lesActivas.length,'Lesiones Activas','jugadores en recuperación',lesActivas.length>0?'#f43f5e':'#06d6a0')
+    +'</div>'
+    // ── AVAILABILITY STATUS ──
+    +'<div style="'+hdS+'">Estado del Plantel</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">'
+      +'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:900;color:#166534">'+greens+'</div><div style="font-size:11px;font-weight:700;color:#15803d;margin-top:4px">🟢 Disponibles</div><div style="font-size:10px;color:#86efac;margin-top:2px">Listos para competir</div></div>'
+      +'<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:900;color:#92400e">'+yellows+'</div><div style="font-size:11px;font-weight:700;color:#b45309;margin-top:4px">🟡 Monitorear</div><div style="font-size:10px;color:#fcd34d;margin-top:2px">Requieren seguimiento</div></div>'
+      +'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px;text-align:center"><div style="font-size:32px;font-weight:900;color:#991b1b">'+reds+'</div><div style="font-size:11px;font-weight:700;color:#b91c1c;margin-top:4px">🔴 Atención</div><div style="font-size:10px;color:#fca5a5;margin-top:2px">Carga reducida / descanso</div></div>'
+    +'</div>'
+    // ── PLAYER TABLE ──
+    +'<div style="'+hdS+'">Ficha Individual — Plantel Completo</div>'
+    +'<table style="width:100%;border-collapse:collapse;margin-bottom:24px">'
+      +'<thead><tr style="background:#f8fafc">'
+        +'<th style="'+thS+'">Jugador</th>'
+        +'<th style="'+thS+'">Pos</th>'
+        +'<th style="'+thS+';text-align:center">Estado</th>'
+        +'<th style="'+thS+';text-align:right">Score</th>'
+        +'<th style="'+thS+';text-align:right">ACWR</th>'
+        +'<th style="'+thS+';text-align:right">Wellness</th>'
+        +'<th style="'+thS+';text-align:right">CMJ Δ</th>'
+        +'<th style="'+thS+'">Alertas</th>'
+      +'</tr></thead><tbody>'
+      +readiness.map(function(x,idx){
+        var r=x.r,p=x.p;
+        var sLabel=r.score>=75?'Disponible':r.score>=50?'Monitorear':'Atención';
+        var sBg=r.score>=75?'#dcfce7':r.score>=50?'#fef3c7':'#fee2e2';
+        var sCol=r.score>=75?'#166534':r.score>=50?'#92400e':'#991b1b';
+        var rowBg=idx%2===0?'#fff':'#fafafa';
+        return'<tr style="background:'+rowBg+'">'
+          +'<td style="'+tdS+';font-weight:700">'+p.name+'</td>'
+          +'<td style="'+tdS+';color:#64748b">'+p.pos+'</td>'
+          +'<td style="'+tdS+';text-align:center"><span style="background:'+sBg+';color:'+sCol+';border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700">'+sLabel+'</span></td>'
+          +'<td style="'+tdS+';text-align:right;font-weight:800;color:'+(r.score>=75?'#166534':r.score>=50?'#92400e':'#991b1b')+'">'+r.score+'</td>'
+          +'<td style="'+tdS+';text-align:right">'+(r.acwr!==null?r.acwr.toFixed(2):'—')+'</td>'
+          +'<td style="'+tdS+';text-align:right">'+(r.ws!==null&&r.ws!==undefined?r.ws.toFixed(1):'—')+'</td>'
+          +'<td style="'+tdS+';text-align:right">'+(r.cmjDelta>0?'+':'')+r.cmjDelta+'%</td>'
+          +'<td style="'+tdS+';font-size:10px;color:#64748b;max-width:180px">'+( r.reasons.slice(0,2).join(' · ')||'—')+'</td>'
+          +'</tr>';}).join('')
+    +'</tbody></table>'
+    // ── INJURIES ──
+    +(lesActivas.length?'<div style="'+hdS+'">Lesiones Activas ('+lesActivas.length+')</div>'
+      +'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px;margin-bottom:24px">'
+      +'<table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr>'
+          +'<th style="'+thS+';background:transparent">Jugador</th>'
+          +'<th style="'+thS+';background:transparent">Tipo</th>'
+          +'<th style="'+thS+';background:transparent">Zona</th>'
+          +'<th style="'+thS+';background:transparent">Gravedad</th>'
+          +'<th style="'+thS+';background:transparent">Inicio</th>'
+          +'<th style="'+thS+';background:transparent">Alta est.</th>'
+        +'</tr></thead><tbody>'
+        +lesActivas.map(function(l){
+          var pName=(PL[l.player_idx]&&PL[l.player_idx].name)||('Jugador '+l.player_idx);
+          var gCol=l.gravedad==='grave'?'#991b1b':l.gravedad==='moderada'?'#92400e':'#166534';
+          return'<tr>'
+            +'<td style="'+tdS+';font-weight:700;background:transparent">'+pName+'</td>'
+            +'<td style="'+tdS+';background:transparent;text-transform:capitalize">'+( l.tipo||'—')+'</td>'
+            +'<td style="'+tdS+';background:transparent;text-transform:capitalize">'+( l.zona||'—')+'</td>'
+            +'<td style="'+tdS+';background:transparent"><span style="color:'+gCol+';font-weight:700;text-transform:capitalize">'+( l.gravedad||'—')+'</span></td>'
+            +'<td style="'+tdS+';background:transparent">'+( l.fecha_inicio||'—')+'</td>'
+            +'<td style="'+tdS+';background:transparent">'+( l.fecha_alta_est||'—')+'</td>'
+            +'</tr>';}).join('')
+      +'</tbody></table></div>'
+    :'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:#166534;font-weight:600">✅ Sin lesiones activas</div>')
+    // ── LOAD ANALYSIS ──
+    +'<div style="'+hdS+'">Análisis de Carga · Últimas 8 Semanas</div>'
+    +'<table style="width:100%;border-collapse:collapse;margin-bottom:24px">'
+      +'<thead><tr><th style="'+thS+'">Semana</th><th style="'+thS+';text-align:right">Sesiones</th><th style="'+thS+';text-align:right">Carga Prom.</th><th style="'+thS+';text-align:left">Nivel</th></tr></thead>'
+      +'<tbody>'
+      +weeklyData.map(function(wd,idx){
+        var lvl=wd.avg===0?'Sin datos':wd.avg<80?'Baja':wd.avg<140?'Moderada':wd.avg<200?'Alta':'Muy alta';
+        var lvlCol=wd.avg===0?'#94a3b8':wd.avg<80?'#3b82f6':wd.avg<140?'#06d6a0':wd.avg<200?'#f59e0b':'#f43f5e';
+        var isLast=idx===weeklyData.length-1;
+        return'<tr style="background:'+(isLast?'#f0fdf4':'#fff')+';'+(isLast?'font-weight:700':'')+'border:none">'
+          +'<td style="'+tdS+'">Semana '+(8-idx)+(isLast?' (actual)':'')+' </td>'
+          +'<td style="'+tdS+';text-align:right">'+wd.sess+'</td>'
+          +'<td style="'+tdS+';text-align:right">'+(wd.avg||'—')+' UA</td>'
+          +'<td style="'+tdS+'"><span style="background:'+lvlCol+'20;color:'+lvlCol+';border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700">'+lvl+'</span></td>'
+          +'</tr>';}).join('')
+      +'</tbody></table>'
+    // ── RECOMMENDATIONS ──
+    +(readiness.filter(function(x){return x.r.reasons.length>0;}).length
+      ?'<div style="'+hdS+'">Recomendaciones</div>'
+        +'<div style="background:#f8fafc;border-radius:10px;padding:16px;margin-bottom:24px">'
+        +readiness.filter(function(x){return x.r.score<75;}).slice(0,5).map(function(x){
+          var recs=[];
+          if(x.r.acwr!==null){if(x.r.acwr>1.5)recs.push('Descarga urgente (reducir 40-50%)');else if(x.r.acwr>1.3)recs.push('Sesión regenerativa — reducir intensidad');else if(x.r.acwr<0.8)recs.push('Aumentar carga progresivamente');}
+          if(x.r.ws!==null&&x.r.ws!==undefined){if(x.r.ws<3.5)recs.push('Charla individual urgente — bienestar crítico');else if(x.r.ws<5)recs.push('Reforzar recuperación y descanso');}
+          if(x.r.cmjDelta<-10)recs.push('Fatiga neuromuscular — evitar pliometría');
+          if(!recs.length)return'';
+          return'<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #e2e8f0">'
+            +'<div style="font-weight:700;font-size:12px;min-width:160px">'+x.p.name+'</div>'
+            +'<div style="font-size:11px;color:#475569">→ '+recs.join(' | ')+'</div>'
+            +'</div>';}).join('')
+        +'</div>'
+      :'')
+    // ── FOOTER ──
+    +'<div style="margin-top:24px;padding-top:16px;border-top:2px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">'
+      +'<div>'
+        +'<div style="font-size:13px;font-weight:800;letter-spacing:2px;color:#0f172a">ATLAS</div>'
+        +'<div style="font-size:10px;color:#94a3b8;margin-top:1px">Sistema de Monitoreo Deportivo · '+teamName+'</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+        +'<div style="font-size:10px;color:#94a3b8">Generado el '+semana+'</div>'
+        +'<div style="font-size:10px;color:#cbd5e1;margin-top:1px">Temporada 2026 · Uso interno</div>'
+      +'</div>'
+    +'</div>'
+    +'</div>';
+  var existing2=document.getElementById('informe-modal');if(existing2)existing2.parentNode.removeChild(existing2);
+  var modal2=document.createElement('div');
+  modal2.id='informe-modal';
+  modal2.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);z-index:10000;overflow-y:auto;display:flex;flex-direction:column';
+  modal2.innerHTML='<div style="background:#fff;flex:1">'
+    +'<div style="display:flex;gap:10px;padding:12px 20px;background:#0f172a;position:sticky;top:0;z-index:1;align-items:center">'
+      +'<div style="font-size:13px;font-weight:700;color:#fff;letter-spacing:1px;flex:1">ATLAS · Informe Ejecutivo</div>'
+      +'<button onclick="window.print()" style="padding:9px 20px;border-radius:8px;background:linear-gradient(135deg,#06d6a0,#8b5cf6);color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(6,214,160,.3)">🖨 Imprimir / Guardar PDF</button>'
+      +'<button onclick="document.getElementById(\'informe-modal\').parentNode.removeChild(document.getElementById(\'informe-modal\'))" style="padding:9px 14px;border-radius:8px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.15);font-size:12px;cursor:pointer">✕ Cerrar</button>'
+    +'</div>'
+    +'<style>@media print{.no-print{display:none!important}@page{size:A4;margin:10mm}}</style>'
+    +'<div class="no-print" style="height:8px;background:linear-gradient(90deg,#06d6a0,#8b5cf6)"></div>'
+    +body
+    +'</div>';
+  document.body.appendChild(modal2);
+}
+
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('on');});
   document.querySelectorAll('.nav').forEach(function(n){n.classList.remove('on');});
@@ -8367,15 +8676,25 @@ async function doLogin(){
     // Show loading indicator (same as auto-login path)
     var loadDiv=document.createElement('div');
     loadDiv.id='atlas-loading';
-    loadDiv.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
-    loadDiv.innerHTML='<div style="font-size:32px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent">CT SF</div>'
-      +'<div style="font-size:13px;color:var(--mut)">Cargando datos...</div>'
-      +'<div style="width:200px;height:3px;background:var(--b);border-radius:2px;overflow:hidden"><div id="load-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:2px;transition:width .5s"></div></div>';
+    loadDiv.style.cssText='position:fixed;inset:0;z-index:9998;background:linear-gradient(135deg,#030b14 0%,#050f1c 60%,#070d1a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden';
+    loadDiv.innerHTML=
+      '<div style="position:absolute;top:15%;left:20%;width:500px;height:500px;background:radial-gradient(ellipse,rgba(0,229,160,.06),transparent 70%);pointer-events:none"></div>'
+      +'<div style="position:absolute;bottom:20%;right:15%;width:350px;height:350px;background:radial-gradient(ellipse,rgba(168,85,247,.05),transparent 70%);pointer-events:none"></div>'
+      +'<div style="width:88px;height:88px;border-radius:26px;background:linear-gradient(135deg,var(--acc),var(--pur));display:flex;align-items:center;justify-content:center;font-size:44px;box-shadow:0 0 60px rgba(6,214,160,.2),0 20px 60px rgba(0,0,0,.5);margin-bottom:28px;animation:float 3s ease-in-out infinite,pulseGlow 3s ease-in-out infinite">⚽</div>'
+      +'<div style="font-size:38px;font-weight:900;letter-spacing:6px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;animation:fadeIn .8s ease">ATLAS</div>'
+      +'<div style="font-size:11px;color:#475569;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:4px;animation:fadeIn 1s ease">Sistema de Monitoreo Deportivo</div>'
+      +'<div style="font-size:10px;color:#334155;letter-spacing:1px;margin-bottom:52px;animation:fadeIn 1.2s ease">CT Santiago Fleitas · Temporada 2026</div>'
+      +'<div style="width:240px;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:14px">'
+        +'<div id="load-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:2px;transition:width .6s cubic-bezier(.4,0,.2,1)"></div>'
+      +'</div>'
+      +'<div id="load-msg" style="font-size:11px;color:#475569;letter-spacing:.3px;min-height:16px;transition:opacity .3s">Iniciando sistema...</div>';
     document.body.appendChild(loadDiv);
     var bar=document.getElementById('load-bar');
-    if(bar)bar.style.width='30%';
-    function removeLoader(){var ld=document.getElementById('atlas-loading');if(ld)ld.parentNode.removeChild(ld);}
-    var loaderGuard=setTimeout(removeLoader,12000);
+    var _lmsg=document.getElementById('load-msg');
+    var _lpct=10;if(bar)bar.style.width='10%';
+    var _lramp=setInterval(function(){_lpct=Math.min(80,_lpct+4);if(bar)bar.style.width=_lpct+'%';if(_lmsg){if(_lpct<28)_lmsg.textContent='Conectando con servidor...';else if(_lpct<48)_lmsg.textContent='Cargando plantel...';else if(_lpct<66)_lmsg.textContent='Procesando sesiones GPS...';else _lmsg.textContent='Preparando datos...';}},350);
+    function removeLoader(){clearInterval(_lramp);var ld=document.getElementById('atlas-loading');if(ld){ld.style.transition='opacity .4s';ld.style.opacity='0';setTimeout(function(){if(ld.parentNode)ld.parentNode.removeChild(ld);},400);}}
+    var loaderGuard=setTimeout(removeLoader,15000);
     try{await initATLAS();}catch(e){console.error('initATLAS:',e);}
     clearTimeout(loaderGuard);
     if(bar)bar.style.width='100%';
@@ -8402,15 +8721,25 @@ window.addEventListener('load',async function(){
     // Show loading indicator
     var loadDiv=document.createElement('div');
     loadDiv.id='atlas-loading';
-    loadDiv.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
-    loadDiv.innerHTML='<div style="font-size:32px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent">CT SF</div>'
-      +'<div style="font-size:13px;color:var(--mut)">Cargando datos...</div>'
-      +'<div style="width:200px;height:3px;background:var(--b);border-radius:2px;overflow:hidden"><div id="load-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:2px;transition:width .5s"></div></div>';
+    loadDiv.style.cssText='position:fixed;inset:0;z-index:9998;background:linear-gradient(135deg,#030b14 0%,#050f1c 60%,#070d1a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden';
+    loadDiv.innerHTML=
+      '<div style="position:absolute;top:15%;left:20%;width:500px;height:500px;background:radial-gradient(ellipse,rgba(0,229,160,.06),transparent 70%);pointer-events:none"></div>'
+      +'<div style="position:absolute;bottom:20%;right:15%;width:350px;height:350px;background:radial-gradient(ellipse,rgba(168,85,247,.05),transparent 70%);pointer-events:none"></div>'
+      +'<div style="width:88px;height:88px;border-radius:26px;background:linear-gradient(135deg,var(--acc),var(--pur));display:flex;align-items:center;justify-content:center;font-size:44px;box-shadow:0 0 60px rgba(6,214,160,.2),0 20px 60px rgba(0,0,0,.5);margin-bottom:28px;animation:float 3s ease-in-out infinite,pulseGlow 3s ease-in-out infinite">⚽</div>'
+      +'<div style="font-size:38px;font-weight:900;letter-spacing:6px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;animation:fadeIn .8s ease">ATLAS</div>'
+      +'<div style="font-size:11px;color:#475569;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:4px;animation:fadeIn 1s ease">Sistema de Monitoreo Deportivo</div>'
+      +'<div style="font-size:10px;color:#334155;letter-spacing:1px;margin-bottom:52px;animation:fadeIn 1.2s ease">CT Santiago Fleitas · Temporada 2026</div>'
+      +'<div style="width:240px;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:14px">'
+        +'<div id="load-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:2px;transition:width .6s cubic-bezier(.4,0,.2,1)"></div>'
+      +'</div>'
+      +'<div id="load-msg" style="font-size:11px;color:#475569;letter-spacing:.3px;min-height:16px;transition:opacity .3s">Iniciando sistema...</div>';
     document.body.appendChild(loadDiv);
     var bar=document.getElementById('load-bar');
-    if(bar)bar.style.width='30%';
-    function removeLoader(){var ld=document.getElementById('atlas-loading');if(ld)ld.parentNode.removeChild(ld);}
-    var loaderGuard=setTimeout(removeLoader,12000);
+    var _lmsg=document.getElementById('load-msg');
+    var _lpct=10;if(bar)bar.style.width='10%';
+    var _lramp=setInterval(function(){_lpct=Math.min(80,_lpct+4);if(bar)bar.style.width=_lpct+'%';if(_lmsg){if(_lpct<28)_lmsg.textContent='Conectando con servidor...';else if(_lpct<48)_lmsg.textContent='Cargando plantel...';else if(_lpct<66)_lmsg.textContent='Procesando sesiones GPS...';else _lmsg.textContent='Preparando datos...';}},350);
+    function removeLoader(){clearInterval(_lramp);var ld=document.getElementById('atlas-loading');if(ld){ld.style.transition='opacity .4s';ld.style.opacity='0';setTimeout(function(){if(ld.parentNode)ld.parentNode.removeChild(ld);},400);}}
+    var loaderGuard=setTimeout(removeLoader,15000);
     try{await initATLAS();}catch(e){console.error('initATLAS:',e);}
     clearTimeout(loaderGuard);
     if(bar)bar.style.width='100%';
