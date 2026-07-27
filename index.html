@@ -649,6 +649,39 @@ async function syncOfflineQueue(){
 var SUPABASE_URL = 'https://gbgvcipaeipanfciwylg.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3ZjaXBhZWlwYW5mY2l3eWxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjMzMzgsImV4cCI6MjA5NjIzOTMzOH0.taAZnfsb8YX50DoPVuk1az8YppWZVD_WAiW8oh9kXT8';
 
+// Unique keys per table — used to merge queued writes onto cached reads when offline
+var OFFLINE_TABLE_KEYS={
+  rpe:['team_id','player_idx','date'],
+  wellness:['team_id','player_idx','date'],
+  dolor:['team_id','player_idx','date'],
+  evaluaciones:['team_id','player_idx','date','eval_type'],
+  force_plates:['team_id','player_idx','date','eval_type'],
+  microciclo:['team_id','player_idx','date'],
+  player_vmax:['team_id','player_idx'],
+  campo:['team_id','date'],
+  sessions:['id'],lesiones:['id'],sprints:['id'],documentos:['id'],partidos:['id'],teams:['id']
+};
+
+async function applyQueueToCache(table, data){
+  var pending=await idbGetAll('queue');
+  var writes=pending.filter(function(item){
+    return item.table===table&&(item.method==='insert'||item.method==='upsert'||item.method==='insertReturn');
+  });
+  if(!writes.length)return data;
+  var result=data.slice();
+  var keys=OFFLINE_TABLE_KEYS[table]||[];
+  writes.forEach(function(item){
+    var rows=Array.isArray(item.data)?item.data:[item.data];
+    rows.forEach(function(row){
+      if(keys.length){
+        var idx=result.findIndex(function(d){return keys.every(function(k){return d[k]==row[k];});});
+        if(idx>=0)result[idx]=row;else result.push(row);
+      }else{result.push(row);}
+    });
+  });
+  return result;
+}
+
 async function sbGet(table, filters){
   var cacheKey=table+':'+(filters||'');
   var url=SUPABASE_URL+'/rest/v1/'+table+'?';
@@ -664,7 +697,7 @@ async function sbGet(table, filters){
       if(r.status===403||r.status===401)
         showBanner('⚠️ Supabase pausado — Reactivá el proyecto en supabase.com','var(--yel)',6000);
       var c2=await idbGet('cache',cacheKey);
-      return c2?c2.data:[];
+      return c2?await applyQueueToCache(table,c2.data):[];
     }
     var data=await r.json();
     idbSet('cache',cacheKey,data);
@@ -673,7 +706,10 @@ async function sbGet(table, filters){
     clearTimeout(timer);
     console.warn('Supabase fetch error:',e.message);
     var cached=await idbGet('cache',cacheKey);
-    if(cached){updateOfflineUI();return cached.data;}
+    if(cached){
+      updateOfflineUI();
+      return await applyQueueToCache(table,cached.data);
+    }
     return[];
   }
 }
@@ -2352,9 +2388,9 @@ function ciPick(n){
 async function ciSave(){
   var a=CIST.ans,ws=calcWS(a),wco=ws>=7?'var(--grn)':ws>=5?'var(--yel)':'var(--red)';
   var okW=false,okD=false;
-  try{okW=await sbUpsert('wellness',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,
-    sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue});}catch(e){}
-  try{okD=await sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}});}catch(e){}
+  okW=await sbUpsert('wellness',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,
+    sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue});
+  okD=await sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}});
   if(!okW){showBanner('❌ Error al guardar check-in — chequeá la conexión e intentá de nuevo','var(--red)',6000);return;}
   await loadRealWellness();updateTopStats();
   var fn=PL[CIST.player].name.split(' ')[0];
