@@ -530,6 +530,8 @@ if(typeof Chart!=='undefined'){
 // ══════════════════════════════════════════════════
 var IDB = null;
 var OFFLINE_PENDING = 0;
+var OFFLINE_STUCK = 0;
+var MAX_SYNC_RETRIES = 3;
 
 function initIDB(){
   return new Promise(function(resolve){
@@ -581,10 +583,19 @@ function idbDel(store,key){
   });
 }
 function idbEnqueue(item){
+  item.retries=0;
   return new Promise(function(resolve){
     if(!IDB){resolve();return;}
     var tx=IDB.transaction('queue','readwrite');
     tx.objectStore('queue').add(item);
+    tx.oncomplete=resolve;tx.onerror=resolve;
+  });
+}
+function idbUpdateQueue(item){
+  return new Promise(function(resolve){
+    if(!IDB){resolve();return;}
+    var tx=IDB.transaction('queue','readwrite');
+    tx.objectStore('queue').put(item);
     tx.oncomplete=resolve;tx.onerror=resolve;
   });
 }
@@ -594,20 +605,34 @@ function updateOfflineUI(){
   if(!bar)return;
   var online=navigator.onLine;
   var pending=OFFLINE_PENDING;
-  if(online&&pending===0){bar.style.display='none';return;}
+  var stuck=OFFLINE_STUCK;
+  if(online&&pending===0&&stuck===0){bar.style.display='none';return;}
   bar.style.display='flex';
   var syncBtn=document.getElementById('offline-sync-btn');
+  var normal=pending-stuck;
   if(!online){
-    bar.style.background='rgba(244,63,94,.12)';
-    bar.style.borderBottomColor='rgba(244,63,94,.25)';
-    document.getElementById('offline-msg').textContent=pending>0
-      ?'📵 Sin conexión · '+pending+' cambio'+(pending!==1?'s':'')+' pendiente'+(pending!==1?'s':'')
-      :'📵 Sin conexión · Usando datos locales';
+    if(stuck>0){
+      bar.style.background='rgba(245,158,11,.15)';
+      bar.style.borderBottomColor='rgba(245,158,11,.3)';
+      document.getElementById('offline-msg').textContent='📵 Sin conexión · '+normal+' pendiente'+(normal!==1?'s':'')+' · ⚠️ '+stuck+' error'+(stuck!==1?'s':'');
+    } else {
+      bar.style.background='rgba(244,63,94,.12)';
+      bar.style.borderBottomColor='rgba(244,63,94,.25)';
+      document.getElementById('offline-msg').textContent=pending>0
+        ?'📵 Sin conexión · '+pending+' cambio'+(pending!==1?'s':'')+' pendiente'+(pending!==1?'s':'')
+        :'📵 Sin conexión · Usando datos locales';
+    }
     if(syncBtn)syncBtn.style.display='none';
   } else {
-    bar.style.background='rgba(245,158,11,.12)';
-    bar.style.borderBottomColor='rgba(245,158,11,.3)';
-    document.getElementById('offline-msg').textContent='⚠️ '+pending+' cambio'+(pending!==1?'s':'')+' sin sincronizar';
+    if(stuck>0){
+      bar.style.background='rgba(244,63,94,.1)';
+      bar.style.borderBottomColor='rgba(244,63,94,.25)';
+      document.getElementById('offline-msg').textContent='⚠️ '+stuck+' cambio'+(stuck!==1?'s':'')+' no pudo sincronizar'+(normal>0?' · '+normal+' pendiente'+(normal!==1?'s':''):'');
+    } else {
+      bar.style.background='rgba(245,158,11,.12)';
+      bar.style.borderBottomColor='rgba(245,158,11,.3)';
+      document.getElementById('offline-msg').textContent='🔄 '+pending+' cambio'+(pending!==1?'s':'')+' sin sincronizar';
+    }
     if(syncBtn)syncBtn.style.display='';
   }
 }
@@ -615,10 +640,13 @@ function updateOfflineUI(){
 async function syncOfflineQueue(){
   if(!navigator.onLine)return;
   var items=await idbGetAll('queue');
-  if(!items.length){OFFLINE_PENDING=0;updateOfflineUI();return;}
+  if(!items.length){OFFLINE_PENDING=0;OFFLINE_STUCK=0;updateOfflineUI();return;}
   var synced=0;
   for(var i=0;i<items.length;i++){
     var item=items[i];
+    // Already stuck — skip, don't retry
+    if((item.retries||0)>=MAX_SYNC_RETRIES)continue;
+    var ok=false,networkErr=false;
     try{
       var r;
       if(item.method==='insert'||item.method==='upsert'){
@@ -637,12 +665,29 @@ async function syncOfflineQueue(){
         r=await fetch(SUPABASE_URL+'/rest/v1/'+item.table+'?'+item.filter,{method:'DELETE',
           headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
       }
-      if(r&&r.ok){await idbDel('queue',item.id);synced++;}
-    }catch(e){break;}
+      ok=r&&r.ok;
+    }catch(e){networkErr=true;}
+
+    if(ok){
+      await idbDel('queue',item.id);
+      synced++;
+    } else {
+      // Increment retry counter and persist
+      item.retries=(item.retries||0)+1;
+      await idbUpdateQueue(item);
+      // Network gone mid-sync: stop trying more items this round
+      if(networkErr)break;
+      // Server error: log and continue with next item
+      console.warn('Sync failed for item',item.table,item.method,'retries:',item.retries);
+    }
   }
-  OFFLINE_PENDING=Math.max(0,OFFLINE_PENDING-synced);
+  // Recount from IDB to get accurate totals
+  var remaining=await idbGetAll('queue');
+  OFFLINE_PENDING=remaining.length;
+  OFFLINE_STUCK=remaining.filter(function(it){return(it.retries||0)>=MAX_SYNC_RETRIES;}).length;
   updateOfflineUI();
   if(synced>0)showBanner('✅ '+synced+' cambio'+(synced!==1?'s':'')+' sincronizado'+(synced!==1?'s':''),'var(--grn)',3000);
+  if(OFFLINE_STUCK>0)showBanner('⚠️ '+OFFLINE_STUCK+' cambio'+(OFFLINE_STUCK!==1?'s':'') +' no pudo sincronizar — revisá la conexión y contactá soporte si persiste','var(--yel)',8000);
 }
 
 // ===== SUPABASE CLIENT =====
@@ -8253,6 +8298,7 @@ async function initATLAS(){
   // Check for pending offline writes from previous session
   var pendingItems=await idbGetAll('queue');
   OFFLINE_PENDING=pendingItems.length;
+  OFFLINE_STUCK=pendingItems.filter(function(it){return(it.retries||0)>=MAX_SYNC_RETRIES;}).length;
   if(OFFLINE_PENDING>0)updateOfflineUI();
   if(OFFLINE_PENDING>0&&navigator.onLine)syncOfflineQueue();
   // Online/offline events
