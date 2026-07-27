@@ -313,9 +313,15 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
 </head>
 <body>
 <!-- OFFLINE BAR -->
-<div id="offline-bar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;padding:5px 16px;border-bottom:1px solid;display:none;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;backdrop-filter:blur(8px);color:var(--txt)">
-  <span id="offline-msg"></span>
-  <button id="offline-sync-btn" onclick="syncOfflineQueue()" style="display:none;background:rgba(6,214,160,.15);border:1px solid rgba(6,214,160,.3);color:var(--acc);border-radius:5px;padding:2px 10px;font-size:10px;cursor:pointer;font-weight:700">↑ Sincronizar ahora</button>
+<div id="offline-bar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;padding:5px 16px;border-bottom:1px solid;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;backdrop-filter:blur(8px);color:var(--txt)">
+  <span style="display:flex;align-items:center;gap:8px">
+    <span id="offline-msg"></span>
+    <span id="offline-sync-age" style="font-weight:400;opacity:.7"></span>
+  </span>
+  <span style="display:flex;gap:6px;align-items:center">
+    <button id="queue-view-btn" onclick="openQueueModal()" style="display:none;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:var(--txt);border-radius:5px;padding:2px 8px;font-size:10px;cursor:pointer">📋 Ver cola</button>
+    <button id="offline-sync-btn" onclick="syncOfflineQueue()" style="display:none;background:rgba(6,214,160,.15);border:1px solid rgba(6,214,160,.3);color:var(--acc);border-radius:5px;padding:2px 10px;font-size:10px;cursor:pointer;font-weight:700">↑ Sincronizar</button>
+  </span>
 </div>
 <!-- ALERTAS FLOTANTES - top right, non-blocking -->
 <div id="alertas-panel" style="display:none;position:fixed;top:54px;right:16px;width:320px;max-height:400px;overflow-y:auto;background:#0d1428;border:1px solid rgba(244,63,94,.35);border-radius:12px;padding:14px;z-index:800;box-shadow:0 8px 32px rgba(0,0,0,.7)"></div>
@@ -339,6 +345,7 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
   <div class="logo" onclick="openTeamModal()">
     <div class="logo-t">CT SF</div>
     <div class="logo-s" id="club-lbl">CARGANDO ⚙</div>
+    <div id="nav-sync-dot" style="display:none;font-size:9px;font-weight:700;margin-top:3px;text-align:center"></div>
   </div>
   <div style="padding:8px 0;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent;-webkit-overflow-scrolling:touch">
     <div class="nav on" data-tab="plantel" data-title="Vista de Plantel">⚽&nbsp; Plantel</div>
@@ -532,6 +539,7 @@ var IDB = null;
 var OFFLINE_PENDING = 0;
 var OFFLINE_STUCK = 0;
 var MAX_SYNC_RETRIES = 3;
+var LAST_SYNC_TS = (function(){try{return localStorage.getItem('atlas_last_sync');}catch(e){return null;}})();
 
 function initIDB(){
   return new Promise(function(resolve){
@@ -582,8 +590,22 @@ function idbDel(store,key){
     tx.oncomplete=resolve;tx.onerror=resolve;
   });
 }
+function fmtLastSync(){
+  if(!LAST_SYNC_TS)return'';
+  var d=new Date(LAST_SYNC_TS),now=new Date(),diffM=Math.round((now-d)/60000);
+  if(diffM<1)return'Datos: ahora mismo';
+  if(diffM<60)return'Datos: hace '+diffM+' min';
+  var diffH=Math.round(diffM/60);
+  if(diffH<24)return'Datos: hace '+diffH+'h';
+  return'Datos: '+d.getDate()+'/'+(d.getMonth()+1)+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+
 function idbEnqueue(item){
   item.retries=0;
+  // Register Background Sync so SW sincroniza aunque la app esté cerrada
+  if('serviceWorker' in navigator&&'SyncManager' in window){
+    navigator.serviceWorker.ready.then(function(reg){reg.sync.register('atlas-sync').catch(function(){});}).catch(function(){});
+  }
   return new Promise(function(resolve){
     if(!IDB){resolve();return;}
     var tx=IDB.transaction('queue','readwrite');
@@ -606,34 +628,44 @@ function updateOfflineUI(){
   var online=navigator.onLine;
   var pending=OFFLINE_PENDING;
   var stuck=OFFLINE_STUCK;
+  var normal=pending-stuck;
+  // Nav badge
+  var badge=document.getElementById('nav-sync-dot');
+  if(badge){
+    if(pending>0||stuck>0){
+      badge.style.display='';
+      badge.textContent=stuck>0?'⚠️ '+stuck+' error'+(stuck!==1?'s':'')+(normal>0?' · '+normal+' pend.':''):'● '+pending+' pendiente'+(pending!==1?'s':'');
+      badge.style.color=stuck>0?'var(--red)':'var(--yel)';
+    }else{badge.style.display='none';}
+  }
   if(online&&pending===0&&stuck===0){bar.style.display='none';return;}
   bar.style.display='flex';
   var syncBtn=document.getElementById('offline-sync-btn');
-  var normal=pending-stuck;
+  var viewBtn=document.getElementById('queue-view-btn');
+  var ageEl=document.getElementById('offline-sync-age');
+  if(ageEl)ageEl.textContent=LAST_SYNC_TS?fmtLastSync():'';
   if(!online){
     if(stuck>0){
-      bar.style.background='rgba(245,158,11,.15)';
-      bar.style.borderBottomColor='rgba(245,158,11,.3)';
+      bar.style.background='rgba(245,158,11,.15)';bar.style.borderBottomColor='rgba(245,158,11,.3)';
       document.getElementById('offline-msg').textContent='📵 Sin conexión · '+normal+' pendiente'+(normal!==1?'s':'')+' · ⚠️ '+stuck+' error'+(stuck!==1?'s':'');
-    } else {
-      bar.style.background='rgba(244,63,94,.12)';
-      bar.style.borderBottomColor='rgba(244,63,94,.25)';
+    }else{
+      bar.style.background='rgba(244,63,94,.12)';bar.style.borderBottomColor='rgba(244,63,94,.25)';
       document.getElementById('offline-msg').textContent=pending>0
         ?'📵 Sin conexión · '+pending+' cambio'+(pending!==1?'s':'')+' pendiente'+(pending!==1?'s':'')
         :'📵 Sin conexión · Usando datos locales';
     }
     if(syncBtn)syncBtn.style.display='none';
-  } else {
+    if(viewBtn)viewBtn.style.display=pending>0?'':'none';
+  }else{
     if(stuck>0){
-      bar.style.background='rgba(244,63,94,.1)';
-      bar.style.borderBottomColor='rgba(244,63,94,.25)';
+      bar.style.background='rgba(244,63,94,.1)';bar.style.borderBottomColor='rgba(244,63,94,.25)';
       document.getElementById('offline-msg').textContent='⚠️ '+stuck+' cambio'+(stuck!==1?'s':'')+' no pudo sincronizar'+(normal>0?' · '+normal+' pendiente'+(normal!==1?'s':''):'');
-    } else {
-      bar.style.background='rgba(245,158,11,.12)';
-      bar.style.borderBottomColor='rgba(245,158,11,.3)';
+    }else{
+      bar.style.background='rgba(245,158,11,.12)';bar.style.borderBottomColor='rgba(245,158,11,.3)';
       document.getElementById('offline-msg').textContent='🔄 '+pending+' cambio'+(pending!==1?'s':'')+' sin sincronizar';
     }
     if(syncBtn)syncBtn.style.display='';
+    if(viewBtn)viewBtn.style.display='';
   }
 }
 
@@ -671,23 +703,36 @@ async function syncOfflineQueue(){
     if(ok){
       await idbDel('queue',item.id);
       synced++;
-    } else {
-      // Increment retry counter and persist
+    }else if(r&&r.status>=400&&r.status<500){
+      // Error de cliente permanente (4xx) — marcar stuck de una vez, no tiene sentido reintentar
+      item.retries=MAX_SYNC_RETRIES;
+      await idbUpdateQueue(item);
+      console.warn('Error permanente',r.status,'en',item.table,item.method);
+    }else{
+      // Error transitorio (5xx o red) — incrementar retry y continuar con el siguiente
       item.retries=(item.retries||0)+1;
       await idbUpdateQueue(item);
-      // Network gone mid-sync: stop trying more items this round
-      if(networkErr)break;
-      // Server error: log and continue with next item
-      console.warn('Sync failed for item',item.table,item.method,'retries:',item.retries);
+      if(networkErr)break; // perdió la red: detener el loop pero no contar como retry
+      console.warn('Error transitorio en',item.table,item.method,'intento:',item.retries);
     }
   }
-  // Recount from IDB to get accurate totals
+  // Recount from IDB for accurate totals
   var remaining=await idbGetAll('queue');
   OFFLINE_PENDING=remaining.length;
   OFFLINE_STUCK=remaining.filter(function(it){return(it.retries||0)>=MAX_SYNC_RETRIES;}).length;
   updateOfflineUI();
-  if(synced>0)showBanner('✅ '+synced+' cambio'+(synced!==1?'s':'')+' sincronizado'+(synced!==1?'s':''),'var(--grn)',3000);
-  if(OFFLINE_STUCK>0)showBanner('⚠️ '+OFFLINE_STUCK+' cambio'+(OFFLINE_STUCK!==1?'s':'') +' no pudo sincronizar — revisá la conexión y contactá soporte si persiste','var(--yel)',8000);
+  if(synced>0){
+    // Post-sync: recargar datos frescos desde Supabase
+    try{
+      if(typeof loadRealRPE==='function')await loadRealRPE();
+      if(typeof loadRealWellness==='function')await loadRealWellness();
+      if(typeof updateTopStats==='function')updateTopStats();
+      LAST_SYNC_TS=new Date().toISOString();
+      try{localStorage.setItem('atlas_last_sync',LAST_SYNC_TS);}catch(e){}
+    }catch(e){}
+    showBanner('✅ '+synced+' cambio'+(synced!==1?'s':'')+' sincronizado'+(synced!==1?'s':''),'var(--grn)',3000);
+  }
+  if(OFFLINE_STUCK>0)showBanner('⚠️ '+OFFLINE_STUCK+' cambio'+(OFFLINE_STUCK!==1?'s':'')+' no pudo sincronizar — abrí "Ver cola" para revisar','var(--yel)',8000);
 }
 
 // ===== SUPABASE CLIENT =====
@@ -746,6 +791,8 @@ async function sbGet(table, filters){
     }
     var data=await r.json();
     idbSet('cache',cacheKey,data);
+    LAST_SYNC_TS=new Date().toISOString();
+    try{localStorage.setItem('atlas_last_sync',LAST_SYNC_TS);}catch(e){}
     return data;
   }catch(e){
     clearTimeout(timer);
@@ -7893,6 +7940,84 @@ function renderSemaforo(){
 }
 
 // ══════════════════════════════════════════════════
+//  QUEUE VIEWER
+// ══════════════════════════════════════════════════
+var TABLE_LABELS={rpe:'RPE',wellness:'Wellness',dolor:'Dolor',evaluaciones:'Evaluación',lesiones:'Lesión',sessions:'Sesión GPS',microciclo:'Microciclo',force_plates:'Force Plate',sprints:'Sprint',campo:'Campo CT',documentos:'Documento',partidos:'Partido',player_vmax:'Vmax',teams:'Equipo'};
+
+function openQueueModal(){
+  idbGetAll('queue').then(function(items){
+    var existing=document.getElementById('queue-modal');
+    if(existing)existing.parentNode.removeChild(existing);
+    var modal=document.createElement('div');
+    modal.id='queue-modal';
+    modal.className='modal on';
+    modal.onclick=function(e){if(e.target===modal)modal.parentNode.removeChild(modal);};
+    var stuck=items.filter(function(it){return(it.retries||0)>=MAX_SYNC_RETRIES;});
+    var normal=items.filter(function(it){return(it.retries||0)<MAX_SYNC_RETRIES;});
+    function renderItem(item){
+      var isStuck=(item.retries||0)>=MAX_SYNC_RETRIES;
+      var label=TABLE_LABELS[item.table]||item.table;
+      var d=item.ts?new Date(item.ts):null;
+      var dateStr=d?(d.getDate()+'/'+(d.getMonth()+1)+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')):'—';
+      var methodLabel={insert:'Guardar',upsert:'Guardar',insertReturn:'Guardar',update:'Actualizar',delete:'Eliminar'}[item.method]||item.method;
+      var dataPreview='';
+      if(item.data){
+        var d2=Array.isArray(item.data)?item.data[0]:item.data;
+        if(d2&&d2.date)dataPreview=' · '+d2.date;
+        if(d2&&d2.player_idx!=null&&typeof PL!=='undefined'&&PL[d2.player_idx])dataPreview+=' · '+PL[d2.player_idx].name;
+        if(Array.isArray(item.data)&&item.data.length>1)dataPreview+=' ('+item.data.length+' jugadores)';
+      }
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b)">'
+        +'<div>'
+          +'<div style="font-size:12px;font-weight:700;color:'+(isStuck?'var(--red)':'var(--txt)')+'">'+label+' — '+methodLabel+(isStuck?' ⚠️':'')+'</div>'
+          +'<div style="font-size:10px;color:var(--mut)">'+dateStr+dataPreview+'</div>'
+        +'</div>'
+        +'<div style="font-size:10px;color:var(--mut);white-space:nowrap;margin-left:8px">'+(isStuck?'Error permanente':'Intento '+(item.retries||0)+'/'+MAX_SYNC_RETRIES)+'</div>'
+        +'</div>';
+    }
+    var html='<div class="mbox" style="max-width:500px;max-height:80vh;overflow-y:auto">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+        +'<div style="font-size:16px;font-weight:800">📋 Cola de sincronización</div>'
+        +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>'
+      +'</div>'
+      +(items.length===0?'<div style="text-align:center;padding:32px;color:var(--mut)">✅ Sin cambios pendientes — todo sincronizado</div>'
+        :(normal.length?'<div style="font-size:10px;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Pendientes ('+normal.length+')</div>'+normal.map(renderItem).join(''):'')
+        +(stuck.length?'<div style="font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px">Errores permanentes ('+stuck.length+')</div>'+stuck.map(renderItem).join(''):'')
+      )
+      +(items.length?'<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'
+        +(normal.length?'<button onclick="syncOfflineQueue().then(openQueueModal)" style="flex:1;min-width:120px;padding:10px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:12px;font-weight:700;cursor:pointer">↑ Sincronizar ahora</button>':'')
+        +(stuck.length?'<button onclick="clearStuckItems()" style="padding:10px 14px;border-radius:8px;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.2);color:var(--red);font-size:12px;font-weight:700;cursor:pointer">🗑 Limpiar errores</button>':'')
+        +'<button onclick="exportQueue()" style="padding:10px 14px;border-radius:8px;background:var(--c);border:1px solid var(--b);color:var(--txt);font-size:12px;font-weight:700;cursor:pointer">⬇ JSON</button>'
+        +'</div>':'')
+      +'</div>';
+    modal.innerHTML=html;
+    document.body.appendChild(modal);
+  });
+}
+
+async function clearStuckItems(){
+  var items=await idbGetAll('queue');
+  var stuck=items.filter(function(it){return(it.retries||0)>=MAX_SYNC_RETRIES;});
+  for(var i=0;i<stuck.length;i++)await idbDel('queue',stuck[i].id);
+  var remaining=await idbGetAll('queue');
+  OFFLINE_PENDING=remaining.length;
+  OFFLINE_STUCK=0;
+  updateOfflineUI();
+  var m=document.getElementById('queue-modal');
+  if(m)m.parentNode.removeChild(m);
+  showBanner('🗑 '+stuck.length+' error'+(stuck.length!==1?'s':'')+' eliminado'+(stuck.length!==1?'s':''),'var(--mut)',2500);
+}
+
+function exportQueue(){
+  idbGetAll('queue').then(function(items){
+    var a=document.createElement('a');
+    a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(items,null,2));
+    a.download='atlas_cola_'+TODAY+'.json';
+    a.click();
+  });
+}
+
+// ══════════════════════════════════════════════════
 //  EXPORT EVALUACIONES — CSV y PDF
 // ══════════════════════════════════════════════════
 function exportEvalCSV(){
@@ -8304,6 +8429,22 @@ async function initATLAS(){
   // Online/offline events
   window.addEventListener('offline',function(){updateOfflineUI();});
   window.addEventListener('online',function(){updateOfflineUI();syncOfflineQueue();});
+  // Escuchar mensajes del Service Worker (Background Sync completado)
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.addEventListener('message',function(e){
+      if(e.data&&e.data.type==='SYNC_COMPLETE'){
+        idbGetAll('queue').then(function(items){
+          OFFLINE_PENDING=items.length;
+          OFFLINE_STUCK=items.filter(function(it){return(it.retries||0)>=MAX_SYNC_RETRIES;}).length;
+          updateOfflineUI();
+          if(e.data.synced>0){
+            try{if(typeof loadRealRPE==='function')loadRealRPE().then(function(){if(typeof loadRealWellness==='function')loadRealWellness().then(updateTopStats);});}catch(ex){}
+            showBanner('✅ '+e.data.synced+' cambio'+(e.data.synced!==1?'s':'')+' sincronizado'+(e.data.synced!==1?'s':'')+' en segundo plano','var(--grn)',3000);
+          }
+        });
+      }
+    });
+  }
 
   var now=new Date();
   var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
