@@ -8153,12 +8153,13 @@ function renderSemaforo(){
   var yellows=readiness.filter(function(x){return x.r.score>=50&&x.r.score<75;});
   var reds=readiness.filter(function(x){return x.r.score<50;});
 
-  // ── Find next match + last match ──
+  // ── Find next match + last match (uses PARTIDOS_CUSTOM from Supabase) ──
   var nextMatch=null,lastMatch=null,daysToMatch=null,daysSinceMatch=null;
-  if(typeof PARTIDOS!=='undefined'&&PARTIDOS.length){
-    var future=PARTIDOS.filter(function(p){return p.fecha>TODAY;}).sort(function(a,b){return a.fecha.localeCompare(b.fecha);});
+  var _allP=(typeof PARTIDOS_CUSTOM!=='undefined'?PARTIDOS_CUSTOM:[]).concat(typeof PARTIDOS_DATA!=='undefined'?PARTIDOS_DATA:[]);
+  if(_allP.length){
+    var future=_allP.filter(function(p){return p.fecha>TODAY;}).sort(function(a,b){return a.fecha.localeCompare(b.fecha);});
     if(future.length){nextMatch=future[0];daysToMatch=Math.ceil((new Date(nextMatch.fecha)-now)/(1000*60*60*24));}
-    var past=PARTIDOS.filter(function(p){return p.fecha<=TODAY;}).sort(function(a,b){return b.fecha.localeCompare(a.fecha);});
+    var past=_allP.filter(function(p){return p.fecha<=TODAY;}).sort(function(a,b){return b.fecha.localeCompare(a.fecha);});
     if(past.length){
       lastMatch=past[0];
       daysSinceMatch=Math.floor((now-new Date(lastMatch.fecha+'T12:00:00'))/(1000*60*60*24));
@@ -8179,7 +8180,7 @@ function renderSemaforo(){
       +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
       +'<div style="background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+recovColor+'">'+daysSinceMatch+'</div><div style="font-size:9px;color:var(--mut)">DÍAS POST</div></div>'
-      +'<div style="background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+(wsPostAvg!==null?(wsPostAvg>=6?'var(--grn)':wsPostAvg>=4.5?'var(--yel)':'var(--red)'):'var(--mut)'+'">'+(wsPostAvg!==null?wsPostAvg:'—'))+'</div><div style="font-size:9px;color:var(--mut)">WELLNESS</div></div>'
+      +'<div style="background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+(wsPostAvg!==null?(wsPostAvg>=6?'var(--grn)':wsPostAvg>=4.5?'var(--yel)':'var(--red)'):'var(--mut)')+'">'+  (wsPostAvg!==null?wsPostAvg:'—')+'</div><div style="font-size:9px;color:var(--mut)">WELLNESS</div></div>'
       +'<div style="background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+(lowRecov>0?'var(--red)':'var(--grn)')+'">'+lowRecov+'</div><div style="font-size:9px;color:var(--mut)">FATIGADOS</div></div>'
       +'</div>'
       +'</div>';
