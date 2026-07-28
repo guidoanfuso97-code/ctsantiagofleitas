@@ -1175,8 +1175,8 @@ async function doRefresh(){
   var btn=document.querySelector('.ref-btn');
   if(btn){btn.textContent='⏳';btn.style.opacity='.6';}
   try{
-    await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE()]);
-    var freshSessions=await loadAllSessions();
+    var _rr=await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE(),loadSessionsCached()]);
+    var freshSessions=_rr[3];
     if(freshSessions&&freshSessions.length>0){
       var sig=freshSessions.length+'|'+(freshSessions[0]?freshSessions[0].date:'');
       var oldSig=SESSIONS.length+'|'+(SESSIONS[0]?SESSIONS[0].date:'');
@@ -2648,7 +2648,7 @@ async function openRPEView(){
       +'<td style="padding:7px 8px;font-weight:600">'+e.p.name+'</td>'
       +'<td style="padding:7px;text-align:center"><span style="background:'+RCLR[e.rpe-1]+';color:rgba(0,0,0,.72);padding:2px 10px;border-radius:6px;font-weight:900;font-size:12px">'+e.rpe+'</span></td>'
       +'<td style="padding:7px;text-align:center;font-weight:700;color:var(--dim)">'+e.sRPE+' AU</td>'
-      +'<td style="padding:7px;text-align:center;font-weight:700;color:'+ac(PL[e.idx].acwr)+'">'+PL[e.idx].acwr+'</td>'
+      +'<td style="padding:7px;text-align:center;font-weight:700;color:'+(PL[e.idx].acwr!==null?ac(PL[e.idx].acwr):'var(--mut)')+'">'+  (PL[e.idx].acwr!==null?PL[e.idx].acwr.toFixed(2):'—')+'</td>'
       +'</tr>';
   }).join('');
   var pending=PL.filter(function(_,i){return !entries.find(function(e){return e.idx===i;});});
@@ -2670,12 +2670,32 @@ async function openRPEView(){
 }
 
 // ===== SESSIONS — Supabase backed =====
+// ── Session cache (localStorage) ─────────────────────────────────────────
+function _sessCK(){return 'atlas_sess_v2_'+(TEAM?TEAM.id:'');}
+function _saveSC(sessions){
+  try{localStorage.setItem(_sessCK(),JSON.stringify({d:sessions,latest:sessions.length?sessions[0].date:'',n:sessions.length}));}catch(e){}
+}
+function _loadSC(){try{var r=localStorage.getItem(_sessCK());return r?JSON.parse(r):null;}catch(e){return null;}}
+function _clearSC(){try{localStorage.removeItem(_sessCK());}catch(e){}}
+async function _sessHead(){
+  try{var r=await sbGet('sessions','team_id=eq.'+TEAM.id+'&select=date&order=date.desc&limit=1');return r&&r.length?r[0].date:null;}catch(e){return null;}}
+// Returns sessions using cache when data hasn't changed (head check = 1 row vs 200)
+async function loadSessionsCached(){
+  var sc=_loadSC();
+  if(sc&&sc.d&&sc.d.length){
+    var latest=await _sessHead();
+    if(latest===null||latest===sc.latest)return sc.d;
+  }
+  return await loadAllSessions();
+}
+// ─────────────────────────────────────────────────────────────────────────
+
 async function loadAllSessions(){
   try{
     var seasonStart=(TEAM.season||new Date().getFullYear())+'-01-01';
     var rows=await sbGet('sessions','team_id=eq.'+TEAM.id+'&date=gte.'+seasonStart+'&order=date.desc&limit=200');
     if(!rows||!rows.length)return [];
-    return rows.map(function(r){
+    var result=rows.map(function(r){
       return {
         date:r.date,sessionType:r.session_type,isMatch:r.is_match,
         opponent:r.opponent||'',duration:r.duration,notes:r.notes||'',
@@ -2683,6 +2703,8 @@ async function loadAllSessions(){
         _id:r.id
       };
     });
+    _saveSC(result);
+    return result;
   }catch(e){
     console.error('loadAllSessions error:',e);
     return [];
@@ -2719,6 +2741,7 @@ async function saveSession(session){
       });
     }
   }catch(e){console.error('saveSession error:',e);}
+  _clearSC(); // invalidate cache — new session added
   // Update in-memory SESSIONS
   var idx=SESSIONS.findIndex(function(s){return s.date===session.date;});
   if(idx>=0)SESSIONS[idx]=session; else SESSIONS.push(session);
@@ -2729,6 +2752,7 @@ async function deleteSession(date){
   if(!confirm('¿Borrar sesión del '+date+'? Esta acción no se puede deshacer.'))return;
   await sbDelete('sessions','team_id=eq.'+TEAM.id+'&date=eq.'+date);
   SESSIONS=SESSIONS.filter(function(s){return s.date!==date;});
+  _clearSC(); // invalidate cache — session removed
   _lastSessionCount=0; // invalidate EWMA cache so applyHistoricalToACWR recalculates
   if(SESSIONS.length)await applyHistoricalToACWR();
   PL.forEach(function(p){p._trend=calcTendencia(p);});
@@ -8897,7 +8921,7 @@ async function initATLAS(){
   }
   // Load everything else in parallel
   var results=await Promise.all([
-    loadAllSessions(),
+    loadSessionsCached(),
     loadRealWellness(),
     loadRealRPE(),
     loadHistoricalRPE(),
