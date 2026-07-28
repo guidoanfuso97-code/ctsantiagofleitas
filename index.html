@@ -386,6 +386,7 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
       <div class="tbs"><div class="v" id="sacwr" style="color:var(--acc)">-</div><div class="l">ACWR</div></div>
       <div class="tbs"><div class="v" id="sws" style="color:#a78bfa">-</div><div class="l">Wellness</div></div>
       <button class="ref-btn" onclick="doRefresh()">🔄 Actualizar</button>
+      <button class="ref-btn" onclick="activarNotificaciones()" title="Activar notificaciones de alertas" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:var(--yel)">🔔</button>
       <button id="menu-btn-refresh" class="ref-btn" onclick="doRefresh()" style="display:none">🔄</button>
       <button class="ref-btn" id="alertas-btn" onclick="toggleAlertasPanel()" style="display:none;background:rgba(244,63,94,.1);border-color:rgba(244,63,94,.25);color:var(--red)">⚠ Alertas</button>
       <button class="ref-btn" onclick="openRPEView()" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.25);color:var(--grn)">📊 RPE Hoy</button>
@@ -1196,7 +1197,36 @@ async function doRefresh(){
   Object.keys(CH).forEach(function(k){destC(k);});
   if(TABS[id])TABS[id].render();
   if(btn){btn.textContent='🔄 Actualizar';btn.style.opacity='1';}
+  _checkNotifications();
 }
+
+// ── Browser notifications para alertas críticas ───────────────────────────
+var _notifSentToday={};
+function _checkNotifications(){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  var critical=PL.filter(function(p){
+    return p.status==='r'&&(p.realRPE||p.realWellness||p.realGPS);
+  });
+  critical.forEach(function(p){
+    var key=p.idx+'_'+TODAY;
+    if(_notifSentToday[key])return; // ya notificado hoy
+    _notifSentToday[key]=true;
+    var reasons=[];
+    if(p.acwr!==null&&p.acwr>1.5)reasons.push('ACWR '+p.acwr.toFixed(2));
+    if(p.wscore!==null&&p.wscore<3.5)reasons.push('Wellness '+p.wscore+'/10');
+    if(p.cmjDelta<-10)reasons.push('CMJ '+p.cmjDelta+'%');
+    if(!reasons.length)return;
+    try{new Notification('⚠️ ATLAS — '+p.name,{body:reasons.join(' · '),icon:'/ctsantiagofleitas/icon.svg',badge:'/ctsantiagofleitas/icon.svg'});}catch(e){}
+  });
+}
+function activarNotificaciones(){
+  if(!('Notification' in window)){showBanner('Tu navegador no soporta notificaciones','var(--yel)',3000);return;}
+  Notification.requestPermission().then(function(perm){
+    if(perm==='granted'){showBanner('🔔 Notificaciones activadas — te avisaremos de jugadores en zona roja','var(--grn)',3000);}
+    else{showBanner('Notificaciones bloqueadas — habilitá los permisos en el navegador','var(--yel)',4000);}
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────
 
 function updateTopStats(){
   var g=PL.filter(function(p){return p.status==='g';}).length;
@@ -2480,8 +2510,83 @@ function renderCIPlayers(){
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
     +'<div><div style="font-size:14px;font-weight:700">Check-in · '+(TEAM?TEAM.name:'—')+'</div>'
     +'<div style="font-size:11px;color:var(--mut);margin-top:1px">'+CIST.submitted.length+' / '+PL.length+' completados</div></div>'
+    +'<div style="display:flex;gap:8px;align-items:center">'
+    +'<button onclick="openQRModal()" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.25);color:var(--acc);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer">📱 QR</button>'
     +'<div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:6px 14px;font-size:14px;font-weight:800;color:var(--grn)">'+pct+'%</div>'
+    +'</div>'
     +'</div><div class="sg">'+cards+'</div>';
+}
+
+// ── QR Check-in modal ────────────────────────────────────────────────────
+var _qrTick=null;
+function openQRModal(){
+  if(!TEAM)return;
+  var url='https://guidoanfuso97-code.github.io/ctsantiagofleitas/checkin.html?t='+TEAM.id+'&d='+TODAY;
+  var m=document.createElement('div');
+  m.id='qr-modal';
+  m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:16px';
+  m.onclick=function(e){if(e.target===m)closeQRModal();};
+  m.innerHTML=
+    '<div style="background:#0d1b2a;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:22px;max-width:340px;width:100%;text-align:center">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div style="font-size:14px;font-weight:800">📱 QR Check-in</div>'
+    +'<button onclick="closeQRModal()" style="background:rgba(255,255,255,.08);border:none;color:var(--txt);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>'
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-bottom:14px">Los jugadores escanean este QR con la cámara del celular</div>'
+    +'<div style="background:#fff;border-radius:14px;padding:14px;display:inline-block;margin-bottom:14px">'
+    +'<div id="qr-el" style="width:200px;height:200px;display:flex;align-items:center;justify-content:center"><div style="color:#666;font-size:12px">Cargando QR...</div></div>'
+    +'</div>'
+    +'<div id="qr-count" style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:12px">Verificando...</div>'
+    +'<div id="qr-who" style="font-size:11px;color:var(--mut);margin-bottom:14px;min-height:16px"></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="_qrCopy()" style="flex:1;padding:9px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--txt);font-size:12px;cursor:pointer">📋 Copiar URL</button>'
+    +'<button onclick="_qrRefresh()" style="flex:1;padding:9px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--txt);font-size:12px;cursor:pointer">🔄 Actualizar</button>'
+    +'</div>'
+    +'</div>';
+  document.body.appendChild(m);
+  window._qrURL=url;
+  _qrLoadLib(function(err){
+    var el=document.getElementById('qr-el');
+    if(!el)return;
+    if(err){el.innerHTML='<div style="color:#333;font-size:11px;word-break:break-all;padding:4px">'+url+'</div>';return;}
+    el.innerHTML='';
+    try{new QRCode(el,{text:url,width:200,height:200,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}
+  });
+  _qrRefresh();
+  _qrTick=setInterval(_qrRefresh,15000);
+}
+function closeQRModal(){
+  clearInterval(_qrTick);_qrTick=null;
+  var m=document.getElementById('qr-modal');
+  if(m)m.parentNode.removeChild(m);
+}
+function _qrCopy(){
+  if(!window._qrURL)return;
+  navigator.clipboard.writeText(window._qrURL).then(function(){showBanner('✓ URL copiada','var(--grn)',2000);}).catch(function(){});
+}
+async function _qrRefresh(){
+  try{
+    var rows=await sbGet('wellness','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY+'&select=player_idx');
+    var n=(rows||[]).length;
+    var done=(rows||[]).map(function(r){return r.player_idx;});
+    // Update CIST so local list reflects remote state
+    CIST.submitted=done;
+    var el=document.getElementById('qr-count');
+    if(el)el.textContent='✅ '+n+' de '+PL.length+' jugadores completaron el check-in';
+    var whoEl=document.getElementById('qr-who');
+    if(whoEl){
+      var pending=PL.filter(function(p,i){return done.indexOf(i)<0;}).map(function(p){return p.name.split(' ')[0];});
+      whoEl.textContent=pending.length?'Pendientes: '+pending.slice(0,5).join(', ')+(pending.length>5?' +'+( pending.length-5)+'…':''):'';
+    }
+  }catch(e){}
+}
+function _qrLoadLib(cb){
+  if(window.QRCode){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  s.onload=function(){cb();};
+  s.onerror=function(){cb(true);};
+  document.head.appendChild(s);
 }
 async function ciSelect(idx){
   CIST.player=idx;CIST.ans={};CIST.qIdx=0;
@@ -8048,12 +8153,36 @@ function renderSemaforo(){
   var yellows=readiness.filter(function(x){return x.r.score>=50&&x.r.score<75;});
   var reds=readiness.filter(function(x){return x.r.score<50;});
 
-  // ── Find next match ──
-  var nextMatch=null;
-  var daysToMatch=null;
+  // ── Find next match + last match ──
+  var nextMatch=null,lastMatch=null,daysToMatch=null,daysSinceMatch=null;
   if(typeof PARTIDOS!=='undefined'&&PARTIDOS.length){
     var future=PARTIDOS.filter(function(p){return p.fecha>TODAY;}).sort(function(a,b){return a.fecha.localeCompare(b.fecha);});
     if(future.length){nextMatch=future[0];daysToMatch=Math.ceil((new Date(nextMatch.fecha)-now)/(1000*60*60*24));}
+    var past=PARTIDOS.filter(function(p){return p.fecha<=TODAY;}).sort(function(a,b){return b.fecha.localeCompare(a.fecha);});
+    if(past.length){
+      lastMatch=past[0];
+      daysSinceMatch=Math.floor((now-new Date(lastMatch.fecha+'T12:00:00'))/(1000*60*60*24));
+    }
+  }
+  // ── Post-match recovery banner (days 1-3 after match) ──
+  var recoveryBanner='';
+  if(lastMatch&&daysSinceMatch>=1&&daysSinceMatch<=3){
+    var recovLabel=['','D+1 · Recuperación activa','D+2 · Carga progresiva','D+3 · Retorno progresivo'][daysSinceMatch]||'';
+    var recovColor=daysSinceMatch===1?'var(--red)':daysSinceMatch===2?'var(--yel)':'var(--grn)';
+    var avgWsPost=PL.filter(function(p){return p.wscore!==null;});
+    var wsPostAvg=avgWsPost.length?+(avg(avgWsPost.map(function(p){return p.wscore;}))).toFixed(1):null;
+    var lowRecov=PL.filter(function(p){return p.wscore!==null&&p.wscore<5;}).length;
+    recoveryBanner='<div style="background:rgba(244,63,94,.07);border:1px solid rgba(244,63,94,.25);border-radius:14px;padding:14px 16px;margin-bottom:14px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<div style="font-size:12px;font-weight:800;color:'+recovColor+'">🔄 POST-PARTIDO — '+recovLabel+'</div>'
+      +'<div style="font-size:10px;color:var(--mut)">vs '+(lastMatch.rival||'—')+' · '+lastMatch.fecha+'</div>'
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+      +'<div style="background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+recovColor+'">'+daysSinceMatch+'</div><div style="font-size:9px;color:var(--mut)">DÍAS POST</div></div>'
+      +'<div style="background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+(wsPostAvg!==null?(wsPostAvg>=6?'var(--grn)':wsPostAvg>=4.5?'var(--yel)':'var(--red)'):'var(--mut)'+'">'+(wsPostAvg!==null?wsPostAvg:'—'))+'</div><div style="font-size:9px;color:var(--mut)">WELLNESS</div></div>'
+      +'<div style="background:rgba(0,0,0,.2);border-radius:10px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+(lowRecov>0?'var(--red)':'var(--grn)')+'">'+lowRecov+'</div><div style="font-size:9px;color:var(--mut)">FATIGADOS</div></div>'
+      +'</div>'
+      +'</div>';
   }
 
   // ── 7-day planning strip ──
@@ -8093,6 +8222,8 @@ function renderSemaforo(){
     +'<button onclick="generarInforme()" style="padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--dim);border:1px solid var(--b);font-size:11px;font-weight:700;cursor:pointer">📋 Semanal</button>'
     +'</div>'
     +'</div>'
+    // Post-match recovery banner
+    +recoveryBanner
     // Top availability + match countdown + 7-day
     +'<div style="display:grid;grid-template-columns:auto 1fr'+(nextMatch?'  auto':'')+';gap:12px;margin-bottom:18px;align-items:center">'
       // Big availability

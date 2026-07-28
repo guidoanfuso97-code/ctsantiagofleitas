@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#030b14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ATLAS · Check-in</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--acc:#06d6a0;--pur:#a855f7;--red:#f43f5e;--yel:#f59e0b;--grn:#10b981;--bg:#030b14;--c:#0d1b2a;--b:rgba(255,255,255,.08);--txt:#e2e8f0;--mut:#475569}
+html,body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+#root{max-width:480px;margin:0 auto;padding:16px;min-height:100vh}
+.hdr{display:flex;flex-direction:column;align-items:center;padding:20px 0 12px;text-align:center}
+.logo{width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,var(--acc),var(--pur));display:flex;align-items:center;justify-content:center;margin-bottom:10px;box-shadow:0 8px 24px rgba(6,214,160,.25)}
+.logo span{font-size:26px;font-weight:900;color:#000;letter-spacing:2px}
+.brand{font-size:22px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{font-size:10px;color:var(--mut);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+.date-badge{display:inline-block;background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);border-radius:20px;padding:4px 14px;font-size:11px;color:var(--acc);font-weight:600;margin-top:8px}
+.pbtn{display:flex;align-items:center;gap:12px;width:100%;background:var(--c);border:1.5px solid var(--b);border-radius:14px;padding:14px;margin-bottom:8px;cursor:pointer;text-align:left;color:var(--txt);transition:border-color .15s,background .15s}
+.pbtn:active{opacity:.75}
+.pbtn.done{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.06)}
+.num{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:var(--acc);flex-shrink:0}
+.pname{font-size:15px;font-weight:700;line-height:1.2}
+.ppos{font-size:11px;color:var(--mut);margin-top:1px}
+.badge{font-size:10px;background:rgba(16,185,129,.15);color:var(--grn);border-radius:6px;padding:3px 9px;font-weight:700;flex-shrink:0;margin-left:auto}
+.progress{height:3px;background:var(--b);border-radius:2px;margin-bottom:14px;overflow:hidden}
+.pbar{height:100%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:2px;transition:width .3s}
+.q-card{background:var(--c);border:1px solid var(--b);border-radius:16px;padding:22px;text-align:center;margin-bottom:14px}
+.q-emoji{font-size:46px;margin-bottom:10px}
+.q-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--acc);margin-bottom:5px}
+.q-text{font-size:17px;font-weight:800;line-height:1.3}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:16px 0 6px}
+.nb{height:68px;border-radius:12px;font-size:20px;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;border:1.5px solid rgba(255,255,255,.1);background:var(--bg);transition:.12s;-webkit-appearance:none}
+.nb:active{transform:scale(.96)}
+.nb.sel{transform:scale(1.05)}
+.lo-hi{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);padding:0 2px}
+.btn-back{background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer}
+.btn-main{display:block;width:100%;padding:16px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#000;border:none;font-size:16px;font-weight:800;cursor:pointer;margin-top:10px}
+.btn-main:active{opacity:.85}
+.count-bar{font-size:13px;color:var(--mut);text-align:center;margin-bottom:14px}
+.count-bar b{color:var(--acc)}
+.err-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;gap:12px}
+</style>
+</head>
+<body>
+<div id="root"><div class="err-wrap"><div style="font-size:32px">⏳</div><div style="color:var(--mut);font-size:14px">Cargando plantel...</div></div></div>
+<script>
+var SB='https://gbgvcipaeipanfciwylg.supabase.co';
+var KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3ZjaXBhZWlwYW5mY2l3eWxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjMzMzgsImV4cCI6MjA5NjIzOTMzOH0.taAZnfsb8YX50DoPVuk1az8YppWZVD_WAiW8oh9kXT8';
+
+var P=new URLSearchParams(location.search);
+var TID=P.get('t');
+var DATE=P.get('d')||(new Date().toISOString().split('T')[0]);
+
+var S={teamName:'',players:[],done:new Set(),idx:null,qIdx:0,ans:{}};
+var CIQ=[
+  {id:'sleep', label:'Calidad de sueño', emoji:'😴', text:'¿Cómo dormiste anoche?',      lo:'Muy mal',     hi:'Excelente',       gh:true},
+  {id:'energy',label:'Nivel de energía',  emoji:'⚡', text:'¿Cuánta energía tenés hoy?', lo:'Sin energía',  hi:'Máxima energía',  gh:true},
+  {id:'stress',label:'Nivel de estrés',   emoji:'🧠', text:'¿Cuánto estrés sentís?',      lo:'Sin estrés',   hi:'Muy estresado',   gh:false},
+  {id:'doms',  label:'Dolor muscular',    emoji:'💪', text:'¿Tenés dolor muscular?',      lo:'Sin dolor',    hi:'Dolor fuerte',    gh:false},
+  {id:'fatigue',label:'Fatiga general',   emoji:'🔋', text:'¿Qué tan cansado estás?',    lo:'Descansado',   hi:'Agotado',         gh:false}
+];
+
+function hdrs(){return{'apikey':KEY,'Authorization':'Bearer '+KEY,'Content-Type':'application/json'};}
+function R(html){document.getElementById('root').innerHTML=html;}
+
+function fmtDate(d){
+  var dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  var meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var o=new Date(d+'T12:00:00');
+  return dias[o.getDay()]+' '+o.getDate()+' '+meses[o.getMonth()];
+}
+
+function hdrHtml(){
+  return '<div class="hdr">'
+    +'<div class="logo"><span>A</span></div>'
+    +'<div class="brand">ATLAS</div>'
+    +'<div class="sub">Check-in Wellness · '+S.teamName+'</div>'
+    +'<div class="date-badge">'+fmtDate(DATE)+'</div>'
+    +'</div>';
+}
+
+async function init(){
+  if(!TID){
+    R('<div class="err-wrap"><div style="font-size:40px">❌</div>'
+      +'<div style="font-size:16px;font-weight:700">QR inválido</div>'
+      +'<div style="font-size:13px;color:var(--mut)">Pedile al cuerpo técnico el código actualizado</div></div>');
+    return;
+  }
+  try{
+    var r=await fetch(SB+'/rest/v1/teams?id=eq.'+TID+'&select=name,players',{headers:hdrs()});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    var data=await r.json();
+    if(!data.length){R('<div class="err-wrap"><div style="font-size:40px">❌</div><div>Equipo no encontrado</div></div>');return;}
+    S.teamName=data[0].name;
+    S.players=(data[0].players||[]);
+    var wr=await fetch(SB+'/rest/v1/wellness?team_id=eq.'+TID+'&date=eq.'+DATE+'&select=player_idx',{headers:hdrs()});
+    var wd=await wr.json();
+    S.done=new Set((wd||[]).map(function(r){return r.player_idx;}));
+    renderPlayers();
+  }catch(e){
+    R('<div class="err-wrap"><div style="font-size:40px">📡</div>'
+      +'<div style="font-size:16px;font-weight:700">Sin conexión</div>'
+      +'<div style="font-size:13px;color:var(--mut);margin-bottom:12px">Verificá tu internet e intentá de nuevo</div>'
+      +'<button class="btn-main" style="width:auto;padding:12px 28px" onclick="init()">Reintentar</button></div>');
+  }
+}
+
+function renderPlayers(){
+  S.screen='players';
+  var rows=S.players.map(function(p,i){
+    var d=S.done.has(i);
+    return '<button class="pbtn'+(d?' done':'')+'" onclick="selectPlayer('+i+')">'
+      +'<div class="num">'+(p.num||i+1)+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div class="pname">'+p.name+'</div>'
+        +'<div class="ppos">'+p.pos+'</div>'
+      +'</div>'
+      +(d?'<div class="badge">✓ Listo</div>':'')
+      +'</button>';
+  }).join('');
+  R(hdrHtml()
+    +'<div class="count-bar"><b>'+S.done.size+'</b> de <b>'+S.players.length+'</b> completaron el check-in hoy</div>'
+    +rows);
+}
+
+function selectPlayer(i){
+  S.idx=i;S.qIdx=0;S.ans={};
+  renderQ();
+}
+
+function renderQ(){
+  var q=CIQ[S.qIdx];
+  var pct=Math.round(S.qIdx/CIQ.length*100);
+  var btns=[1,2,3,4,5,6,7,8,9,10].map(function(n){
+    var sel=S.ans[q.id]===n;
+    var c=q.gh?(n<=3?'var(--red)':n<=6?'var(--yel)':'var(--grn)'):(n<=3?'var(--grn)':n<=6?'var(--yel)':'var(--red)');
+    var bg=sel?c:'var(--bg)';
+    var fc=sel?'rgba(0,0,0,.8)':c;
+    var bdr=sel?'2px solid '+c:'1.5px solid rgba(255,255,255,.1)';
+    return '<button class="nb'+(sel?' sel':'')+'" onclick="pick('+n+')" style="background:'+bg+';color:'+fc+';border:'+bdr+'">'+n+'</button>';
+  }).join('');
+  var back=S.qIdx>0?'S.qIdx--;renderQ()':'renderPlayers()';
+  R('<div style="padding-top:12px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+      +'<button class="btn-back" onclick="'+back+'">← Volver</button>'
+      +'<span style="font-size:12px;color:var(--mut)">'+S.players[S.idx].name.split(' ')[0]+' · '+(S.qIdx+1)+'/'+CIQ.length+'</span>'
+    +'</div>'
+    +'<div class="progress"><div class="pbar" style="width:'+pct+'%"></div></div>'
+    +'<div class="q-card">'
+      +'<div class="q-emoji">'+q.emoji+'</div>'
+      +'<div class="q-label">'+q.label+'</div>'
+      +'<div class="q-text">'+q.text+'</div>'
+    +'</div>'
+    +'<div class="grid5">'+btns+'</div>'
+    +'<div class="lo-hi"><span>'+q.lo+'</span><span>'+q.hi+'</span></div>'
+    +'</div>');
+}
+
+function pick(n){
+  S.ans[CIQ[S.qIdx].id]=n;
+  renderQ();
+  clearTimeout(window._pa);
+  window._pa=setTimeout(function(){
+    if(S.qIdx<CIQ.length-1){S.qIdx++;renderQ();}
+    else{save();}
+  },360);
+}
+
+async function save(){
+  var a=S.ans;
+  // Validate all answers present
+  var missing=CIQ.filter(function(q){return !a[q.id];});
+  if(missing.length){
+    S.qIdx=CIQ.indexOf(missing[0]);
+    renderQ();
+    return;
+  }
+  var ws=+((a.sleep+a.energy+(10-a.stress)+(10-a.doms)+(10-a.fatigue))/5).toFixed(1);
+  var wco=ws>=7?'var(--grn)':ws>=5?'var(--yel)':'var(--red)';
+
+  R('<div class="err-wrap"><div style="font-size:36px">⏳</div><div style="color:var(--mut)">Guardando...</div></div>');
+
+  try{
+    var r=await fetch(SB+'/rest/v1/wellness',{
+      method:'POST',
+      headers:Object.assign({},hdrs(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
+      body:JSON.stringify({team_id:TID,player_idx:S.idx,date:DATE,
+        sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue})
+    });
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    S.done.add(S.idx);
+    var fn=S.players[S.idx].name.split(' ')[0];
+    var dims=CIQ.map(function(q){
+      var v=a[q.id];
+      var c=v?(q.gh?(v>=7?'var(--grn)':v>=4?'var(--yel)':'var(--red)'):(v<=3?'var(--grn)':v<=6?'var(--yel)':'var(--red)')):'var(--mut)';
+      return '<div style="background:var(--c);border:1px solid var(--b);border-radius:10px;padding:10px;text-align:center">'
+        +'<div style="font-size:22px;font-weight:900;color:'+c+'">'+(v||'—')+'</div>'
+        +'<div style="font-size:17px;margin-top:2px">'+q.emoji+'</div>'
+        +'</div>';
+    }).join('');
+    R('<div style="padding:16px;text-align:center">'
+      +'<div style="font-size:60px;margin-bottom:12px">🙌</div>'
+      +'<div style="font-size:22px;font-weight:800;margin-bottom:4px">¡Listo, '+fn+'!</div>'
+      +'<div style="font-size:12px;color:var(--mut);margin-bottom:20px">Check-in registrado · '+fmtDate(DATE)+'</div>'
+      +'<div style="background:rgba(6,214,160,.07);border:1px solid rgba(6,214,160,.2);border-radius:14px;padding:18px;margin-bottom:16px">'
+        +'<div style="font-size:10px;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wellness Score</div>'
+        +'<div style="font-size:68px;font-weight:900;color:'+wco+'">'+ws+'</div>'
+        +'<div style="font-size:11px;color:var(--mut);margin-top:4px">'+(ws>=7?'Óptimo 🟢':ws>=5?'Moderado 🟡':'Bajo 🔴')+'</div>'
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:20px">'+dims+'</div>'
+      +'<button class="btn-main" onclick="renderPlayers()">Siguiente jugador →</button>'
+      +'</div>');
+  }catch(e){
+    R('<div class="err-wrap">'
+      +'<div style="font-size:40px">❌</div>'
+      +'<div style="font-size:16px;font-weight:700">Error al guardar</div>'
+      +'<div style="font-size:13px;color:var(--mut);margin-bottom:16px">Verificá tu conexión</div>'
+      +'<button class="btn-main" style="width:auto;padding:12px 28px" onclick="save()">Reintentar</button>'
+      +'<button style="background:none;border:none;color:var(--mut);font-size:13px;margin-top:10px;cursor:pointer" onclick="renderPlayers()">Volver al listado</button>'
+      +'</div>');
+  }
+}
+
+init();
+</script>
+</body>
+</html>
