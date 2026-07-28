@@ -2526,12 +2526,15 @@ function ciPick(n){
 }
 async function ciSave(){
   var a=CIST.ans,ws=calcWS(a),wco=ws>=7?'var(--grn)':ws>=5?'var(--yel)':'var(--red)';
-  var okW=false,okD=false;
-  okW=await sbUpsert('wellness',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,
-    sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue});
-  okD=await sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}});
-  if(!okW){showBanner('❌ Error al guardar check-in — chequeá la conexión e intentá de nuevo','var(--red)',6000);return;}
-  await loadRealWellness();updateTopStats();
+  var results=await Promise.all([
+    sbUpsert('wellness',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,
+      sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue}),
+    sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}})
+  ]);
+  if(!results[0]){showBanner('❌ Error al guardar check-in — chequeá la conexión e intentá de nuevo','var(--red)',6000);return;}
+  // Update player state locally — no need to reload from DB
+  PL[CIST.player].tw=a;PL[CIST.player].wscore=ws;PL[CIST.player].realWellness=true;
+  recalcStatus(PL[CIST.player]);updateTopStats();
   var fn=PL[CIST.player].name.split(' ')[0];
   var dimBoxes=CIQ.map(function(q){
     var v=a[q.id];
@@ -2723,8 +2726,13 @@ async function saveSession(session){
 
 }
 async function deleteSession(date){
+  if(!confirm('¿Borrar sesión del '+date+'? Esta acción no se puede deshacer.'))return;
   await sbDelete('sessions','team_id=eq.'+TEAM.id+'&date=eq.'+date);
   SESSIONS=SESSIONS.filter(function(s){return s.date!==date;});
+  _lastSessionCount=0; // invalidate EWMA cache so applyHistoricalToACWR recalculates
+  if(SESSIONS.length)await applyHistoricalToACWR();
+  PL.forEach(function(p){p._trend=calcTendencia(p);});
+  updateTopStats();
   renderHistorial();
 }
 var _lastSessionCount=0;
