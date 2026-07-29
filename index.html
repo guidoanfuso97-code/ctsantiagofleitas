@@ -1142,7 +1142,7 @@ async function loadRealRPE(){
       // Recalculate EWMA for ALL players (GPS and non-GPS use sRPE ACWR)
       PL[i].acS=ewma(PL[i].sArr,.28);PL[i].chS=ewma(PL[i].sArr,.069);
       PL[i].acwrArr=PL[i].acS.map(function(a,j){
-        return PL[i].chS[j]>0.5?+((a/PL[i].chS[j]).toFixed(2)):1.0;
+        return PL[i].chS[j]>0.5?+((a/PL[i].chS[j]).toFixed(2)):null;
       });
       PL[i].acwr=PL[i].acwrArr[27];
       PL[i].realRPE=true;
