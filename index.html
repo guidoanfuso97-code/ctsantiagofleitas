@@ -1383,7 +1383,7 @@ function renderPlantel(){
       var sRPEval=p.realRPE?p.loads[27].sRPE.toFixed(0)+' AU':'—';
       var sRPEcolor=p.realRPE?'var(--acc)':'var(--mut)';
       if(p.acwr&&p.realRPE){
-        acwrRow='<div class="pm"><span class="k">ACWR sRPE</span><span class="vv" style="color:'+ac(p.acwr)+'">'+p.acwr+'</span></div>';
+        acwrRow='<div class="pm"><span class="k">ACWR sRPE</span><span class="vv" style="color:'+ac(p.acwr)+'">'+p.acwr.toFixed(2)+'</span></div>';
       } else {
         acwrRow='<div class="pm"><span class="k" style="color:var(--mut);font-size:8px">📊 Cargar RPE</span></div>';
       }
@@ -2149,7 +2149,7 @@ function renderIndividual(){
     +(p.hasGPSDevice&&p.peakVel28>0?buildSpeedZonesCard(p,gpsHoy):'')
     // KPI row
     +'<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:12px">'
-    +gpsMetricBox('var(--acc)',p.acwr,'ACWR PL')
+    +gpsMetricBox(p.acwr!==null?ac(p.acwr):'var(--mut)',p.acwr!==null?p.acwr.toFixed(2):'—','ACWR PL')
     +gpsMetricBox(p.acwrDist?ac(p.acwrDist):'var(--mut)',p.acwrDist||'—','ACWR Dist')
     +gpsMetricBox(p.acwrHI?ac(p.acwrHI):'var(--mut)',p.acwrHI||'—','ACWR HI')
     +gpsMetricBox(p.acwrSprint?ac(p.acwrSprint):'var(--mut)',p.acwrSprint||'—','ACWR Sprint')
@@ -3490,9 +3490,9 @@ function checkAlertas(){
     if(!p.hasGPSDevice&&!p.realRPE) return; // sin datos, no alertar
     // ACWR crítico
     if(p.acwr!==null&&p.acwr>1.5){
-      alertas.push({player:p,type:'acwr_alto',msg:'ACWR '+p.acwr+' — Zona de pico de carga',color:'var(--red)',icon:'🚨'});
+      alertas.push({player:p,type:'acwr_alto',msg:'ACWR '+p.acwr.toFixed(2)+' — Zona de pico de carga',color:'var(--red)',icon:'🚨'});
     } else if(p.acwr!==null&&p.acwr<0.8&&p.hasRealHistory){
-      alertas.push({player:p,type:'acwr_bajo',msg:'ACWR '+p.acwr+' — Subcarga, riesgo de desentrenamiento',color:'var(--yel)',icon:'⚠️'});
+      alertas.push({player:p,type:'acwr_bajo',msg:'ACWR '+p.acwr.toFixed(2)+' — Subcarga, riesgo de desentrenamiento',color:'var(--yel)',icon:'⚠️'});
     }
     // Wellness crítico
     if(p.wscore&&p.wscore<4&&p.realWellness){
