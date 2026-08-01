@@ -2776,7 +2776,7 @@ async function openRPEView(){
 
 // ===== SESSIONS — Supabase backed =====
 // ── Session cache (localStorage) ─────────────────────────────────────────
-function _sessCK(){return 'atlas_sess_v2_'+(TEAM?TEAM.id:'');}
+function _sessCK(){return 'atlas_sess_v3_'+(TEAM?TEAM.id:'');}
 function _saveSC(sessions){
   try{localStorage.setItem(_sessCK(),JSON.stringify({d:sessions,latest:sessions.length?sessions[0].date:'',n:sessions.length}));}catch(e){}
 }
