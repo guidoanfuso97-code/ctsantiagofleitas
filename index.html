@@ -9157,6 +9157,11 @@ async function initATLAS(){
   var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   var meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   $('fecha-lbl').textContent=dias[now.getDay()]+' '+now.getDate()+' '+meses[now.getMonth()]+' '+now.getFullYear();
+  // Clear stale session cache versions automatically (no user action needed)
+  try{
+    Object.keys(localStorage).filter(function(k){return k.indexOf('atlas_sess_v1_')===0||k.indexOf('atlas_sess_v2_')===0;})
+      .forEach(function(k){localStorage.removeItem(k);});
+  }catch(e){}
   // Load teams first (needed for keys)
   await loadTeams();
   if(!TEAM){
