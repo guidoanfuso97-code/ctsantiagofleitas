@@ -2866,11 +2866,31 @@ async function deleteSession(date){
 }
 var _lastSessionCount=0;
 var _lastSessionDate='';
+// Repairs stale playerIdx values caused by player additions/removals (which shift array indices).
+// Returns true if any index was corrected, so callers can force a full ACWR recompute.
+function healSessionIndices(){
+  var changed=false;
+  if(!PL.length||!SESSIONS.length)return false;
+  SESSIONS.forEach(function(s){
+    s.players.forEach(function(sp){
+      if(!sp.participated||!sp.name)return;
+      var m=matchPlayer(sp.name);
+      if(m&&m.idx!==sp.playerIdx){
+        sp.playerIdx=m.idx;
+        s._pidx=null; // clear per-session index cache to force rebuild
+        changed=true;
+      }
+    });
+  });
+  return changed;
+}
 async function applyHistoricalToACWR(){
   if(!SESSIONS.length)return;
-  // Skip if sessions haven't changed
+  // Heal stale playerIdx values before any processing
+  var healed=healSessionIndices();
+  // Skip if sessions haven't changed and no healing was needed
   var currentSig=SESSIONS.length+'|'+(SESSIONS[0]?SESSIONS[0].date:'');
-  if(currentSig===_lastSessionCount+'|'+_lastSessionDate&&_lastSessionCount>0){
+  if(!healed&&currentSig===_lastSessionCount+'|'+_lastSessionDate&&_lastSessionCount>0){
     // Just recalc status, don't redo EWMA
     PL.forEach(function(p){recalcStatus(p);});
     return;
