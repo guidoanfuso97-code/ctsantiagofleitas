@@ -6310,27 +6310,33 @@ function partidosKey(){return 'partidos:'+TEAM.id;}
 async function loadPartidosCustom(){
   try{
     var rows=await sbGet('partidos','team_id=eq.'+TEAM.id+'&order=fecha.asc');
-    PARTIDOS_CUSTOM=rows.map(function(r){
-      return{rival:r.rival,resultado:r.resultado,local:r.local,
+    // Deduplicate by rival+fecha (keep last occurrence per pair)
+    var seen={};
+    rows.forEach(function(r){seen[r.rival+'|'+r.fecha]=r;});
+    PARTIDOS_CUSTOM=Object.values(seen).map(function(r){
+      return{id:r.id,rival:r.rival,resultado:r.resultado,local:r.local,
         fecha:r.fecha,vi:r.vi,jugadores:r.jugadores||[]};
-    });
+    }).sort(function(a,b){return new Date(a.fecha)-new Date(b.fecha);});
   }catch(e){PARTIDOS_CUSTOM=[];}
 }
 
 async function savePartidosCustom(){
-  // Save last partido to Supabase
   if(!PARTIDOS_CUSTOM.length)return;
   var p=PARTIDOS_CUSTOM[PARTIDOS_CUSTOM.length-1];
-  await sbInsert('partidos',{
+  var row=await sbInsertReturn('partidos',{
     team_id:TEAM.id,rival:p.rival,resultado:p.resultado,
     local:p.local,fecha:p.fecha,vi:p.vi||false,jugadores:p.jugadores
   });
+  if(row&&row.id)p.id=row.id;
 }
 
-// Merge hardcoded + custom partidos, deduplicate by fecha
+// Merge hardcoded + custom partidos, deduplicate by rival+fecha
 function getAllPartidos(){
   var all=PARTIDOS_DATA.slice();
-  PARTIDOS_CUSTOM.forEach(function(cp){
+  // Deduplicate within PARTIDOS_CUSTOM first (same rival+fecha → keep last)
+  var cSeen={};
+  PARTIDOS_CUSTOM.forEach(function(cp){cSeen[cp.rival+'|'+cp.fecha]=cp;});
+  Object.values(cSeen).forEach(function(cp){
     if(!all.find(function(p){return p.rival===cp.rival&&p.fecha===cp.fecha;})){
       all.push(cp);
     }
@@ -6618,7 +6624,12 @@ function showPartidoDetail(idx){
     +'<div style="font-size:26px;font-weight:900;color:'+resColor+'">'+p.resultado+'</div>'
     +'<div><div style="font-size:14px;font-weight:700">vs '+p.rival+'</div>'
     +'<div style="font-size:11px;color:var(--mut)">'+p.fecha+' · '+(p.local?'Local':'Visitante')+(p.vi?' · 🧤 Valla':'')+'</div></div>'
-    +'<button onclick="deletePartidoCustom(\''+p.rival+'\',\''+p.fecha+'\')" style="margin-left:auto;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);color:var(--red);border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer'+(PARTIDOS_DATA.find(function(pd){return pd.rival===p.rival&&pd.fecha===p.fecha;})?';display:none':'')+'">✕</button>'
+    +((!PARTIDOS_DATA.find(function(pd){return pd.rival===p.rival&&pd.fecha===p.fecha;}))
+      ?'<div style="margin-left:auto;display:flex;gap:6px">'
+        +'<button onclick="openEditPartido(\''+p.rival+'\',\''+p.fecha+'\')" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15);color:var(--yel);border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer">✎ Editar</button>'
+        +'<button onclick="deletePartidoCustom(\''+p.rival+'\',\''+p.fecha+'\')" style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);color:var(--red);border-radius:5px;padding:3px 8px;font-size:10px;cursor:pointer">✕ Eliminar</button>'
+        +'</div>'
+      :'')
     +'</div>'
     +'<table style="width:100%;border-collapse:collapse">'
     +'<thead><tr style="border-bottom:1px solid var(--b)">'
@@ -6650,6 +6661,7 @@ async function deletePartidoCustom(rival,fecha){
 
 // ===== NUEVO PARTIDO MODAL =====
 var _npSel = {}; // {playerIdx: {min,ta,tr,g,a}}
+var _npEditKey = null; // {rival, fecha} when editing an existing partido
 
 function _npToggle(idx){
   if(_npSel[idx]){delete _npSel[idx];}
@@ -6748,36 +6760,55 @@ function _npRenderRows(){
   }).join('');
 }
 
+function openEditPartido(rival,fecha){
+  var p=PARTIDOS_CUSTOM.find(function(x){return x.rival===rival&&x.fecha===fecha;});
+  if(!p){showBanner('⚠️ Partido no encontrado','var(--yel)',2000);return;}
+  _npEditKey={rival:rival,fecha:fecha};
+  _npSel={};
+  (p.jugadores||[]).forEach(function(j){
+    var pl=PL.find(function(x){return x.name===j.nombre;});
+    var i=pl?pl.idx:null;
+    if(i===null)return;
+    _npSel[i]={min:j.min||0,ta:j.ta||0,tr:j.tr||0,g:j.g||0,a:j.a||0};
+  });
+  var existing=document.getElementById('nuevo-partido-modal');
+  if(existing)existing.parentNode.removeChild(existing);
+  _openPartidoModal(p.fecha,p.rival,p.resultado,p.local,p.vi);
+}
+
 function openNuevoPartido(){
+  _npEditKey=null;
   _npSel={};
   var existing=document.getElementById('nuevo-partido-modal');
   if(existing)existing.parentNode.removeChild(existing);
+  _openPartidoModal(TODAY,'','',true,false);
+}
+
+function _openPartidoModal(fecha,rival,resultado,local,vi){
+  var isEdit=!!_npEditKey;
   var modal=document.createElement('div');
   modal.id='nuevo-partido-modal';
   modal.className='modal on';
-  modal.onclick=function(e){if(e.target===modal)modal.parentNode.removeChild(modal);};
+  modal.onclick=function(e){if(e.target===modal){_npEditKey=null;modal.parentNode.removeChild(modal);}};
 
   modal.innerHTML='<div class="mbox" style="max-width:660px;padding:20px">'
-    // Header
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">'
-      +'<div style="font-size:17px;font-weight:800">⚽ Nuevo Partido</div>'
-      +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:16px">✕</button>'
+      +'<div style="font-size:17px;font-weight:800">'+(isEdit?'✎ Editar Partido':'⚽ Nuevo Partido')+'</div>'
+      +'<button onclick="_npEditKey=null;this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:16px">✕</button>'
     +'</div>'
-    // Match info
     +'<div style="display:grid;grid-template-columns:1fr 1fr 100px;gap:8px;margin-bottom:10px">'
       +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Fecha</div>'
-        +'<input type="date" id="np-fecha" value="'+TODAY+'" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px;color:var(--txt);font-size:12px;outline:none"></div>'
+        +'<input type="date" id="np-fecha" value="'+fecha+'" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px;color:var(--txt);font-size:12px;outline:none"></div>'
       +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Rival</div>'
-        +'<input type="text" id="np-rival" placeholder="Ej: Lugano" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px;color:var(--txt);font-size:12px;outline:none"></div>'
+        +'<input type="text" id="np-rival" value="'+rival+'" placeholder="Ej: Lugano" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px;color:var(--txt);font-size:12px;outline:none"></div>'
       +'<div><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Resultado</div>'
-        +'<input type="text" id="np-resultado" placeholder="2-1" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px;color:var(--txt);font-size:13px;outline:none;font-weight:800;text-align:center"></div>'
+        +'<input type="text" id="np-resultado" value="'+resultado+'" placeholder="2-1" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px;color:var(--txt);font-size:13px;outline:none;font-weight:800;text-align:center"></div>'
     +'</div>'
     +'<div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap">'
-      +'<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="radio" name="np-cond" id="np-local" value="local" checked> 🏠 Local</label>'
-      +'<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="radio" name="np-cond" id="np-visita" value="visita"> 🚌 Visitante</label>'
-      +'<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="checkbox" id="np-vi"> 🧤 Valla invicta</label>'
+      +'<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="radio" name="np-cond" id="np-local" value="local"'+(local?' checked':'')+'>  🏠 Local</label>'
+      +'<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="radio" name="np-cond" id="np-visita" value="visita"'+(!local?' checked':'')+'>  🚌 Visitante</label>'
+      +'<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px"><input type="checkbox" id="np-vi"'+(vi?' checked':'')+'>  🧤 Valla invicta</label>'
     +'</div>'
-    // Quick selection buttons
     +'<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">'
       +'<div style="font-size:10px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Selección rápida:</div>'
       +'<button onclick="_npAll(90)" style="padding:5px 12px;border-radius:7px;border:1px solid var(--b);background:var(--c);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">⚽ Todos (90\')</button>'
@@ -6785,7 +6816,6 @@ function openNuevoPartido(){
       +'<button onclick="_npClear()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--b);background:var(--c);color:var(--mut);font-size:11px;cursor:pointer">✕ Limpiar</button>'
       +'<span id="np-count" style="font-size:11px;color:var(--mut);margin-left:4px">0 jugadores seleccionados</span>'
     +'</div>'
-    // Player table
     +'<div style="max-height:340px;overflow-y:auto;border:1px solid var(--b);border-radius:10px;margin-bottom:14px">'
       +'<table style="width:100%;border-collapse:collapse">'
         +'<thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1">'
@@ -6801,23 +6831,31 @@ function openNuevoPartido(){
       +'</table>'
     +'</div>'
     +'<div style="display:flex;gap:8px">'
-      +'<button onclick="guardarNuevoPartido()" style="flex:1;padding:14px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">✅ Guardar Partido</button>'
-      +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="padding:14px 20px;border-radius:10px;background:var(--c);border:1px solid var(--b);color:var(--mut);font-size:13px;cursor:pointer">Cancelar</button>'
+      +'<button id="np-save-btn" onclick="guardarNuevoPartido()" style="flex:1;padding:14px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">'+(isEdit?'✅ Guardar Cambios':'✅ Guardar Partido')+'</button>'
+      +'<button onclick="_npEditKey=null;this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="padding:14px 20px;border-radius:10px;background:var(--c);border:1px solid var(--b);color:var(--mut);font-size:13px;cursor:pointer">Cancelar</button>'
     +'</div>'
     +'</div>';
 
   document.body.appendChild(modal);
   _npRenderRows();
+  _npUpdateCount();
 }
 
 async function guardarNuevoPartido(){
+  var saveBtn=document.getElementById('np-save-btn');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.style.opacity='0.6';}
+
   var fecha=(document.getElementById('np-fecha')||{}).value||TODAY;
   var rival=(document.getElementById('np-rival')||{}).value.trim()||'';
   var resultado=(document.getElementById('np-resultado')||{}).value.trim()||'';
   var local=(document.getElementById('np-local')||{}).checked;
   var vi=(document.getElementById('np-vi')||{}).checked;
 
-  if(!rival||!resultado){showBanner('⚠️ Completá rival y resultado','var(--yel)',2000);return;}
+  if(!rival||!resultado){
+    showBanner('⚠️ Completá rival y resultado','var(--yel)',2000);
+    if(saveBtn){saveBtn.disabled=false;saveBtn.style.opacity='';}
+    return;
+  }
 
   // Read minutes from inputs (may have been typed)
   PL.forEach(function(p,i){
@@ -6833,11 +6871,34 @@ async function guardarNuevoPartido(){
     jugadores.push({nombre:p.name,min:s.min,ta:s.ta,tr:s.tr,g:s.g,a:s.a});
   });
 
-  if(!jugadores.length){showBanner('⚠️ Seleccioná al menos un jugador','var(--yel)',2000);return;}
+  if(!jugadores.length){
+    showBanner('⚠️ Seleccioná al menos un jugador','var(--yel)',2000);
+    if(saveBtn){saveBtn.disabled=false;saveBtn.style.opacity='';}
+    return;
+  }
 
   var partido={rival:rival,resultado:resultado,local:local,fecha:fecha,vi:vi,jugadores:jugadores};
-  PARTIDOS_CUSTOM.push(partido);
-  await savePartidosCustom();
+
+  if(_npEditKey){
+    // Update existing: delete old DB row(s) then insert updated
+    var oldRival=_npEditKey.rival,oldFecha=_npEditKey.fecha;
+    await sbDelete('partidos','team_id=eq.'+TEAM.id+'&rival=eq.'+encodeURIComponent(oldRival)+'&fecha=eq.'+oldFecha);
+    PARTIDOS_CUSTOM=PARTIDOS_CUSTOM.filter(function(p){return !(p.rival===oldRival&&p.fecha===oldFecha);});
+    var row=await sbInsertReturn('partidos',{team_id:TEAM.id,rival:rival,resultado:resultado,local:local,fecha:fecha,vi:vi||false,jugadores:jugadores});
+    if(row&&row.id)partido.id=row.id;
+    PARTIDOS_CUSTOM.push(partido);
+    _npEditKey=null;
+  } else {
+    // New partido — prevent duplicate by rival+fecha
+    var dup=PARTIDOS_CUSTOM.find(function(p){return p.rival===rival&&p.fecha===fecha;});
+    if(dup){
+      showBanner('⚠️ Ya existe un partido vs '+rival+' en esa fecha. Usá el botón Editar.','var(--yel)',4000);
+      if(saveBtn){saveBtn.disabled=false;saveBtn.style.opacity='';}
+      return;
+    }
+    PARTIDOS_CUSTOM.push(partido);
+    await savePartidosCustom();
+  }
 
   _npSel={};
   var m=document.getElementById('nuevo-partido-modal');
