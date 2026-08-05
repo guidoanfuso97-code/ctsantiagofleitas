@@ -6357,7 +6357,7 @@ function buildTeamStats(){
     var pts=gf>gc?3:gf===gc?1:0;
     stats.pj++;stats.gf+=gf;stats.gc+=gc;stats.pts+=pts;
     if(gf>gc)stats.pg++;else if(gf===gc)stats.pe++;else stats.pp++;
-    if(p.vi||(gf===0&&gc===0)||gc===0)stats.vi++;
+    if(p.vi||gc===0)stats.vi++;
     if(p.local){
       stats.hpj++;stats.hgf+=gf;stats.hgc+=gc;stats.hpts+=pts;
       if(gf>gc)stats.hpg++;else if(gf===gc)stats.hpe++;else stats.hpp++;
@@ -6380,7 +6380,7 @@ function buildPlayerStats(){
       if(!stats[key])stats[key]={nombre:j.nombre,pj:0,min:0,ta:0,tr:0,goles:0,asist:0};
       if(j.min>0)stats[key].pj++;
       stats[key].min+=j.min||0;
-      stats[key].ta+=j.ta&&j.ta!==0?1:0;
+      stats[key].ta+=j.ta||0;
       stats[key].tr+=j.tr||0;
       stats[key].goles+=j.g||0;
       stats[key].asist+=j.a||0;
@@ -6572,23 +6572,36 @@ function renderEstadisticas(){
     }).join('')
     +'</tbody></table></div></div>'
 
-    // Partido detail
+    // Partido detail — only partidos with resultado, indexed sequentially
     +'<div class="card mb"><h3>📋 Detalle por Partido</h3>'
     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="partido-tabs">'
-    +partidos.map(function(p,i){
-      if(!p.resultado)return '';
-      var arr=p.resultado.split('-');
-      var color=+arr[0]>+arr[1]?'rgba(16,185,129,.7)':+arr[0]===+arr[1]?'rgba(245,158,11,.7)':'rgba(244,63,94,.7)';
-      return '<button onclick="showPartidoDetail('+i+')" id="ptab-'+i+'" style="padding:4px 10px;border-radius:6px;border:1px solid var(--b);background:var(--c);font-size:10px;cursor:pointer;color:var(--mut)">'
-        +'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+color+';margin-right:4px"></span>'
-        +p.rival+'</button>';
-    }).join('')
+    +(function(){
+      var conRes=partidos.filter(function(p){return p.resultado;});
+      return conRes.map(function(p,i){
+        var arr=p.resultado.split('-');
+        var gf=+arr[0],gc=+arr[1];
+        var color=gf>gc?'rgba(16,185,129,.7)':gf===gc?'rgba(245,158,11,.7)':'rgba(244,63,94,.7)';
+        return '<button onclick="showPartidoDetail('+i+')" id="ptab-'+i+'" style="padding:4px 10px;border-radius:6px;border:1px solid var(--b);background:var(--c);font-size:10px;cursor:pointer;color:var(--mut);line-height:1.4;text-align:center">'
+          +'<div style="font-weight:800;color:'+color+'">'+p.resultado+'</div>'
+          +'<div style="font-size:9px;color:var(--mut);white-space:nowrap">'+p.rival+'</div>'
+          +'</button>';
+      }).join('');
+    })()
     +'</div>'
     +'<div id="partido-detail"></div>'
     +'</div>';
 
   tab.innerHTML=html;
-  if(partidos.length)showPartidoDetail(partidos.filter(function(p){return p.resultado;}).length-1);
+  var conRes=getAllPartidos().filter(function(p){return p.resultado;});
+  if(conRes.length){
+    var restoreIdx=conRes.length-1;
+    if(_lastPartidoRival){
+      var ri=conRes.findIndex(function(p){return p.rival===_lastPartidoRival&&p.fecha===_lastPartidoFecha;});
+      if(ri>=0)restoreIdx=ri;
+    }
+    _lastPartidoRival=null;_lastPartidoFecha=null;
+    showPartidoDetail(restoreIdx);
+  }
 }
 
 function tableRow(label,val,color){
@@ -6656,12 +6669,17 @@ function showPartidoDetail(idx){
 async function deletePartidoCustom(rival,fecha){
   await sbDelete('partidos','team_id=eq.'+TEAM.id+'&rival=eq.'+encodeURIComponent(rival)+'&fecha=eq.'+fecha);
   PARTIDOS_CUSTOM=PARTIDOS_CUSTOM.filter(function(p){return !(p.rival===rival&&p.fecha===fecha);});
+  // After deletion restore to last partido
+  var conRes=getAllPartidos().filter(function(p){return p.resultado;});
+  if(conRes.length){var last=conRes[conRes.length-1];_lastPartidoRival=last.rival;_lastPartidoFecha=last.fecha;}
   renderEstadisticas();
 }
 
 // ===== NUEVO PARTIDO MODAL =====
 var _npSel = {}; // {playerIdx: {min,ta,tr,g,a}}
 var _npEditKey = null; // {rival, fecha} when editing an existing partido
+var _lastPartidoRival = null; // restores tab selection after re-render
+var _lastPartidoFecha = null;
 
 function _npToggle(idx){
   if(_npSel[idx]){delete _npSel[idx];}
@@ -6766,9 +6784,8 @@ function openEditPartido(rival,fecha){
   _npEditKey={rival:rival,fecha:fecha};
   _npSel={};
   (p.jugadores||[]).forEach(function(j){
-    var pl=PL.find(function(x){return x.name===j.nombre;});
-    var i=pl?pl.idx:null;
-    if(i===null)return;
+    var i=PL.findIndex(function(x){return x.name===j.nombre;});
+    if(i<0)return;
     _npSel[i]={min:j.min||0,ta:j.ta||0,tr:j.tr||0,g:j.g||0,a:j.a||0};
   });
   var existing=document.getElementById('nuevo-partido-modal');
@@ -6888,6 +6905,8 @@ async function guardarNuevoPartido(){
     if(row&&row.id)partido.id=row.id;
     PARTIDOS_CUSTOM.push(partido);
     _npEditKey=null;
+    // Restore to the edited partido after re-render
+    _lastPartidoRival=rival;_lastPartidoFecha=fecha;
   } else {
     // New partido — prevent duplicate by rival+fecha
     var dup=PARTIDOS_CUSTOM.find(function(p){return p.rival===rival&&p.fecha===fecha;});
