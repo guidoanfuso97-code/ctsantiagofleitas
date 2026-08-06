@@ -1119,8 +1119,8 @@ async function loadRealWellness(){
 }
 var RPE_HISTORY_56={};
 async function loadHistoricalRPE(){
-  var cutoff=new Date(TODAY);cutoff.setDate(cutoff.getDate()-57);
-  var cutStr=cutoff.toISOString().split('T')[0];
+  var cutoff=new Date();cutoff.setDate(cutoff.getDate()-57);
+  var cutStr=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
   try{
     var rows=await sbGet('rpe','team_id=eq.'+TEAM.id+'&date=gte.'+cutStr+'&order=date.asc');
     RPE_HISTORY_56={};
@@ -2453,14 +2453,15 @@ async function saveRPEList(){
     rows.push({team_id:TEAM.id,player_idx:+i,date:TODAY,
       rpe_value:RPEST.res[i],duration:RPEST.dur,srpe:RPEST.res[i]*RPEST.dur});
   }
-  var ok=rows.length?await sbUpsert('rpe',rows):true;
-  if(!ok){
-    if(btn){btn.textContent='💾 Guardar';btn.style.opacity='1';}
-    showBanner('❌ Error al guardar RPE — chequeá la conexión e intentá de nuevo','var(--red)',6000);
-    return;
-  }
+  var isOffline=!navigator.onLine;
+  if(rows.length)await sbUpsert('rpe',rows);
   await loadRealRPE();updateTopStats();
-  if(btn){btn.textContent='✓ Guardado';btn.style.background='rgba(16,185,129,.2)';btn.style.color='var(--grn)';}
+  if(isOffline){
+    if(btn){btn.textContent='💾 Offline';btn.style.background='rgba(245,158,11,.2)';btn.style.color='var(--yel)';}
+    showBanner('💾 RPE guardado offline · se sincronizará al recuperar WiFi','var(--yel)',4000);
+  }else{
+    if(btn){btn.textContent='✓ Guardado';btn.style.background='rgba(16,185,129,.2)';btn.style.color='var(--grn)';}
+  }
   setTimeout(function(){if(btn){btn.textContent='💾 Guardar';btn.style.background='';btn.style.color='';}},3000);
 }
 async function viewRPEToday(){
@@ -2484,9 +2485,12 @@ function renderCheckinTab(){loadCISub().then(renderCIPlayers).catch(function(){r
 async function loadCISub(){
   CIST.submitted=[];
   try{
-    var rows=await sbGet('wellness','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY+'&select=player_idx');
+    // Use same filter/cache key as loadRealWellness so offline cache is shared
+    var rows=await sbGet('wellness','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY);
     rows.forEach(function(r){CIST.submitted.push(r.player_idx);});
   }catch(e){}
+  // Merge players saved this session (covers offline saves not yet synced)
+  PL.forEach(function(p,i){if(p.realWellness&&CIST.submitted.indexOf(i)<0)CIST.submitted.push(i);});
 }
 function renderCIPlayers(){
   var pct=Math.round(CIST.submitted.length/PL.length*100);
@@ -2591,9 +2595,15 @@ function _qrLoadLib(cb){
 async function ciSelect(idx){
   CIST.player=idx;CIST.ans={};CIST.qIdx=0;
   try{
-    var rows=await sbGet('wellness','team_id=eq.'+TEAM.id+'&player_idx=eq.'+idx+'&date=eq.'+TODAY);
-    if(rows.length)CIST.ans={sleep:rows[0].sleep,energy:rows[0].energy,stress:rows[0].stress,doms:rows[0].doms,fatigue:rows[0].fatigue};
-  }catch(e){}
+    // Reuse team-level cache (same key as loadRealWellness) — works offline
+    var rows=await sbGet('wellness','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY);
+    var row=rows.find(function(r){return r.player_idx===idx;});
+    if(row)CIST.ans={sleep:row.sleep,energy:row.energy,stress:row.stress,doms:row.doms,fatigue:row.fatigue};
+  }catch(e){
+    // Fallback to in-memory state if cache also fails
+    var p=PL[idx];
+    if(p&&p.realWellness&&p.tw)CIST.ans=Object.assign({},p.tw);
+  }
   ciRenderQ(0);
 }
 function ciRenderQ(idx){
@@ -2636,10 +2646,10 @@ async function ciSave(){
       sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue}),
     sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}})
   ]);
-  if(!results[0]){showBanner('❌ Error al guardar check-in — chequeá la conexión e intentá de nuevo','var(--red)',6000);return;}
-  // Update player state locally — no need to reload from DB
+  // Update player state locally — works online and offline
   PL[CIST.player].tw=a;PL[CIST.player].wscore=ws;PL[CIST.player].realWellness=true;
   recalcStatus(PL[CIST.player]);updateTopStats();
+  var isOffline=!navigator.onLine;
   var fn=PL[CIST.player].name.split(' ')[0];
   var dimBoxes=CIQ.map(function(q){
     var v=a[q.id];
@@ -2650,7 +2660,7 @@ async function ciSave(){
     '<div style="max-width:400px;margin:0 auto;text-align:center;padding:40px 20px">'
     +'<div style="font-size:60px;margin-bottom:14px">🙌</div>'
     +'<div style="font-size:22px;font-weight:800;margin-bottom:4px">¡Listo, '+fn+'!</div>'
-    +'<div style="font-size:13px;color:var(--mut);margin-bottom:20px">Check-in registrado</div>'
+    +'<div style="font-size:13px;color:var(--mut);margin-bottom:20px">'+(isOffline?'💾 Guardado offline — se sincronizará al recuperar WiFi':'Check-in registrado')+'</div>'
     +'<div style="background:rgba(6,214,160,.07);border:1px solid rgba(6,214,160,.2);border-radius:12px;padding:16px;margin-bottom:16px">'
     +'<div style="font-size:10px;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wellness Score</div>'
     +'<div style="font-size:44px;font-weight:900;color:'+wco+'">'+(ws||'—')+'</div>'
