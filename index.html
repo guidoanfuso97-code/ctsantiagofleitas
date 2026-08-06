@@ -879,7 +879,7 @@ var storage = {
 };
 // Override window.storage with our adapter
 window.storage = storage;
-var TODAY = new Date().toISOString().split('T')[0];
+var _td=new Date();var TODAY=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
 
 // ===== PLAYER PHOTOS & PORTAL =====
 function playerAvatar(pidx,size){
@@ -2480,7 +2480,7 @@ var CIQ=[
   {id:'doms',emoji:'💪',label:'Dolor Muscular',text:'¿Cómo están tus músculos?',gh:false,lo:'Sin dolor',hi:'Muy dolorido'},
   {id:'fatigue',emoji:'🔋',label:'Fatiga',text:'¿Qué tan fatigado te sentís?',gh:false,lo:'Sin fatiga',hi:'Muy fatigado'}
 ];
-function renderCheckinTab(){loadCISub().then(renderCIPlayers);}
+function renderCheckinTab(){loadCISub().then(renderCIPlayers).catch(function(){renderCIPlayers();});}
 async function loadCISub(){
   CIST.submitted=[];
   try{
@@ -6870,6 +6870,11 @@ async function guardarNuevoPartido(){
 
   if(!rival||!resultado){
     showBanner('⚠️ Completá rival y resultado','var(--yel)',2000);
+    if(saveBtn){saveBtn.disabled=false;saveBtn.style.opacity='';}
+    return;
+  }
+  if(!/^\d{1,2}-\d{1,2}$/.test(resultado)){
+    showBanner('⚠️ Resultado inválido — usá formato N-N (ej: 2-1)','var(--yel)',3000);
     if(saveBtn){saveBtn.disabled=false;saveBtn.style.opacity='';}
     return;
   }
