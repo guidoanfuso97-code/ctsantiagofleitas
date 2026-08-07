@@ -385,6 +385,7 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
       <div class="tbs"><div class="v" id="sr" style="color:var(--red)">-</div><div class="l">En Riesgo</div></div>
       <div class="tbs"><div class="v" id="sacwr" style="color:var(--acc)">-</div><div class="l">ACWR</div></div>
       <div class="tbs"><div class="v" id="sws" style="color:#a78bfa">-</div><div class="l">Wellness</div></div>
+      <button class="ref-btn" onclick="openReporte()" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3);color:#818cf8;font-weight:700">📋 Reporte</button>
       <button class="ref-btn" onclick="doRefresh()">🔄 Actualizar</button>
       <button class="ref-btn" onclick="activarNotificaciones()" title="Activar notificaciones de alertas" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:var(--yel)">🔔</button>
       <button id="menu-btn-refresh" class="ref-btn" onclick="doRefresh()" style="display:none">🔄</button>
@@ -6941,6 +6942,261 @@ async function guardarNuevoPartido(){
   showBanner('✅ Partido vs '+rival+' guardado · '+resultado+' · '+jugadores.length+' jugadores','var(--grn)',3500);
 }
 
+
+// ===== REPORTE EXPORTABLE =====
+function openReporte(){
+  var teamName=TEAM?TEAM.name:'Equipo';
+  var dateArr=TODAY.split('-');
+  var fechaFmt=dateArr[2]+'/'+dateArr[1]+'/'+dateArr[0];
+
+  // Collect data
+  var rojos=PL.filter(function(p){return p.status==='r';});
+  var amarillos=PL.filter(function(p){return p.status==='y';});
+  var verdes=PL.filter(function(p){return p.status==='g';});
+  var wsDone=PL.filter(function(p){return p.realWellness;});
+  var rpeDone=PL.filter(function(p){return p.realRPE;});
+  var lesActivas=(LESIONES||[]).filter(function(l){return l.status==='activa';});
+
+  var gpsPlayers=PL.filter(function(p){return p.hasGPSDevice&&p.acwr!==null;});
+  var avgACWR=gpsPlayers.length?+(gpsPlayers.reduce(function(s,p){return s+p.acwr;},0)/gpsPlayers.length).toFixed(2):null;
+  var wsPlayers=PL.filter(function(p){return p.wscore!==null;});
+  var avgWS=wsPlayers.length?+(wsPlayers.reduce(function(s,p){return s+p.wscore;},0)/wsPlayers.length).toFixed(1):null;
+
+  // Next match
+  var proximoPartido=null;
+  try{
+    var futuros=getAllPartidos().filter(function(p){return !p.resultado&&p.fecha>=TODAY;});
+    if(futuros.length)proximoPartido=futuros[0];
+  }catch(e){}
+
+  // Build alert reasons per player
+  function alertas(p){
+    var r=[];
+    if(p.acwr!==null&&p.acwr>1.5)r.push('ACWR '+p.acwr.toFixed(2)+' ⚠');
+    else if(p.acwr!==null&&p.acwr>1.3)r.push('ACWR '+p.acwr.toFixed(2));
+    if(p.wscore!==null&&p.wscore<3.5)r.push('Wellness '+p.wscore+'/10 ⚠');
+    else if(p.wscore!==null&&p.wscore<5)r.push('Wellness '+p.wscore+'/10');
+    if(p.cmjDelta<-10)r.push('CMJ '+p.cmjDelta+'%');
+    var lesion=(LESIONES||[]).find(function(l){return l.player_idx===p.idx&&l.status==='activa';});
+    if(lesion)r.push('🤕 '+lesion.tipo);
+    return r;
+  }
+
+  // ACWR zone label
+  function acwrZone(v){
+    if(v===null)return{txt:'—',c:'#94a3b8'};
+    if(v>1.5)return{txt:v.toFixed(2)+' 🔴',c:'#f43f5e'};
+    if(v>1.3)return{txt:v.toFixed(2)+' 🟡',c:'#f59e0b'};
+    if(v<0.8)return{txt:v.toFixed(2)+' ⬇',c:'#64748b'};
+    return{txt:v.toFixed(2)+' ✅',c:'#10b981'};
+  }
+  function wsZone(v){
+    if(v===null)return{txt:'—',c:'#94a3b8'};
+    if(v<3.5)return{txt:v+' 🔴',c:'#f43f5e'};
+    if(v<5)return{txt:v+' 🟡',c:'#f59e0b'};
+    return{txt:v+' ✅',c:'#10b981'};
+  }
+
+  // --- Player rows ---
+  var playerRows=PL.map(function(p){
+    var az=acwrZone(p.acwr),wz=wsZone(p.wscore);
+    var stColor=p.status==='r'?'#f43f5e':p.status==='y'?'#f59e0b':'#10b981';
+    var stLabel=p.status==='r'?'🔴 Riesgo':p.status==='y'?'🟡 Precaución':'🟢 OK';
+    var rpeHoy=p.realRPE&&p.loads[27]?(p.loads[27].rpe||'—'):'—';
+    var lesion=(LESIONES||[]).find(function(l){return l.player_idx===p.idx&&l.status==='activa';});
+    return '<tr>'
+      +'<td>'+p.name+'<br><span style="font-size:10px;color:#64748b">'+p.pos+'</span></td>'
+      +'<td style="color:'+stColor+';font-weight:700;text-align:center">'+stLabel+'</td>'
+      +'<td style="color:'+az.c+';text-align:center;font-weight:600">'+az.txt+'</td>'
+      +'<td style="color:'+wz.c+';text-align:center;font-weight:600">'+wz.txt+'</td>'
+      +'<td style="text-align:center;color:#475569">'+(p.realRPE?rpeHoy:'—')+'</td>'
+      +'<td style="text-align:center;color:'+(lesion?'#f43f5e':'#10b981')+'">'+(lesion?'🤕 '+lesion.tipo:'✅')+'</td>'
+      +'</tr>';
+  }).join('');
+
+  // --- Alert rows ---
+  var alertRows=PL.filter(function(p){return p.status==='r'||p.status==='y';}).map(function(p){
+    var al=alertas(p);if(!al.length)return'';
+    var stColor=p.status==='r'?'#f43f5e':'#f59e0b';
+    return '<tr><td style="font-weight:700;color:'+stColor+'">'+p.name+'</td>'
+      +'<td>'+al.join(' &nbsp;·&nbsp; ')+'</td></tr>';
+  }).join('');
+
+  // --- Lesion rows ---
+  var lesionRows=lesActivas.map(function(l){
+    var pname=PL[l.player_idx]?PL[l.player_idx].name:'—';
+    return '<tr><td style="font-weight:600">'+pname+'</td>'
+      +'<td>'+l.tipo+'</td><td>'+l.zona+'</td>'
+      +'<td style="color:#f43f5e">'+l.fecha_inicio+'</td>'
+      +'<td>'+l.fecha_alta_est+'</td></tr>';
+  }).join('');
+
+  // --- WhatsApp plain text ---
+  var waText='📊 *ATLAS — Informe Diario*\n'
+    +'🏟 *'+teamName+'* · '+fechaFmt+'\n\n'
+    +'*SEMÁFORO DEL PLANTEL*\n'
+    +'🟢 OK: '+verdes.length+' jugadores\n'
+    +'🟡 Precaución: '+amarillos.length+' jugadores\n'
+    +'🔴 Riesgo: '+rojos.length+' jugadores\n\n'
+    +'*COMPLETADO HOY*\n'
+    +'💚 Wellness: '+wsDone.length+'/'+PL.length+'\n'
+    +'📊 RPE: '+rpeDone.length+'/'+PL.length+'\n'
+    +(avgACWR?'📈 ACWR promedio: '+avgACWR+'\n':'')
+    +(avgWS?'💚 Wellness promedio: '+avgWS+'/10\n':'')
+    +'\n';
+  if(rojos.length||amarillos.length){
+    waText+='*ALERTAS*\n';
+    PL.filter(function(p){return p.status==='r'||p.status==='y';}).forEach(function(p){
+      var al=alertas(p);
+      if(al.length)waText+='• '+p.name+': '+al.join(' · ')+'\n';
+    });
+    waText+='\n';
+  }
+  if(lesActivas.length){
+    waText+='*LESIONES ACTIVAS*\n';
+    lesActivas.forEach(function(l){
+      var pname=PL[l.player_idx]?PL[l.player_idx].name:'—';
+      waText+='• '+pname+' — '+l.tipo+' ('+l.zona+')\n';
+    });
+    waText+='\n';
+  }
+  if(proximoPartido)waText+='⚽ *Próximo partido*: vs '+proximoPartido.rival+' ('+proximoPartido.fecha+')\n\n';
+  waText+='_Generado por ATLAS_';
+
+  // --- HTML report ---
+  var acwrBadge=avgACWR?('<span style="color:'+(avgACWR>1.5?'#f43f5e':avgACWR>1.3?'#f59e0b':'#10b981')+'">'+avgACWR+'</span>'):'—';
+  var wsBadge=avgWS?('<span style="color:'+(+avgWS<3.5?'#f43f5e':+avgWS<5?'#f59e0b':'#10b981')+'">'+avgWS+'/10</span>'):'—';
+
+  var reportHTML='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
+    +'<title>ATLAS — Informe '+fechaFmt+'</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f8fafc;color:#1e293b;font-size:13px}'
+    +'.page{max-width:780px;margin:0 auto;padding:24px}'
+    +'.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #e2e8f0}'
+    +'.logo{font-size:22px;font-weight:900;letter-spacing:-.5px;color:#0f172a}span.accent{color:#06d6a0}'
+    +'.meta{text-align:right;font-size:11px;color:#64748b;line-height:1.6}'
+    +'.section{margin-bottom:18px}'
+    +'.section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #e2e8f0}'
+    +'.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}'
+    +'.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}'
+    +'.card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center}'
+    +'.card .val{font-size:28px;font-weight:900;line-height:1}'
+    +'.card .lbl{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-top:4px}'
+    +'.card.red{border-color:#fecdd3;background:#fff1f2}.card.red .val{color:#f43f5e}'
+    +'.card.yel{border-color:#fef08a;background:#fefce8}.card.yel .val{color:#ca8a04}'
+    +'.card.grn{border-color:#bbf7d0;background:#f0fdf4}.card.grn .val{color:#16a34a}'
+    +'.card.blu{border-color:#bfdbfe;background:#eff6ff}.card.blu .val{color:#2563eb}'
+    +'table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0}'
+    +'th{background:#f1f5f9;padding:8px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b}'
+    +'td{padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:12px;vertical-align:middle}'
+    +'tr:last-child td{border-bottom:none}'
+    +'.alert-row td{background:#fff7ed}'
+    +'.noprint{margin-top:20px;display:flex;gap:10px;flex-wrap:wrap}'
+    +'.btn{padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none}'
+    +'.btn-print{background:#0f172a;color:#fff}'
+    +'.btn-copy{background:#06d6a0;color:#0f172a}'
+    +'@media print{'
+    +'.noprint{display:none!important}'
+    +'body{background:#fff}'
+    +'.page{padding:10px}'
+    +'}'
+    +'</style></head><body>'
+    +'<div class="page">'
+    +'<div class="header">'
+    +'<div><div class="logo">ATL<span class="accent">A</span>S</div>'
+    +'<div style="font-size:13px;font-weight:700;color:#334155;margin-top:2px">'+teamName+'</div>'
+    +'<div style="font-size:11px;color:#94a3b8">Primera C · Temporada 2026</div></div>'
+    +'<div class="meta"><strong style="font-size:14px;color:#1e293b">Informe Diario</strong><br>'+fechaFmt+'<br>'
+    +'PF Guido Anfuso</div>'
+    +'</div>'
+
+    // Semáforo
+    +'<div class="section">'
+    +'<div class="section-title">Semáforo del plantel · '+PL.length+' jugadores</div>'
+    +'<div class="grid4">'
+    +'<div class="card grn"><div class="val">'+verdes.length+'</div><div class="lbl">✅ OK</div></div>'
+    +'<div class="card yel"><div class="val">'+amarillos.length+'</div><div class="lbl">⚠ Precaución</div></div>'
+    +'<div class="card red"><div class="val">'+rojos.length+'</div><div class="lbl">🔴 Riesgo</div></div>'
+    +'<div class="card blu"><div class="val">'+lesActivas.length+'</div><div class="lbl">🤕 Lesionados</div></div>'
+    +'</div></div>'
+
+    // Indicadores
+    +'<div class="section">'
+    +'<div class="section-title">Indicadores del día</div>'
+    +'<div class="grid4">'
+    +'<div class="card"><div class="val">'+wsDone.length+'/'+PL.length+'</div><div class="lbl">💚 Wellness</div></div>'
+    +'<div class="card"><div class="val">'+rpeDone.length+'/'+PL.length+'</div><div class="lbl">📊 RPE</div></div>'
+    +'<div class="card"><div class="val">'+acwrBadge+'</div><div class="lbl">📈 ACWR prom.</div></div>'
+    +'<div class="card"><div class="val">'+wsBadge+'</div><div class="lbl">💚 Wellness prom.</div></div>'
+    +'</div></div>'
+
+    // Alertas
+    +(alertRows?'<div class="section">'
+    +'<div class="section-title">⚠ Alertas activas</div>'
+    +'<table><thead><tr><th style="width:160px">Jugador</th><th>Motivo</th></tr></thead>'
+    +'<tbody>'+alertRows+'</tbody></table></div>':'')
+
+    // Lesiones
+    +(lesionRows?'<div class="section">'
+    +'<div class="section-title">🤕 Lesiones activas</div>'
+    +'<table><thead><tr><th>Jugador</th><th>Tipo</th><th>Zona</th><th>Desde</th><th>Alta est.</th></tr></thead>'
+    +'<tbody>'+lesionRows+'</tbody></table></div>':'')
+
+    // Próximo partido
+    +(proximoPartido?'<div class="section">'
+    +'<div class="section-title">⚽ Próximo partido</div>'
+    +'<div class="card" style="text-align:left;display:flex;gap:16px;align-items:center">'
+    +'<div style="font-size:28px">⚽</div>'
+    +'<div><div style="font-size:16px;font-weight:800">vs '+proximoPartido.rival+'</div>'
+    +'<div style="font-size:12px;color:#64748b">'+proximoPartido.fecha+' · '+(proximoPartido.local?'Local':'Visitante')+'</div>'
+    +'</div></div></div>':'')
+
+    // Tabla plantel
+    +'<div class="section">'
+    +'<div class="section-title">Estado individual del plantel</div>'
+    +'<table><thead><tr>'
+    +'<th>Jugador</th><th style="text-align:center">Estado</th>'
+    +'<th style="text-align:center">ACWR</th><th style="text-align:center">Wellness</th>'
+    +'<th style="text-align:center">RPE hoy</th><th style="text-align:center">Lesión</th>'
+    +'</tr></thead><tbody>'+playerRows+'</tbody></table></div>'
+
+    // Footer
+    +'<div style="text-align:center;font-size:10px;color:#94a3b8;margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0">'
+    +'Generado por ATLAS · '+fechaFmt+' · '+teamName+'</div>'
+
+    // Buttons (no print)
+    +'<div class="noprint">'
+    +'<button class="btn btn-print" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>'
+    +'<button class="btn btn-copy" id="copy-btn" onclick="copyWA()">💬 Copiar para WhatsApp</button>'
+    +'</div>'
+
+    +'</div>'
+    +'<script>'
+    +'var _waText='+JSON.stringify(waText)+';'
+    +'function copyWA(){'
+    +'  navigator.clipboard.writeText(_waText).then(function(){'
+    +'    var b=document.getElementById("copy-btn");'
+    +'    b.textContent="✅ Copiado!";b.style.background="#bbf7d0";'
+    +'    setTimeout(function(){b.textContent="💬 Copiar para WhatsApp";b.style.background="#06d6a0";},2500);'
+    +'  }).catch(function(){'
+    +'    var ta=document.createElement("textarea");ta.value=_waText;'
+    +'    document.body.appendChild(ta);ta.select();document.execCommand("copy");'
+    +'    document.body.removeChild(ta);'
+    +'    var b=document.getElementById("copy-btn");'
+    +'    b.textContent="✅ Copiado!";'
+    +'    setTimeout(function(){b.textContent="💬 Copiar para WhatsApp";},2500);'
+    +'  });'
+    +'}'
+    +'<\/script>'
+    +'</body></html>';
+
+  var win=window.open('','_blank');
+  if(!win){showBanner('⚠ Bloqueaste las ventanas emergentes — permití popups para ATLAS','var(--yel)',5000);return;}
+  win.document.write(reportHTML);
+  win.document.close();
+}
 
 async function exportData(){
   // Export from in-memory SESSIONS
