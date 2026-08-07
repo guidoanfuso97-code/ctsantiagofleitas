@@ -42,6 +42,11 @@ html,body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkM
 .count-bar{font-size:13px;color:var(--mut);text-align:center;margin-bottom:14px}
 .count-bar b{color:var(--acc)}
 .err-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;gap:12px}
+.bm-hint{font-size:12px;color:var(--mut);text-align:center;margin-bottom:16px;line-height:1.5}
+.bm-hint span{font-weight:700}
+.bm-views{display:flex;justify-content:center;gap:24px;flex-wrap:wrap;margin:0 0 10px}
+.bm-view-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin-bottom:7px;text-align:center}
+#bm-zone-lbl{text-align:center;font-size:13px;color:var(--mut);margin-top:8px;min-height:20px}
 </style>
 </head>
 <body>
@@ -52,9 +57,9 @@ var KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im
 
 var P=new URLSearchParams(location.search);
 var TID=P.get('t');
-var DATE=P.get('d')||(new Date().toISOString().split('T')[0]);
+var DATE=P.get('d')||(function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
 
-var S={teamName:'',players:[],done:new Set(),idx:null,qIdx:0,ans:{}};
+var S={teamName:'',players:[],done:new Set(),idx:null,qIdx:0,ans:{},dolor:{}};
 var CIQ=[
   {id:'sleep', label:'Calidad de sueño', emoji:'😴', text:'¿Cómo dormiste anoche?',      lo:'Muy mal',     hi:'Excelente',       gh:true},
   {id:'energy',label:'Nivel de energía',  emoji:'⚡', text:'¿Cuánta energía tenés hoy?', lo:'Sin energía',  hi:'Máxima energía',  gh:true},
@@ -63,6 +68,134 @@ var CIQ=[
   {id:'fatigue',label:'Fatiga general',   emoji:'🔋', text:'¿Qué tan cansado estás?',    lo:'Descansado',   hi:'Agotado',         gh:false}
 ];
 
+// ── Body map data ─────────────────────────────────────────────────────────────
+var _BG='rgba(100,116,139,.95)';
+var BP_F=[
+  ['head',       'Cabeza',        'd="M50,3 C61,3 68,10 68,20 C68,31 60,38 50,38 C40,38 32,31 32,20 C32,10 39,3 50,3 Z"'],
+  ['neck_f',     'Cuello',        'd="M44,38 C44,44 46,52 50,56 C54,52 56,44 56,38 C54,40 51,41 50,41 C49,41 46,40 44,38 Z"'],
+  ['l_shoulder', 'Hombro Izq',   'd="M44,38 C38,42 26,47 16,54 C8,60 4,70 4,82 L4,99 L22,99 L22,77 C24,69 29,62 37,57 L50,56 C46,52 44,44 44,38 Z"'],
+  ['r_shoulder', 'Hombro Der',   'd="M56,38 C62,42 74,47 84,54 C92,60 96,70 96,82 L96,99 L78,99 L78,77 C76,69 71,62 63,57 L50,56 C54,52 56,44 56,38 Z"'],
+  ['chest',      'Pecho',         'd="M22,77 C24,69 29,62 37,57 L50,56 L63,57 C71,62 76,69 78,77 L78,99 L75,116 C67,122 58,124 50,124 C42,124 33,122 25,116 L22,99 Z"'],
+  ['abdomen',    'Abdomen',       'd="M25,116 C33,122 42,124 50,124 C58,124 67,122 75,116 L73,141 L27,141 Z"'],
+  ['l_arm',      'Bícep Izq',    'd="M4,99 L22,99 L21,148 C17,151 11,151 5,148 Z"'],
+  ['r_arm',      'Bícep Der',    'd="M96,99 L78,99 L79,148 C83,151 89,151 95,148 Z"'],
+  ['l_forearm',  'Anteb. Izq',   'd="M5,148 C11,151 17,151 21,148 L23,186 C20,189 14,189 7,186 Z"'],
+  ['r_forearm',  'Anteb. Der',   'd="M95,148 C89,151 83,151 79,148 L77,186 C80,189 86,189 93,186 Z"'],
+  ['l_hand_f',   'Mano Izq',     'd="M7,186 C14,189 20,189 23,186 L25,198 C22,206 17,209 12,208 C7,207 5,203 5,197 Z"'],
+  ['r_hand_f',   'Mano Der',     'd="M93,186 C86,189 80,189 77,186 L75,198 C78,206 83,209 88,208 C93,207 95,203 95,197 Z"'],
+  ['l_groin',    'Ingle Izq',    'd="M27,141 L50,141 L49,162 C44,168 31,167 21,160 L21,149 Z"'],
+  ['r_groin',    'Ingle Der',    'd="M73,141 L50,141 L51,162 C56,168 69,167 79,160 L79,149 Z"'],
+  ['l_quad',     'Cuádriceps Izq','d="M21,160 C31,167 44,168 49,162 L47,213 C43,217 35,217 28,214 C21,211 18,203 17,196 Z"'],
+  ['r_quad',     'Cuádriceps Der','d="M79,160 C69,167 56,168 51,162 L53,213 C57,217 65,217 72,214 C79,211 82,203 83,196 Z"'],
+  ['l_knee_f',   'Rodilla Izq',  'd="M17,196 C18,203 21,211 28,214 L47,214 L47,231 L15,231 C14,222 14,210 17,196 Z"'],
+  ['r_knee_f',   'Rodilla Der',  'd="M83,196 C82,203 79,211 72,214 L53,214 L53,231 L85,231 C86,222 86,210 83,196 Z"'],
+  ['l_shin',     'Tibial Izq',   'd="M15,231 L47,231 L46,266 C40,269 26,268 18,264 Z"'],
+  ['r_shin',     'Tibial Der',   'd="M85,231 L53,231 L54,266 C60,269 74,268 82,264 Z"'],
+  ['l_foot_f',   'Pie Izq',      'd="M18,264 C26,268 40,269 46,266 L44,277 C37,279 22,278 15,274 Z"'],
+  ['r_foot_f',   'Pie Der',      'd="M82,264 C74,268 60,269 54,266 L56,277 C63,279 78,278 85,274 Z"']
+];
+var BP_B=[
+  ['head_b',     'Cabeza',        'd="M50,3 C61,3 68,10 68,20 C68,31 60,38 50,38 C40,38 32,31 32,20 C32,10 39,3 50,3 Z"'],
+  ['nuca',       'Nuca',          'd="M44,38 C44,44 46,52 50,56 C54,52 56,44 56,38 C54,40 51,41 50,41 C49,41 46,40 44,38 Z"'],
+  ['l_trap',     'Trap. Izq',    'd="M44,38 C38,42 26,47 16,54 C8,60 4,70 4,82 L4,99 L22,99 L22,77 C24,69 29,62 37,57 L50,56 C46,52 44,44 44,38 Z"'],
+  ['r_trap',     'Trap. Der',    'd="M56,38 C62,42 74,47 84,54 C92,60 96,70 96,82 L96,99 L78,99 L78,77 C76,69 71,62 63,57 L50,56 C54,52 56,44 56,38 Z"'],
+  ['upper_back', 'Espalda Alta', 'd="M22,77 C24,69 29,62 37,57 L50,56 L63,57 C71,62 76,69 78,77 L78,99 L75,116 C67,122 58,124 50,124 C42,124 33,122 25,116 L22,99 Z"'],
+  ['lower_back', 'Lumbar',        'd="M25,116 C33,122 42,124 50,124 C58,124 67,122 75,116 L73,141 L27,141 Z"'],
+  ['l_arm_b',    'Trícep Izq',   'd="M4,99 L22,99 L21,148 C17,151 11,151 5,148 Z"'],
+  ['r_arm_b',    'Trícep Der',   'd="M96,99 L78,99 L79,148 C83,151 89,151 95,148 Z"'],
+  ['l_forearm_b','Anteb. Izq',   'd="M5,148 C11,151 17,151 21,148 L23,186 C20,189 14,189 7,186 Z"'],
+  ['r_forearm_b','Anteb. Der',   'd="M95,148 C89,151 83,151 79,148 L77,186 C80,189 86,189 93,186 Z"'],
+  ['l_hand_b',   'Mano Izq',     'd="M7,186 C14,189 20,189 23,186 L25,198 C22,206 17,209 12,208 C7,207 5,203 5,197 Z"'],
+  ['r_hand_b',   'Mano Der',     'd="M93,186 C86,189 80,189 77,186 L75,198 C78,206 83,209 88,208 C93,207 95,203 95,197 Z"'],
+  ['l_glute',    'Glúteo Izq',   'd="M27,141 L50,141 L49,167 C44,174 29,173 19,164 L19,150 Z"'],
+  ['r_glute',    'Glúteo Der',   'd="M73,141 L50,141 L51,167 C56,174 71,173 81,164 L81,150 Z"'],
+  ['l_hamstring','Isquio Izq',   'd="M19,164 C29,173 44,174 49,167 L47,213 C43,217 35,217 28,214 C21,211 18,203 17,196 Z"'],
+  ['r_hamstring','Isquio Der',   'd="M81,164 C71,173 56,174 51,167 L53,213 C57,217 65,217 72,214 C79,211 82,203 83,196 Z"'],
+  ['l_knee_b',   'Rodilla Izq',  'd="M17,196 C18,203 21,211 28,214 L47,214 L47,231 L15,231 C14,222 14,210 17,196 Z"'],
+  ['r_knee_b',   'Rodilla Der',  'd="M83,196 C82,203 79,211 72,214 L53,214 L53,231 L85,231 C86,222 86,210 83,196 Z"'],
+  ['l_calf',     'Gemelo Izq',   'd="M15,231 L47,231 L46,266 C40,269 26,268 18,264 Z"'],
+  ['r_calf',     'Gemelo Der',   'd="M85,231 L53,231 L54,266 C60,269 74,268 82,264 Z"'],
+  ['l_heel',     'Talón Izq',    'd="M18,264 C26,268 40,269 46,266 L44,277 C37,279 22,278 15,274 Z"'],
+  ['r_heel',     'Talón Der',    'd="M82,264 C74,268 60,269 54,266 L56,277 C63,279 78,278 85,274 Z"']
+];
+var BP_DETAIL_F=
+  '<path d="M50,56 L50,116" stroke="rgba(255,255,255,.32)" stroke-width=".9" fill="none"/>'
+  +'<path d="M38,57 C43,54 48,55 50,56" stroke="rgba(255,255,255,.3)" stroke-width=".85" fill="none"/>'
+  +'<path d="M62,57 C57,54 52,55 50,56" stroke="rgba(255,255,255,.3)" stroke-width=".85" fill="none"/>'
+  +'<path d="M22,99 C31,110 43,116 50,116" stroke="rgba(255,255,255,.28)" stroke-width=".9" fill="none"/>'
+  +'<path d="M78,99 C69,110 57,116 50,116" stroke="rgba(255,255,255,.28)" stroke-width=".9" fill="none"/>'
+  +'<path d="M50,116 L50,141" stroke="rgba(255,255,255,.24)" stroke-width=".8" fill="none"/>'
+  +'<path d="M33,123 Q50,127 67,123" stroke="rgba(255,255,255,.25)" stroke-width=".75" fill="none"/>'
+  +'<path d="M32,131 Q50,135 68,131" stroke="rgba(255,255,255,.25)" stroke-width=".75" fill="none"/>'
+  +'<path d="M30,139 Q50,143 70,139" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M30,120 C27,129 27,135 27,141" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M70,120 C73,129 73,135 73,141" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M34,164 C32,183 31,200 33,213" stroke="rgba(255,255,255,.19)" stroke-width=".7" fill="none"/>'
+  +'<path d="M66,164 C68,183 69,200 67,213" stroke="rgba(255,255,255,.19)" stroke-width=".7" fill="none"/>'
+  +'<path d="M33,202 C30,210 33,216 38,215" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
+  +'<path d="M67,202 C70,210 67,216 62,215" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
+  +'<ellipse cx="30" cy="223" rx="8" ry="5" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
+  +'<ellipse cx="70" cy="223" rx="8" ry="5" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
+  +'<path d="M29,231 L28,266" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M71,231 L72,266" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M13,99 C12,116 12,132 13,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>'
+  +'<path d="M87,99 C88,116 88,132 87,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>';
+var BP_DETAIL_B=
+  '<path d="M50,56 L50,141" stroke="rgba(255,255,255,.3)" stroke-width=".9" fill="none"/>'
+  +'<path d="M50,58 L25,83 L50,116 L75,83 Z" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
+  +'<path d="M27,91 C34,98 44,102 50,101" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M73,91 C66,98 56,102 50,101" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M24,85 C21,97 23,109 25,116" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M76,85 C79,97 77,109 75,116" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M46,116 L45,141" stroke="rgba(255,255,255,.23)" stroke-width=".8" fill="none"/>'
+  +'<path d="M54,116 L55,141" stroke="rgba(255,255,255,.23)" stroke-width=".8" fill="none"/>'
+  +'<path d="M50,144 L50,169" stroke="rgba(255,255,255,.32)" stroke-width=".9" fill="none"/>'
+  +'<path d="M27,155 C33,170 45,174 50,169" stroke="rgba(255,255,255,.29)" stroke-width=".85" fill="none"/>'
+  +'<path d="M73,155 C67,170 55,174 50,169" stroke="rgba(255,255,255,.29)" stroke-width=".85" fill="none"/>'
+  +'<path d="M34,170 C34,186 34,202 35,213" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M66,170 C66,186 66,202 65,213" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<ellipse cx="30" cy="222" rx="8" ry="5" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.28)" stroke-width=".8"/>'
+  +'<ellipse cx="70" cy="222" rx="8" ry="5" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.28)" stroke-width=".8"/>'
+  +'<path d="M31,234 C29,249 30,260 32,266" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M69,234 C71,249 70,260 68,266" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M28,260 L28,269" stroke="rgba(255,255,255,.38)" stroke-width="1.2" fill="none"/>'
+  +'<path d="M72,260 L72,269" stroke="rgba(255,255,255,.38)" stroke-width="1.2" fill="none"/>'
+  +'<path d="M13,99 C12,116 12,132 13,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>'
+  +'<path d="M87,99 C88,116 88,132 87,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>';
+
+function bpC(lv){
+  return lv===0?[_BG,'rgba(255,255,255,.55)']:
+         lv===1?['rgba(22,163,74,.88)','rgba(255,255,255,.75)']:
+         lv===2?['rgba(234,179,8,.92)','rgba(255,255,255,.75)']:
+                ['rgba(220,38,38,.94)','rgba(255,255,255,.75)'];
+}
+function bpClick(id){
+  S.dolor=S.dolor||{};
+  S.dolor[id]=((S.dolor[id]||0)+1)%4;
+  var c=bpC(S.dolor[id]);
+  var el=document.getElementById('bz-'+id);
+  if(el){el.setAttribute('fill',c[0]);el.setAttribute('stroke',c[1]);}
+  var allZ=BP_F.concat(BP_B);
+  var zd=allZ.find(function(z){return z[0]===id;});
+  var leg=document.getElementById('bm-zone-lbl');
+  if(leg&&zd){
+    var lv=S.dolor[id];
+    var lvt=lv===0?'Sin dolor':lv===1?'<span style="color:#10b981;font-weight:700">Leve</span>':lv===2?'<span style="color:#f59e0b;font-weight:700">Moderado</span>':'<span style="color:#f43f5e;font-weight:700">Intenso</span>';
+    leg.innerHTML=zd[1]+': '+lvt;
+  }
+}
+function bpZoneSVG(z){
+  var c=bpC((S.dolor||{})[z[0]]||0);
+  return '<path id="bz-'+z[0]+'" '+z[2]+' fill="'+c[0]+'" stroke="'+c[1]+'" stroke-width="1" stroke-linejoin="round" onclick="bpClick(\''+z[0]+'\')" style="cursor:pointer"/>';
+}
+function bpSVG(zones,details){
+  return '<svg viewBox="-2 0 104 282" xmlns="http://www.w3.org/2000/svg" style="width:148px;max-width:44vw;overflow:visible;display:block">'
+    +zones.map(bpZoneSVG).join('')
+    +'<g pointer-events="none">'+details+'</g>'
+    +'</svg>';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function hdrs(){return{'apikey':KEY,'Authorization':'Bearer '+KEY,'Content-Type':'application/json'};}
 function R(html){document.getElementById('root').innerHTML=html;}
 
@@ -72,7 +205,6 @@ function fmtDate(d){
   var o=new Date(d+'T12:00:00');
   return dias[o.getDay()]+' '+o.getDate()+' '+meses[o.getMonth()];
 }
-
 function hdrHtml(){
   return '<div class="hdr">'
     +'<div class="logo"><span>A</span></div>'
@@ -82,6 +214,7 @@ function hdrHtml(){
     +'</div>';
 }
 
+// ── Init ──────────────────────────────────────────────────────────────────────
 async function init(){
   if(!TID){
     R('<div class="err-wrap"><div style="font-size:40px">❌</div>'
@@ -108,6 +241,7 @@ async function init(){
   }
 }
 
+// ── Screens ───────────────────────────────────────────────────────────────────
 function renderPlayers(){
   S.screen='players';
   var rows=S.players.map(function(p,i){
@@ -127,13 +261,13 @@ function renderPlayers(){
 }
 
 function selectPlayer(i){
-  S.idx=i;S.qIdx=0;S.ans={};
+  S.idx=i;S.qIdx=0;S.ans={};S.dolor={};
   renderQ();
 }
 
 function renderQ(){
   var q=CIQ[S.qIdx];
-  var pct=Math.round(S.qIdx/CIQ.length*100);
+  var pct=Math.round((S.qIdx+1)/(CIQ.length+1)*100);
   var btns=[1,2,3,4,5,6,7,8,9,10].map(function(n){
     var sel=S.ans[q.id]===n;
     var c=q.gh?(n<=3?'var(--red)':n<=6?'var(--yel)':'var(--grn)'):(n<=3?'var(--grn)':n<=6?'var(--yel)':'var(--red)');
@@ -146,7 +280,7 @@ function renderQ(){
   R('<div style="padding-top:12px">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
       +'<button class="btn-back" onclick="'+back+'">← Volver</button>'
-      +'<span style="font-size:12px;color:var(--mut)">'+S.players[S.idx].name.split(' ')[0]+' · '+(S.qIdx+1)+'/'+CIQ.length+'</span>'
+      +'<span style="font-size:12px;color:var(--mut)">'+S.players[S.idx].name.split(' ')[0]+' · '+(S.qIdx+1)+'/'+(CIQ.length+1)+'</span>'
     +'</div>'
     +'<div class="progress"><div class="pbar" style="width:'+pct+'%"></div></div>'
     +'<div class="q-card">'
@@ -165,25 +299,47 @@ function pick(n){
   clearTimeout(window._pa);
   window._pa=setTimeout(function(){
     if(S.qIdx<CIQ.length-1){S.qIdx++;renderQ();}
-    else{save();}
+    else{renderBodyMap();}
   },360);
+}
+
+function renderBodyMap(){
+  S.dolor={};
+  var pname=S.players[S.idx].name.split(' ')[0];
+  R('<div style="padding-top:12px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+      +'<button class="btn-back" onclick="S.qIdx=CIQ.length-1;renderQ()">← Volver</button>'
+      +'<span style="font-size:12px;color:var(--mut)">'+pname+' · '+(CIQ.length+1)+'/'+(CIQ.length+1)+'</span>'
+    +'</div>'
+    +'<div class="progress"><div class="pbar" style="width:100%"></div></div>'
+    +'<div style="background:var(--c);border:1px solid var(--b);border-radius:16px;padding:20px">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--acc);margin-bottom:5px;text-align:center">Mapa de dolor corporal</div>'
+      +'<div class="bm-hint">Tocá la zona que te molesta · <span style="color:#10b981">1×&nbsp;Leve</span> · <span style="color:#f59e0b">2×&nbsp;Moderado</span> · <span style="color:#f43f5e">3×&nbsp;Intenso</span> · 4×&nbsp;Quitar</div>'
+      +'<div class="bm-views">'
+        +'<div><div class="bm-view-title">Vista frontal</div>'+bpSVG(BP_F,BP_DETAIL_F)+'</div>'
+        +'<div><div class="bm-view-title">Vista dorsal</div>'+bpSVG(BP_B,BP_DETAIL_B)+'</div>'
+      +'</div>'
+      +'<div id="bm-zone-lbl"></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:10px;margin-top:12px">'
+      +'<button class="btn-main" onclick="save()">Guardar →</button>'
+      +'<button class="btn-main" style="background:var(--c);border:1px solid var(--b);color:var(--mut);flex:0 0 auto;width:auto;padding:16px 18px" onclick="S.dolor={};save()">Omitir</button>'
+    +'</div>'
+    +'</div>');
 }
 
 async function save(){
   var a=S.ans;
-  // Validate all answers present
   var missing=CIQ.filter(function(q){return !a[q.id];});
-  if(missing.length){
-    S.qIdx=CIQ.indexOf(missing[0]);
-    renderQ();
-    return;
-  }
+  if(missing.length){S.qIdx=CIQ.indexOf(missing[0]);renderQ();return;}
+
   var ws=+((a.sleep+a.energy+(10-a.stress)+(10-a.doms)+(10-a.fatigue))/5).toFixed(1);
   var wco=ws>=7?'var(--grn)':ws>=5?'var(--yel)':'var(--red)';
 
   R('<div class="err-wrap"><div style="font-size:36px">⏳</div><div style="color:var(--mut)">Guardando...</div></div>');
 
   try{
+    // Guardar wellness
     var r=await fetch(SB+'/rest/v1/wellness',{
       method:'POST',
       headers:Object.assign({},hdrs(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
@@ -191,8 +347,19 @@ async function save(){
         sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue})
     });
     if(!r.ok)throw new Error('HTTP '+r.status);
+
+    // Guardar mapa de dolor si tiene zonas marcadas
+    if(S.dolor&&Object.keys(S.dolor).length>0){
+      await fetch(SB+'/rest/v1/dolor',{
+        method:'POST',
+        headers:Object.assign({},hdrs(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
+        body:JSON.stringify({team_id:TID,player_idx:S.idx,date:DATE,zones:S.dolor})
+      });
+    }
+
     S.done.add(S.idx);
     var fn=S.players[S.idx].name.split(' ')[0];
+    var hasDolor=S.dolor&&Object.keys(S.dolor).length>0;
     var dims=CIQ.map(function(q){
       var v=a[q.id];
       var c=v?(q.gh?(v>=7?'var(--grn)':v>=4?'var(--yel)':'var(--red)'):(v<=3?'var(--grn)':v<=6?'var(--yel)':'var(--red)')):'var(--mut)';
@@ -210,7 +377,8 @@ async function save(){
         +'<div style="font-size:68px;font-weight:900;color:'+wco+'">'+ws+'</div>'
         +'<div style="font-size:11px;color:var(--mut);margin-top:4px">'+(ws>=7?'Óptimo 🟢':ws>=5?'Moderado 🟡':'Bajo 🔴')+'</div>'
       +'</div>'
-      +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:20px">'+dims+'</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:'+(hasDolor?'12px':'20px')+'">'+dims+'</div>'
+      +(hasDolor?'<div style="font-size:12px;color:var(--mut);margin-bottom:20px">⚠ Zonas marcadas: '+Object.keys(S.dolor).filter(function(k){return S.dolor[k]>0;}).length+'</div>':'')
       +'<button class="btn-main" onclick="renderPlayers()">Siguiente jugador →</button>'
       +'</div>');
   }catch(e){
