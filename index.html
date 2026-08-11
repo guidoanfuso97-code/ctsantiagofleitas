@@ -1104,7 +1104,8 @@ function genPlayer(name,pos,num,idx,hasGPS){
     wellness:Array(28).fill(null),cmj:Array(28).fill(null),
     cmjBase:0,cmjDelta:0,todayCMJ:null,
     robustness:null,monotony:0,strain:0,
-    todayLoad:loads[27],realWellness:false,realRPE:false,realGPS:false};
+    todayLoad:loads[27],realWellness:false,realRPE:false,realGPS:false,
+    dolorZones:null,dolorMax:0};
 }
 
 async function loadRealWellness(){
@@ -1115,6 +1116,19 @@ async function loadRealWellness(){
       if(i<0||i>=PL.length)return;
       PL[i].tw={sleep:r.sleep,energy:r.energy,stress:r.stress,doms:r.doms,fatigue:r.fatigue};
       PL[i].wscore=calcWS(PL[i].tw);PL[i].realWellness=true;recalcStatus(PL[i]);
+    });
+  }catch(e){}
+}
+async function loadRealDolor(){
+  try{
+    var rows=await sbGet('dolor','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY);
+    rows.forEach(function(r){
+      var i=r.player_idx;
+      if(i<0||i>=PL.length)return;
+      PL[i].dolorZones=r.zones||{};
+      // Nivel máximo de dolor reportado: 0=ninguno, 1=leve, 2=moderado, 3=intenso
+      var vals=Object.values(PL[i].dolorZones);
+      PL[i].dolorMax=vals.length?Math.max.apply(null,vals):0;
     });
   }catch(e){}
 }
@@ -1177,7 +1191,7 @@ async function doRefresh(){
   var btn=document.querySelector('.ref-btn');
   if(btn){btn.textContent='⏳';btn.style.opacity='.6';}
   try{
-    var _rr=await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE(),loadSessionsCached()]);
+    var _rr=await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE(),loadSessionsCached(),loadRealDolor()]);
     var freshSessions=_rr[3];
     if(freshSessions&&freshSessions.length>0){
       var sig=freshSessions.length+'|'+(freshSessions[0]?freshSessions[0].date:'');
@@ -1285,7 +1299,16 @@ function renderPlantelHero(){
   var weekSessH=SESSIONS.filter(function(s){return new Date(s.date)>=weekAgoH;});
   var lesActivas=(typeof LESIONES!=='undefined')?LESIONES.filter(function(l){return l.status==='activa';}).length:0;
   var checkinHoy=PL.filter(function(p){return p.realWellness;}).length;
-  var topRisk=PL.map(function(p){return{p:p,r:calcReadinessScore(p)};}).filter(function(x){return x.r.score<75;}).sort(function(a,b){return a.r.score-b.r.score;}).slice(0,3);
+  var topRisk=PL.map(function(p){
+    var r=calcReadinessScore(p);
+    // Agregar dolor como razón de alerta si es moderado o intenso
+    if(p.dolorMax>=2&&r.reasons.indexOf('Dolor reportado')<0){
+      var zonas=p.dolorZones?Object.keys(p.dolorZones).filter(function(k){return p.dolorZones[k]>=2;}).length:0;
+      r.reasons.unshift((p.dolorMax===3?'🔴':'🟡')+' Dolor en '+zonas+' zona'+(zonas!==1?'s':''));
+      if(p.dolorMax===3&&r.score>50)r.score=Math.min(r.score,65);
+    }
+    return{p:p,r:r};
+  }).filter(function(x){return x.r.score<75||x.p.dolorMax>=2;}).sort(function(a,b){return a.r.score-b.r.score;}).slice(0,3);
   return '<div style="margin-bottom:20px;animation:fadeInUp .4s ease">'
     // ── Header ──
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">'
@@ -1364,6 +1387,9 @@ function renderPlantel(){
     if(p.realGPS)badges+='<span class="real-badge" style="background:rgba(139,92,246,.15);color:#a78bfa">GPS</span>';
     var hasActiveLesion=LESIONES.some(function(l){return l.player_idx===p.idx&&l.status==='activa';});
     if(hasActiveLesion)badges+='<span class="real-badge" style="background:rgba(244,63,94,.15);color:var(--red)">🩺 Lesión</span>';
+    if(p.dolorMax===3)badges+='<span class="real-badge" style="background:rgba(244,63,94,.18);color:var(--red)" title="Dolor intenso reportado">🔴 Dolor</span>';
+    else if(p.dolorMax===2)badges+='<span class="real-badge" style="background:rgba(245,158,11,.15);color:var(--yel)" title="Dolor moderado reportado">🟡 Dolor</span>';
+    else if(p.dolorMax===1)badges+='<span class="real-badge" style="background:rgba(16,185,129,.12);color:var(--grn)" title="Dolor leve reportado">🟢 Dolor</span>';
     var rdns=calcReadiness(p.idx);
     var rdBg=rdns.score>=80?'rgba(16,185,129,.13)':rdns.score>=60?'rgba(245,158,11,.13)':'rgba(244,63,94,.13)';
     var rdBd=rdns.score>=80?'rgba(16,185,129,.3)':rdns.score>=60?'rgba(245,158,11,.3)':'rgba(244,63,94,.3)';
@@ -3406,6 +3432,12 @@ async function confirmImport(){
   var duration=parseInt($('imp-dur').value)||90;
   var notes=$('imp-notes').value.trim();
   var btn=$('imp-confirm-btn');
+  // Advertir si ya existe una sesión con esa fecha
+  var existing=SESSIONS.find(function(s){return s.date===date;});
+  if(existing){
+    var ok=confirm('⚠️ Ya existe una sesión del '+date+' ('+existing.sessionType+'). Si continuás la vas a reemplazar. ¿Querés continuar?');
+    if(!ok)return;
+  }
   if(btn){btn.textContent='⏳ Guardando...';btn.style.opacity='.7';btn.disabled=true;}
   // Apply manual mappings from dropdowns
   rows.forEach(function(r,i){
@@ -9662,7 +9694,8 @@ async function initATLAS(){
     loadVmax(),
     loadPartidosCustom(),
     loadDocs(),
-    loadLesiones()
+    loadLesiones(),
+    loadRealDolor()
   ]);
   await injectPretemporadaData(); // pre-load sheets data
   SESSIONS=results[0];
