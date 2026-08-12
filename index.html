@@ -2794,7 +2794,18 @@ function renderPlayerManager(){
     +'<div style="max-height:320px;overflow-y:auto">'+rows+'</div>';
 }
 async function addPlayer(){var name=$('np-name').value.trim(),pos=$('np-pos').value,num=parseInt($('np-num').value)||1,email=($('np-email').value||'').trim();if(!name||!TM_EDIT)return;var p={name:name,pos:pos,num:num};if(email)p.email=email;TM_EDIT.players.push(p);await saveTeams();if(TEAM&&TEAM.id===TM_EDIT.id)buildPL();renderPlayerManager();}
-async function removePlayer(idx){if(!TM_EDIT)return;TM_EDIT.players.splice(idx,1);await saveTeams();if(TEAM&&TEAM.id===TM_EDIT.id)buildPL();renderPlayerManager();}
+async function removePlayer(idx){
+  if(!TM_EDIT)return;
+  var pname=(TM_EDIT.players[idx]||{}).name||'este jugador';
+  var isActive=TEAM&&TEAM.id===TM_EDIT.id;
+  var hasEvals=isActive&&EVAL_DATA&&EVAL_DATA[idx]&&Object.keys(EVAL_DATA[idx]).length>0;
+  var hasFP=isActive&&FP_DATA&&FP_DATA.some(function(r){return r.player_idx===idx;});
+  if(hasEvals||hasFP){
+    var warn=[];if(hasEvals)warn.push('evaluaciones físicas');if(hasFP)warn.push('force plates');
+    if(!confirm('⚠️ '+pname+' tiene '+warn.join(' y ')+' guardadas.\nSi lo eliminás, esos datos quedan sin jugador asociado y no se van a poder ver más.\n¿Eliminar de todas formas?'))return;
+  }
+  TM_EDIT.players.splice(idx,1);await saveTeams();if(isActive)buildPL();renderPlayerManager();
+}
 async function editPlayerEmail(idx){if(!TM_EDIT)return;var p=TM_EDIT.players[idx];var cur=p.email||'';var email=prompt('Email de '+p.name+' (borrar para quitar):',cur);if(email===null)return;p.email=email.trim();await saveTeams();if(TEAM&&TEAM.id===TM_EDIT.id)buildPL();renderPlayerManager();}
 
 async function openRPEView(){
@@ -5853,16 +5864,27 @@ function renderEvaluaciones(){
   }
 
   // ── INDIVIDUAL VIEW ──
+  var orphanIdxs=Object.keys(EVAL_DATA).map(Number).filter(function(k){return k>=PL.length&&Object.keys(EVAL_DATA[k]||{}).length>0;});
   var p=PL[idx];
+  var pOrphan=!p&&EVAL_DATA[idx];
   var pData=EVAL_DATA[idx]||{};
+  var playerLabel=p?p.name:(pOrphan?'Jugador eliminado (#'+idx+')':'—');
 
   // Players with evaluations for quick navigation
   var evalPlayers=PL.map(function(pl,i){return{i:i,name:pl.name,hasData:!!EVAL_DATA[i]&&Object.keys(EVAL_DATA[i]).length>0};}).filter(function(x){return x.hasData;});
+
+  if(pOrphan){
+    html+='<div style="margin-bottom:10px;padding:10px 14px;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.25);border-radius:8px;font-size:11px;color:var(--red)">'
+      +'⚠️ <strong>'+playerLabel+'</strong> — fue eliminado del plantel. Los datos son de solo lectura.</div>';
+  }
 
   html+='<select onchange="var s=document.getElementById(\'carga-sel\');if(s)s.value=this.value;renderEvaluaciones()" id="eval-player-sel" style="background:var(--bg2);border:1px solid var(--acc);border-radius:8px;padding:8px 14px;color:var(--acc);font-size:12px;font-weight:700;outline:none;cursor:pointer;margin-bottom:8px;display:block">'
     +PL.map(function(pl,i){
       var hasData=!!EVAL_DATA[i]&&Object.keys(EVAL_DATA[i]).length>0;
       return '<option value="'+i+'"'+(i===idx?' selected':'')+'>'+(hasData?'● ':'')+pl.name+'</option>';
+    }).join('')
+    +orphanIdxs.map(function(oi){
+      return '<option value="'+oi+'"'+(oi===idx?' selected':'')+'>⚠ Jugador #'+oi+' (eliminado)</option>';
     }).join('')
     +'</select>';
 
@@ -5889,7 +5911,7 @@ function renderEvaluaciones(){
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'
       +'<div><div style="font-size:11px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:.5px">'+et.icon+' '+et.label+'</div>'
       +'<div style="font-size:10px;color:var(--mut);margin-top:1px">'+et.desc+'</div></div>'
-      +'<button onclick="openAddEval('+idx+',\''+et.id+'\')" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);color:var(--acc);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:700">+ Cargar</button>'
++(pOrphan?'':('<button onclick="openAddEval('+idx+',\''+et.id+'\')" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);color:var(--acc);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:700">+ Cargar</button>'))
       +'</div>'
       +(latest
         ?'<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">'
@@ -6040,8 +6062,11 @@ function renderEvalTeam(){
   ];
 
   // For each player, get latest value per col
-  var rows=PL.map(function(p,i){
-    var d=EVAL_DATA[i]||{};
+  var orphanKeys=Object.keys(EVAL_DATA).map(Number).filter(function(k){return k>=PL.length&&Object.keys(EVAL_DATA[k]||{}).length>0;});
+  var allRows=PL.map(function(p,i){return{p:p,i:i,orphan:false};})
+    .concat(orphanKeys.map(function(k){return{p:{name:'⚠ Jugador #'+k+' (eliminado)'},i:k,orphan:true};}));
+  var rows=allRows.map(function(r){
+    var d=EVAL_DATA[r.i]||{};
     var vals={};
     cols.forEach(function(c){
       var entries=(d[c.id]||[]).filter(function(e){return e.value!=null;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
@@ -6055,7 +6080,7 @@ function renderEvalTeam(){
     vals._isq_izq=null;vals._isq_der=null;vals._isq_asym=null;
     if(isqEnt2.length){var li=isqEnt2[0];vals._isq_izq=li.peso!=null?+li.peso:null;vals._isq_der=li.value!=null?+li.value:null;}
     if(vals._isq_izq!=null&&vals._isq_der!=null)vals._isq_asym=+(Math.abs(vals._isq_der-vals._isq_izq)/Math.max(vals._isq_izq,vals._isq_der)*100).toFixed(1);
-    return {p:p,i:i,vals:vals};
+    return {p:r.p,i:r.i,orphan:r.orphan,vals:vals};
   });
 
   // Compute team percentile ranks per column (for color coding)
@@ -6096,8 +6121,9 @@ function renderEvalTeam(){
   rows.forEach(function(r){
     var hasAny=cols.some(function(c){return r.vals[c.id]!=null;});
     if(!hasAny)return;
+    var nameColor=r.orphan?'var(--red)':'var(--txt)';
     h+='<tr>'
-      +'<td style="'+tdStyle+';text-align:left;font-size:11px;color:var(--txt)">'+r.p.name+'</td>'
+      +'<td style="'+tdStyle+';text-align:left;font-size:11px;color:'+nameColor+'">'+r.p.name+'</td>'
       +cols.map(function(c){
         var v=r.vals[c.id];
         var col=pctColor(v,allVals[c.id],c.lowerBetter);
