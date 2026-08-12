@@ -6238,33 +6238,24 @@ async function saveEvalEntry(playerIdx,evalType){
   var arr=EVAL_DATA[playerIdx][evalType];
   var existingIdx=arr.findIndex(function(e){return e.date===date;});
   var isUpdate=existingIdx>=0;
-  var oldEntry=isUpdate?arr[existingIdx]:null;
 
-  if(isUpdate){
-    // Replace local entry
-    arr[existingIdx]=entry;
-    // Delete all existing rows for this player+type+date in Supabase, then re-insert
-    await sbDelete('evaluaciones',
-      'team_id=eq.'+TEAM.id+'&player_idx=eq.'+playerIdx+'&eval_type=eq.'+encodeURIComponent(evalType)+'&date=eq.'+date);
-  } else {
-    arr.push(entry);
-  }
-
+  // Upsert atómico: no hay riesgo de perder datos si la red cae entre delete e insert
   var row={team_id:TEAM.id,player_idx:playerIdx,eval_type:evalType,
     date:entry.date,notes:entry.notes||'',
     value:entry.value||null,
     peso:entry.peso||null,talla:entry.talla||null,
     pliegues:entry.pliegues||null,imc:entry.imc||null};
-  var ok=await sbInsert('evaluaciones',row);
+  var ok=await sbUpsert('evaluaciones',row);
 
   if(!ok){
-    // Revert local state on failure
-    if(isUpdate){arr[existingIdx]=oldEntry;}
-    else{arr.pop();}
     if(btn){btn.disabled=false;btn.textContent='Guardar';}
     showBanner('❌ Error al guardar — chequeá la conexión e intentá de nuevo','var(--red)',6000);
     return;
   }
+
+  // Actualizar estado local solo tras confirmar el guardado
+  if(isUpdate){arr[existingIdx]=entry;}
+  else{arr.push(entry);}
 
   var m=document.getElementById('eval-add-modal');
   if(m)m.parentNode.removeChild(m);
