@@ -507,6 +507,15 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
     <div id="import-body"></div>
   </div>
 </div>
+<div id="campo-modal" class="modal" onclick="if(event.target===this)closeCampoModal()">
+  <div class="mbox" style="max-width:700px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div><div style="font-size:16px;font-weight:800">📹 Campo CT · Nuevo Contenido</div><div style="font-size:11px;color:var(--mut);margin-top:2px" id="campo-modal-sub">Completá los datos</div></div>
+      <button onclick="closeCampoModal()" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>
+    </div>
+    <div id="campo-modal-body"></div>
+  </div>
+</div>
 
 <script>
 var $ = function(id){ return document.getElementById(id); };
@@ -881,6 +890,15 @@ var storage = {
 // Override window.storage with our adapter
 window.storage = storage;
 var _td=new Date();var TODAY=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
+
+function openModal(html){
+  var m=document.getElementById('_gmodal');
+  if(!m){m=document.createElement('div');m.id='_gmodal';m.className='modal';m.onclick=function(e){if(e.target===m)closeModal();};document.body.appendChild(m);}
+  m.innerHTML='<div class="mbox">'+html+'</div>';
+  m.classList.add('on');
+}
+function closeModal(){var m=document.getElementById('_gmodal');if(m){m.classList.remove('on');m.innerHTML='';}}
+
 
 // ===== PLAYER PHOTOS & PORTAL =====
 function playerAvatar(pidx,size){
