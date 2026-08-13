@@ -2225,7 +2225,76 @@ function renderIndividual(){
     +'<div class="g2">'
     +'<div class="card"><h3>ACWR · 28 días</h3><div class="cw"><canvas id="ind-acwr-c"></canvas></div></div>'
     +'<div class="card"><h3>Radar Wellness</h3><div class="cw"><canvas id="ind-radar-c"></canvas></div></div>'
-    +'</div>';
+    +'</div>'
+    // ── Lesiones + Evaluaciones row ──
+    +(function(){
+      var playerLes=(LESIONES||[]).filter(function(l){return l.player_idx===idx;}).sort(function(a,b){return new Date(b.fecha_inicio)-new Date(a.fecha_inicio);});
+      var activaLes=playerLes.filter(function(l){return l.status==='activa';});
+      var histLes=playerLes.filter(function(l){return l.status==='recuperado';}).slice(0,3);
+      // Days without injury
+      var dslColor='var(--grn)',dslVal='—',dslSub='Sin lesiones registradas';
+      if(activaLes.length){
+        var al=activaLes[0];
+        var gd=LES_GRAV[al.gravedad]||{color:'var(--red)'};
+        var diasRest=al.fecha_alta_est?Math.max(0,Math.round((new Date(al.fecha_alta_est)-new Date(TODAY))/86400000)):'?';
+        dslColor=gd.color;dslVal='EN LESIÓN';dslSub=(diasRest!=='?'?diasRest+' días para alta est.':'Sin alta estimada');
+      } else if(histLes.length){
+        var fechaAlta=histLes[0].fecha_alta_est||histLes[0].fecha_inicio;
+        var dsl=Math.floor((new Date(TODAY)-new Date(fechaAlta))/86400000);
+        dslVal=dsl>=0?dsl:'—';dslSub='días sin lesión';
+        dslColor=dsl>90?'var(--grn)':dsl>30?'var(--yel)':'var(--red)';
+      }
+      // Latest evaluations
+      var evD=EVAL_DATA[idx]||{};
+      var evKeys=[{id:'cmj',l:'CMJ',u:'cm'},{id:'broad',l:'Broad',u:'cm'},{id:'t10_5',l:'T10-5',u:'s'},{id:'antro',l:'Peso',u:'kg'},{id:'sprint10',l:'Sprint 10',u:'s'},{id:'t30_15',l:'30-15',u:'km/h'}];
+      var evCards=evKeys.map(function(ek){
+        var ents=(evD[ek.id]||[]).filter(function(e){return ek.id==='antro'?e.peso:e.value!=null;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+        if(!ents.length)return'';
+        var last=ents[0];
+        var val=ek.id==='antro'?last.peso:last.value;
+        return'<div style="background:rgba(0,0,0,.2);border:1px solid var(--b);border-radius:8px;padding:8px 10px;text-align:center">'
+          +'<div style="font-size:17px;font-weight:900;color:var(--dim)">'+val+'<span style="font-size:10px;color:var(--mut);font-weight:400"> '+ek.u+'</span></div>'
+          +'<div style="font-size:9px;color:var(--mut);margin-top:2px;text-transform:uppercase;letter-spacing:.3px">'+ek.l+'</div>'
+          +'<div style="font-size:8px;color:rgba(255,255,255,.2);margin-top:2px">'+last.date+'</div>'
+          +'</div>';
+      }).filter(Boolean).join('');
+      var lesHistHtml=histLes.map(function(l){
+        var gd2=LES_GRAV[l.gravedad]||{label:l.gravedad,color:'var(--mut)'};
+        var diasLes=l.fecha_alta_est&&l.fecha_inicio?Math.round((new Date(l.fecha_alta_est)-new Date(l.fecha_inicio))/86400000):'?';
+        return'<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)">'
+          +'<div style="font-size:10px"><span style="color:'+gd2.color+';font-weight:700">'+gd2.label+'</span> · '+(LES_TIPOS[l.tipo]||l.tipo)+' · '+(LES_ZONAS[l.zona]||l.zona)+'</div>'
+          +'<div style="font-size:9px;color:var(--mut)">'+l.fecha_inicio+(diasLes!=='?'?' · '+diasLes+'d':'')+'</div>'
+          +'</div>';
+      }).join('');
+      return'<div class="g2" style="margin-bottom:12px">'
+        // Lesiones card
+        +'<div class="card">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+            +'<h3 style="margin:0">🩺 Lesiones</h3>'
+            +'<button onclick="switchTab(\'lesiones\')" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--b);color:var(--mut);font-size:10px;cursor:pointer">Ver módulo</button>'
+          +'</div>'
+          +'<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">'
+            +'<div style="background:rgba(0,0,0,.25);border-radius:10px;padding:12px 16px;text-align:center;min-width:80px">'
+              +'<div style="font-size:'+(typeof dslVal==='number'?'26':'14')+'px;font-weight:900;color:'+dslColor+';line-height:1">'+dslVal+'</div>'
+              +'<div style="font-size:8px;color:var(--mut);margin-top:4px">'+dslSub+'</div>'
+            +'</div>'
+            +'<div style="flex:1;font-size:9px;color:var(--mut)">'
+              +(activaLes.length?'<div style="color:var(--red);font-weight:700;margin-bottom:4px">Lesión activa: '+(LES_ZONAS[activaLes[0].zona]||activaLes[0].zona)+' · '+(LES_TIPOS[activaLes[0].tipo]||activaLes[0].tipo)+'</div>':'')
+              +(playerLes.length===0?'Sin historial de lesiones':'Historial: '+playerLes.length+' lesión'+(playerLes.length!==1?'es':''))
+            +'</div>'
+          +'</div>'
+          +(lesHistHtml?'<div style="font-size:9px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Últimas lesiones</div>'+lesHistHtml:'')
+        +'</div>'
+        // Evaluaciones card
+        +'<div class="card">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+            +'<h3 style="margin:0">📊 Últimas Evaluaciones</h3>'
+            +'<button onclick="var s=document.getElementById(\'carga-sel\');if(s)s.value='+idx+';switchTab(\'evaluaciones\')" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--b);color:var(--mut);font-size:10px;cursor:pointer">Ver módulo</button>'
+          +'</div>'
+          +(evCards?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px">'+evCards+'</div>':'<div style="text-align:center;padding:20px;color:var(--mut);font-size:11px">Sin evaluaciones cargadas</div>')
+        +'</div>'
+        +'</div>';
+    })();
   // Store player index for metric switching
   window._indIdx=idx;
   setTimeout(function(){renderIndCharts(p,0);},80);
@@ -5785,6 +5854,9 @@ var EVAL_TYPES=[
 
 var EVAL_DATA = {}; // {playerIdx: {cmj:[{date,value,notes}], ...}}
 var EVAL_VIEW = 'individual'; // 'individual' | 'equipo'
+var EVAL_CMP_A = null; // date string for compare mode date A
+var EVAL_CMP_B = null; // date string for compare mode date B
+var EVAL_COMPARE = false; // toggle compare mode in individual view
 
 function evalsKey(){return 'evals:'+TEAM.id;}
 
@@ -5835,8 +5907,9 @@ function renderEvaluaciones(){
     +'<div><div style="font-size:15px;font-weight:700">📊 Evaluaciones Físicas</div>'
     +'<div style="font-size:11px;color:var(--mut);margin-top:1px">CMJ · CMJ 1P · Broad Jump · 10/5 · Sprint · 1000m · 30-15 IFT</div></div>'
     +'<div style="display:flex;gap:6px;align-items:center">'
-    +'<button onclick="EVAL_VIEW=\'individual\';renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='individual')+'">👤 Individual</button>'
-    +'<button onclick="EVAL_VIEW=\'equipo\';renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='equipo')+'">👥 Equipo</button>'
+    +'<button onclick="EVAL_VIEW=\'individual\';EVAL_COMPARE=false;renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='individual'&&!EVAL_COMPARE)+'">👤 Individual</button>'
+    +'<button onclick="EVAL_VIEW=\'equipo\';EVAL_COMPARE=false;renderEvaluaciones()" style="'+btnStyle(EVAL_VIEW==='equipo')+'">👥 Equipo</button>'
+    +'<button onclick="EVAL_VIEW=\'individual\';EVAL_COMPARE=!EVAL_COMPARE;renderEvaluaciones()" style="'+btnStyle(EVAL_COMPARE)+';border-color:rgba(245,158,11,'+(EVAL_COMPARE?'.6':'.3')+')">'+(EVAL_COMPARE?'✕ Salir':'📅 Comparar')+'</button>'
     +'<button onclick="generarInformeEvaluaciones()" style="padding:7px 14px;border-radius:8px;border:1px solid rgba(6,214,160,.3);background:rgba(6,214,160,.1);color:var(--acc);font-size:11px;font-weight:700;cursor:pointer">📄 PDF</button>'
     +'<button onclick="exportEvalCSV()" style="padding:7px 14px;border-radius:8px;border:1px solid rgba(139,92,246,.3);background:rgba(139,92,246,.1);color:#a78bfa;font-size:11px;font-weight:700;cursor:pointer">⬇ CSV</button>'
     +'<button onclick="loadEvals().then(renderEvaluaciones)" style="padding:7px 12px;border-radius:8px;border:1px solid var(--b);background:var(--c);color:var(--mut);font-size:11px;cursor:pointer" title="Recargar datos">🔄</button>'
@@ -5897,6 +5970,58 @@ function renderEvaluaciones(){
           +'style="padding:5px 10px;border-radius:6px;background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.25);color:var(--acc);font-size:11px;font-weight:600;cursor:pointer">'+ep.name+'</button>';
       }).join('')
       +'</div></div>';
+  }
+
+  // ── Compare mode ──
+  if(EVAL_COMPARE&&!pOrphan){
+    var allDates=(function(){var s={};Object.values(pData).forEach(function(arr){arr.forEach(function(e){s[e.date]=1;});});return Object.keys(s).sort();})();
+    if(allDates.length<2){html+='<div class="card" style="text-align:center;padding:24px;color:var(--mut)">Necesitás al menos 2 fechas de evaluación para comparar.</div>';tab.innerHTML=html;return;}
+    var cmpA=EVAL_CMP_A||(allDates[0]);
+    var cmpB=EVAL_CMP_B||(allDates[allDates.length-1]);
+    EVAL_CMP_A=cmpA;EVAL_CMP_B=cmpB;
+    var dateOpts=allDates.map(function(d){return'<option value="'+d+'">'+d+'</option>';}).join('');
+    html+='<div class="card" style="margin-bottom:12px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--yel);margin-bottom:12px">📅 Comparación de Evaluaciones — '+p.name+'</div>'
+      +'<div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">'
+        +'<div><div style="font-size:9px;color:var(--mut);margin-bottom:4px">FECHA A (base)</div>'
+          +'<select onchange="EVAL_CMP_A=this.value;renderEvaluaciones()" style="background:var(--bg2);border:1px solid rgba(245,158,11,.4);border-radius:7px;padding:6px 10px;color:var(--yel);font-size:12px;font-weight:700;outline:none;cursor:pointer">'+allDates.map(function(d){return'<option value="'+d+'"'+(d===cmpA?' selected':'')+'>'+d+'</option>';}).join('')+'</select></div>'
+        +'<div style="font-size:18px;color:var(--mut)">→</div>'
+        +'<div><div style="font-size:9px;color:var(--mut);margin-bottom:4px">FECHA B (comparar)</div>'
+          +'<select onchange="EVAL_CMP_B=this.value;renderEvaluaciones()" style="background:var(--bg2);border:1px solid rgba(6,214,160,.4);border-radius:7px;padding:6px 10px;color:var(--acc);font-size:12px;font-weight:700;outline:none;cursor:pointer">'+allDates.map(function(d){return'<option value="'+d+'"'+(d===cmpB?' selected':'')+'>'+d+'</option>';}).join('')+'</select></div>'
+      +'</div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
+      +'<thead><tr>'
+        +'<th style="text-align:left;padding:7px 10px;color:var(--mut);font-size:9px;text-transform:uppercase;border-bottom:1px solid var(--b)">Test</th>'
+        +'<th style="text-align:right;padding:7px 10px;color:var(--yel);font-size:9px;border-bottom:1px solid var(--b)">'+cmpA+'</th>'
+        +'<th style="text-align:right;padding:7px 10px;color:var(--acc);font-size:9px;border-bottom:1px solid var(--b)">'+cmpB+'</th>'
+        +'<th style="text-align:right;padding:7px 10px;color:var(--mut);font-size:9px;border-bottom:1px solid var(--b)">Cambio</th>'
+      +'</tr></thead><tbody>'
+      +(function(){
+        return EVAL_TYPES.filter(function(et){return et.id!=='antro';}).map(function(et){
+          var ents=pData[et.id]||[];
+          var eA=ents.find(function(e){return e.date===cmpA;});
+          var eB=ents.find(function(e){return e.date===cmpB;});
+          if(!eA&&!eB)return'';
+          var vA=eA?(et.bilateral?(+(eA.peso||0)+' / '+(+(eA.value||0))):eA.value):'—';
+          var vB=eB?(et.bilateral?(+(eB.peso||0)+' / '+(+(eB.value||0))):eB.value):'—';
+          var delta=null,deltaStr='—',deltaCol='var(--mut)';
+          if(eA&&eB&&!et.bilateral&&eA.value!=null&&eB.value!=null){
+            delta=+(((+eB.value-+eA.value)/Math.abs(+eA.value||1))*100).toFixed(1);
+            var lowerBetter=et.id==='sprint10'||et.id==='t10_5'||et.id==='t1000';
+            deltaStr=(delta>0?'+':'')+delta+'%';
+            deltaCol=delta===0?'var(--mut)':(lowerBetter?(delta<0?'var(--grn)':'var(--red)'):(delta>0?'var(--grn)':'var(--red)'));
+          }
+          return'<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+            +'<td style="padding:7px 10px;font-weight:600;color:var(--dim)">'+et.icon+' '+et.label+'</td>'
+            +'<td style="padding:7px 10px;text-align:right;color:'+(eA?'var(--yel)':'var(--mut)')+'">'+vA+(et.unit&&eA?' <span style="font-size:9px;color:var(--mut)">'+et.unit+'</span>':'')+'</td>'
+            +'<td style="padding:7px 10px;text-align:right;color:'+(eB?'var(--acc)':'var(--mut)')+'">'+vB+(et.unit&&eB?' <span style="font-size:9px;color:var(--mut)">'+et.unit+'</span>':'')+'</td>'
+            +'<td style="padding:7px 10px;text-align:right;font-weight:700;color:'+deltaCol+'">'+deltaStr+'</td>'
+            +'</tr>';
+        }).filter(Boolean).join('');
+      })()
+      +'</tbody></table></div>'
+      +'</div>';
+    tab.innerHTML=html;return;
   }
 
   html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px">';
@@ -8171,7 +8296,16 @@ function renderLesiones(){
       +'<button onclick="deleteLesion(\''+l.id+'\')" style="background:rgba(244,63,94,.06);border:1px solid rgba(244,63,94,.2);color:var(--red);border-radius:7px;padding:6px 12px;font-size:10px;cursor:pointer">Borrar</button>'
       +'</div></div></div>';
   }
-  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">'
+  // ── Season stats ──
+  var diasPerdidosTotal=LESIONES.reduce(function(sum,l){
+    if(!l.fecha_inicio)return sum;
+    var alta=l.fecha_alta_est||TODAY;
+    return sum+Math.max(0,Math.round((new Date(alta)-new Date(l.fecha_inicio))/86400000));
+  },0);
+  var zonaCount={};LESIONES.forEach(function(l){zonaCount[l.zona]=(zonaCount[l.zona]||0)+1;});
+  var topZona=Object.keys(zonaCount).sort(function(a,b){return zonaCount[b]-zonaCount[a];})[0];
+  var jugadoresLes=new Set(LESIONES.map(function(l){return l.player_idx;})).size;
+  var html='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
     +'<div>'
     +'<div style="font-size:16px;font-weight:800">Registro de Lesiones</div>'
     +'<div style="font-size:10px;color:var(--mut);margin-top:2px">'+activas.length+' activa'+(activas.length!==1?'s':'')+' · '+recuperados.length+' recuperado'+(recuperados.length!==1?'s':'')+'</div>'
@@ -8179,7 +8313,14 @@ function renderLesiones(){
     +'<div style="display:flex;gap:8px">'
     +'<button onclick="exportLesiones()" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:var(--grn);border-radius:8px;padding:8px 14px;font-size:11px;font-weight:600;cursor:pointer">↓ Exportar CSV</button>'
     +'<button onclick="openLesionModal()" style="background:var(--acc);color:#000;border:none;border-radius:8px;padding:8px 16px;font-size:11px;font-weight:700;cursor:pointer">+ Registrar</button>'
-    +'</div></div>';
+    +'</div></div>'
+    // Season stats strip
+    +(LESIONES.length?'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px">'
+      +'<div style="background:rgba(0,0,0,.2);border:1px solid var(--b);border-radius:10px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:900;color:var(--red)">'+activas.length+'</div><div style="font-size:9px;color:var(--mut);margin-top:2px">ACTIVAS</div></div>'
+      +'<div style="background:rgba(0,0,0,.2);border:1px solid var(--b);border-radius:10px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:900;color:var(--yel)">'+LESIONES.length+'</div><div style="font-size:9px;color:var(--mut);margin-top:2px">TOTAL TEMP.</div></div>'
+      +'<div style="background:rgba(0,0,0,.2);border:1px solid var(--b);border-radius:10px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:900;color:var(--dim)">'+diasPerdidosTotal+'</div><div style="font-size:9px;color:var(--mut);margin-top:2px">DÍAS PERDIDOS</div></div>'
+      +'<div style="background:rgba(0,0,0,.2);border:1px solid var(--b);border-radius:10px;padding:10px;text-align:center"><div style="font-size:14px;font-weight:900;color:var(--mut)">'+( topZona?(LES_ZONAS[topZona]||topZona):'—')+'</div><div style="font-size:9px;color:var(--mut);margin-top:2px">ZONA + FRECUENTE</div></div>'
+      +'</div>':'');
   if(activas.length===0){
     html+='<div style="text-align:center;padding:40px;color:var(--mut);font-size:13px;border:1px dashed rgba(255,255,255,.08);border-radius:12px;margin-bottom:20px">✓ Sin lesiones activas</div>';
   }else{
