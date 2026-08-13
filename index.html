@@ -5976,8 +5976,8 @@ function renderEvaluaciones(){
   if(EVAL_COMPARE&&!pOrphan){
     var allDates=(function(){var s={};Object.values(pData).forEach(function(arr){arr.forEach(function(e){s[e.date]=1;});});return Object.keys(s).sort();})();
     if(allDates.length<2){html+='<div class="card" style="text-align:center;padding:24px;color:var(--mut)">Necesitás al menos 2 fechas de evaluación para comparar.</div>';tab.innerHTML=html;return;}
-    var cmpA=EVAL_CMP_A||(allDates[0]);
-    var cmpB=EVAL_CMP_B||(allDates[allDates.length-1]);
+    var cmpA=(EVAL_CMP_A&&allDates.indexOf(EVAL_CMP_A)>=0)?EVAL_CMP_A:allDates[0];
+    var cmpB=(EVAL_CMP_B&&allDates.indexOf(EVAL_CMP_B)>=0)?EVAL_CMP_B:allDates[allDates.length-1];
     EVAL_CMP_A=cmpA;EVAL_CMP_B=cmpB;
     var dateOpts=allDates.map(function(d){return'<option value="'+d+'">'+d+'</option>';}).join('');
     html+='<div class="card" style="margin-bottom:12px">'
