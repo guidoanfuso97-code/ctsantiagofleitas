@@ -1834,8 +1834,10 @@ function renderMicroChart(p,microSessions,metric){
     if(s.sessionType==='MD-1')return 'rgba(255,140,60,.7)';
     if(s.sessionType==='MD-2')return 'rgba(245,158,11,.7)';
     if(s.sessionType==='MD-3')return 'rgba(180,200,80,.7)';
+    if(s.sessionType==='MD-4')return 'rgba(100,200,150,.7)';
     if(s.sessionType==='MD+1')return 'rgba(0,200,100,.7)';
     if(s.sessionType==='MD+2')return 'rgba(16,185,129,.7)';
+    if(s.sessionType==='MD+3')return 'rgba(6,150,200,.7)';
     return 'rgba(100,150,255,.7)';
   });
 
@@ -3153,7 +3155,7 @@ async function applyHistoricalToACWR(){
 function renderHistorial(){
   var tab=$('t-historial');if(!tab)return;
   var total=SESSIONS.length,matches=SESSIONS.filter(function(s){return s.isMatch||s.sessionType==='MD';}).length;
-  var ST_C={'MD':'rgba(244,63,94,.8)','MD-1':'rgba(255,140,60,.8)','MD-2':'rgba(245,158,11,.8)','MD-3':'rgba(180,200,80,.8)','MD+1':'rgba(0,200,100,.8)','MD+2':'rgba(16,185,129,.8)','Físico':'rgba(100,150,255,.8)','Táctico':'rgba(150,120,255,.8)','Post-Partido':'rgba(167,139,250,.8)','Análisis Rival':'rgba(255,140,0,.8)','General':'rgba(100,116,139,.8)'};
+  var ST_C={'MD':'rgba(244,63,94,.8)','MD-1':'rgba(255,140,60,.8)','MD-2':'rgba(245,158,11,.8)','MD-3':'rgba(180,200,80,.8)','MD-4':'rgba(100,200,150,.8)','MD+1':'rgba(0,200,100,.8)','MD+2':'rgba(16,185,129,.8)','MD+3':'rgba(6,150,200,.8)','Físico':'rgba(100,150,255,.8)','Táctico':'rgba(150,120,255,.8)','Post-Partido':'rgba(167,139,250,.8)','Análisis Rival':'rgba(255,140,0,.8)','General':'rgba(100,116,139,.8)'};
   var timeline='';
   if(total){
     timeline=SESSIONS.map(function(s){
@@ -3441,7 +3443,7 @@ function showImportPreview(rows,fname,csvDate){
   var mc=rows.filter(function(r){return r.matched;}).length;
   var isLikelyMatch=fname.toLowerCase().indexOf('vs')>=0||fname.toLowerCase().indexOf('partido')>=0;
   // Detect session type from filename
-  var stypes=['MD-3','MD-2','MD-1','MD+1','MD+2','MD'];
+  var stypes=['MD-4','MD-3','MD-2','MD-1','MD+1','MD+2','MD+3','MD'];
   var detectedType='MD+2';
   for(var si=0;si<stypes.length;si++){
     if(fname.indexOf(stypes[si])>=0){detectedType=stypes[si];break;}
@@ -3464,7 +3466,7 @@ function showImportPreview(rows,fname,csvDate){
       +'<td style="padding:6px;text-align:right;font-size:11px">'+r.accDec+'</td>'
       +'</tr>';
   }).join('');
-  var stypeOpts=['MD','MD-1','MD-2','MD-3','MD+1','MD+2','Físico','Táctico'].map(function(t){
+  var stypeOpts=['MD','MD-1','MD-2','MD-3','MD-4','MD+1','MD+2','MD+3','Físico','Táctico'].map(function(t){
     return '<option value="'+t+'"'+(t===detectedType?' selected':'')+'>'+t+'</option>';
   }).join('');
   $('import-body').innerHTML=
@@ -7471,7 +7473,7 @@ var CAMPO_CATS=[
   {id:'foto',label:'📸 Foto / Pizarra',color:'var(--yel)'},
   {id:'nota',label:'📝 Nota',color:'rgba(148,163,184,.9)'}
 ];
-var CAMPO_STYPES=['MD','MD-1','MD-2','MD-3','MD+1','MD+2','Físico','Táctico','Post-Partido','Análisis Rival','General'];
+var CAMPO_STYPES=['MD','MD-1','MD-2','MD-3','MD-4','MD+1','MD+2','MD+3','Físico','Táctico','Post-Partido','Análisis Rival','General'];
 var CAMPO_ENTRIES=[];
 var _campoSearch='';
 var _campoFilterCat=null;
@@ -7523,7 +7525,7 @@ function renderCampo(){
   });
 
   var ST_C={'MD':'rgba(244,63,94,.85)','MD-1':'rgba(255,140,60,.85)','MD-2':'rgba(245,158,11,.85)',
-    'MD-3':'rgba(180,200,80,.85)','MD+1':'rgba(0,200,100,.85)','MD+2':'rgba(16,185,129,.85)',
+    'MD-3':'rgba(180,200,80,.85)','MD-4':'rgba(100,200,150,.85)','MD+1':'rgba(0,200,100,.85)','MD+2':'rgba(16,185,129,.85)','MD+3':'rgba(6,150,200,.85)',
     'Físico':'rgba(100,150,255,.85)','Táctico':'rgba(150,120,255,.85)',
     'Post-Partido':'rgba(167,139,250,.85)','Análisis Rival':'rgba(255,140,0,.85)','General':'rgba(100,116,139,.85)'};
 
