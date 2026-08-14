@@ -1732,7 +1732,7 @@ function renderCarga(){
     )+'</div>'
     // Monotony + strain
     +'<div class="card">'
-    +'<div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📊 Carga Interna</div>'
+    +'<div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📊 Distribución de Carga</div>'
     +(p.monotony>=2.0?'<div style="background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.3);border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:10px;color:var(--red);font-weight:600">🔁 Monotonía crítica — Aumentar variabilidad de sesiones</div>':'')
     +(p.monotony>=1.5&&p.monotony<2.0?'<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:10px;color:var(--yel);font-weight:600">🔁 Monotonía elevada — Considerar sesiones de recuperación</div>':'')
     +'<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--b)">'
