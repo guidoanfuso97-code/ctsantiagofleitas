@@ -1025,7 +1025,7 @@ var SESSION_HOY = null;
 
 var DEFAULT_PLAYERS=[];
 
-var TEAMS=[],TEAM=null,PL=[],CH={},selP=0,SESSIONS=[],IMP_DATA=null;
+var TEAMS=[],TEAM=null,PL=[],CH={},selP=0,SESSIONS=[],IMP_DATA=null,REST_DAYS=[];
 var _acuSelPlayer=0,_acuSelMetric=0;
 var ACU_METRICS=[
   {key:'pl',    label:'Player Load', sKey:'pl',         unit:'AU', color:'#a78bfa'},
@@ -1209,7 +1209,7 @@ async function doRefresh(){
   var btn=document.querySelector('.ref-btn');
   if(btn){btn.textContent='⏳';btn.style.opacity='.6';}
   try{
-    var _rr=await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE(),loadSessionsCached(),loadRealDolor()]);
+    var _rr=await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE(),loadSessionsCached(),loadRealDolor(),loadRestDays()]);
     var freshSessions=_rr[3];
     if(freshSessions&&freshSessions.length>0){
       var sig=freshSessions.length+'|'+(freshSessions[0]?freshSessions[0].date:'');
@@ -3036,6 +3036,53 @@ async function deleteSession(date){
   updateTopStats();
   renderHistorial();
 }
+
+// ── Días libres ───────────────────────────────────────────────────────────
+async function loadRestDays(){
+  if(!TEAM)return;
+  try{
+    var rows=await sbGet('rest_days','team_id=eq.'+TEAM.id+'&order=date.desc');
+    REST_DAYS=rows||[];
+  }catch(e){REST_DAYS=[];}
+}
+function openRestDayModal(){
+  openModal(
+    '<h3 style="margin:0 0 16px">🗓 Marcar día libre</h3>'
+    +'<div style="margin-bottom:12px">'
+    +'<label style="font-size:11px;color:var(--mut);display:block;margin-bottom:4px">Fecha</label>'
+    +'<input type="date" id="rd-date" value="'+TODAY+'" max="'+TODAY+'" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--b);background:var(--c);color:var(--txt);font-size:13px">'
+    +'</div>'
+    +'<div style="margin-bottom:16px">'
+    +'<label style="font-size:11px;color:var(--mut);display:block;margin-bottom:4px">Nota (opcional)</label>'
+    +'<input type="text" id="rd-note" placeholder="Ej: Feriado, descanso programado..." style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--b);background:var(--c);color:var(--txt);font-size:13px">'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +'<button onclick="closeModal()" style="padding:8px 16px;border-radius:8px;border:1px solid var(--b);background:var(--c);color:var(--mut);cursor:pointer">Cancelar</button>'
+    +'<button onclick="confirmRestDay()" style="padding:8px 16px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;font-weight:700;cursor:pointer">💾 Guardar</button>'
+    +'</div>'
+  );
+}
+async function confirmRestDay(){
+  var date=document.getElementById('rd-date').value;
+  var note=document.getElementById('rd-note').value.trim();
+  if(!date){showBanner('Seleccioná una fecha','var(--yel)',2000);return;}
+  var conflict=SESSIONS.find(function(s){return s.date===date;});
+  if(conflict){showBanner('⚠️ Esa fecha ya tiene una sesión importada','var(--yel)',3000);closeModal();return;}
+  closeModal();
+  await sbUpsert('rest_days',{team_id:TEAM.id,date:date,note:note});
+  var existing=REST_DAYS.findIndex(function(r){return r.date===date;});
+  if(existing>=0)REST_DAYS[existing]={team_id:TEAM.id,date:date,note:note};
+  else REST_DAYS.push({team_id:TEAM.id,date:date,note:note});
+  REST_DAYS.sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  renderHistorial();
+  showBanner('🗓 Día libre guardado — '+date,'var(--acc)',2500);
+}
+async function deleteRestDay(date){
+  if(!confirm('¿Quitar el día libre del '+date+'?'))return;
+  await sbDelete('rest_days','team_id=eq.'+TEAM.id+'&date=eq.'+date);
+  REST_DAYS=REST_DAYS.filter(function(r){return r.date!==date;});
+  renderHistorial();
+}
 var _lastSessionCount=0;
 var _lastSessionDate='';
 // Repairs stale playerIdx values caused by player additions/removals (which shift array indices).
@@ -3174,9 +3221,23 @@ function renderHistorial(){
   var tab=$('t-historial');if(!tab)return;
   var total=SESSIONS.length,matches=SESSIONS.filter(function(s){return s.isMatch||s.sessionType==='MD';}).length;
   var ST_C={'MD':'rgba(244,63,94,.8)','MD-1':'rgba(255,140,60,.8)','MD-2':'rgba(245,158,11,.8)','MD-3':'rgba(180,200,80,.8)','MD-4':'rgba(100,200,150,.8)','MD+1':'rgba(0,200,100,.8)','MD+2':'rgba(16,185,129,.8)','MD+3':'rgba(6,150,200,.8)','Físico':'rgba(100,150,255,.8)','Táctico':'rgba(150,120,255,.8)','Post-Partido':'rgba(167,139,250,.8)','Análisis Rival':'rgba(255,140,0,.8)','General':'rgba(100,116,139,.8)'};
+  // Merge sessions + rest days into one timeline sorted by date desc
+  var sessItems=SESSIONS.map(function(s){return{type:'session',date:s.date,s:s};});
+  var restItems=REST_DAYS.map(function(r){return{type:'rest',date:r.date,r:r};});
+  var allItems=sessItems.concat(restItems).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
   var timeline='';
-  if(total){
-    timeline=SESSIONS.map(function(s){
+  if(allItems.length){
+    timeline=allItems.map(function(item){
+      if(item.type==='rest'){
+        var r=item.r;
+        return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);opacity:.75">'
+          +'<div style="background:rgba(100,116,139,.5);color:rgba(255,255,255,.8);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:800;flex-shrink:0;min-width:70px;text-align:center">🗓 LIBRE</div>'
+          +'<div style="flex:1"><div style="font-size:12px;font-weight:700">'+r.date+'</div>'
+          +'<div style="font-size:10px;color:var(--mut);margin-top:1px">'+(r.note||'Día libre — carga = 0')+'</div></div>'
+          +'<button onclick="deleteRestDay(\''+r.date+'\')" style="background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.2);color:var(--red);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;flex-shrink:0">✕</button>'
+          +'</div>';
+      }
+      var s=item.s;
       var c=ST_C[s.sessionType]||'rgba(100,116,139,.8)';
       var part=s.players.filter(function(p){return p.participated;}).length;
       var avgPL=part?Math.round(s.players.filter(function(p){return p.participated;}).reduce(function(t,p){return t+(p.metrics.pl||0);},0)/part):0;
@@ -3199,8 +3260,11 @@ function renderHistorial(){
     +'<div class="card" style="text-align:center"><div class="mval" style="color:var(--grn)">'+(total-matches)+'</div><div class="mlbl">Entrenamientos</div></div>'
     +'<div class="card" style="text-align:center"><div style="font-size:11px;font-weight:700;color:var(--dim);margin-top:4px">'+(total?SESSIONS[SESSIONS.length-1].date+' → '+SESSIONS[0].date:'Sin sesiones')+'</div><div class="mlbl">Rango</div></div>'
     +'</div>'
-    +(total
-      ?'<div class="card"><h3>Timeline · '+total+' sesiones</h3><div style="max-height:500px;overflow-y:auto">'+timeline+'</div></div>'
+    +'<div style="display:flex;justify-content:flex-end;margin-bottom:12px">'
+    +'<button onclick="openRestDayModal()" style="background:rgba(100,116,139,.15);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">🗓 Marcar día libre</button>'
+    +'</div>'
+    +(allItems.length
+      ?'<div class="card"><h3>Timeline · '+total+' sesiones'+(REST_DAYS.length?' · '+REST_DAYS.length+' días libres':'')+'</h3><div style="max-height:500px;overflow-y:auto">'+timeline+'</div></div>'
       :'<div class="card" style="text-align:center;padding:40px"><div style="font-size:40px;margin-bottom:12px">📂</div><div style="font-size:15px;font-weight:700;margin-bottom:6px">Sin sesiones</div><div style="font-size:12px;color:var(--mut)">Importá un CSV con el botón 📂 GPS</div></div>');
 }
 
@@ -9873,7 +9937,8 @@ async function initATLAS(){
     loadPartidosCustom(),
     loadDocs(),
     loadLesiones(),
-    loadRealDolor()
+    loadRealDolor(),
+    loadRestDays()
   ]);
   await injectPretemporadaData(); // pre-load sheets data
   SESSIONS=results[0];
