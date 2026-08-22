@@ -5247,12 +5247,13 @@ var VZ_TPLS=[
      {k:'duration',lbl:'Duración', type:'num',  min:15,max:60, step:5,   def:35, unit:'min'},
    ]},
   {id:'tempo',     name:'Tempo Run',     icon:'🏃',
-   desc:'Carrera continua moderada. Desarrollo aeróbico y umbral anaeróbico.',
+   desc:'Carrera por distancias o continua. Desarrollo aeróbico y umbral. Trabajar entre 80–85% Vmax.',
    params:[
-     {k:'pct',     lbl:'% Vmax',   type:'range',min:60,max:80, step:1,   def:70},
-     {k:'duration',lbl:'Duración', type:'num',  min:5, max:60, step:5,   def:20, unit:'min'},
-     {k:'sets',    lbl:'Series',   type:'num',  min:1, max:6,  step:1,   def:1,  unit:''},
-     {k:'rest',    lbl:'Descanso', type:'num',  min:1, max:10, step:0.5, def:3,  unit:'min'},
+     {k:'pct',      lbl:'% Vmax',      type:'range', min:65, max:90, step:1,   def:82},
+     {k:'distance', lbl:'Distancia',   type:'select', options:[{v:0,l:'Continuo'},{v:100,l:'100m'},{v:200,l:'200m'},{v:300,l:'300m'},{v:400,l:'400m'}], def:200},
+     {k:'reps',     lbl:'Repeticiones',type:'num',   min:2,  max:20, step:1,   def:8,  unit:''},
+     {k:'sets',     lbl:'Series',      type:'num',   min:1,  max:6,  step:1,   def:3,  unit:''},
+     {k:'rest',     lbl:'Descanso',    type:'num',   min:0.5,max:10, step:0.5, def:2,  unit:'min'},
    ]},
   {id:'hiit3030',  name:'HIIT 30-30',    icon:'⚡',
    desc:'30s trabajo + 30s trote recuperación. Alta intensidad aeróbica intermitente.',
@@ -5432,7 +5433,7 @@ function renderSesionView(){
   // Zone badge for this template
   var mainPct=ZONAS_P[tpl.params[0].k]||tpl.params[0].def;
   var zone=VZ_ZONES.find(function(z){return mainPct>=z.pmin&&mainPct<z.pmax;})||VZ_ZONES[VZ_ZONES.length-1];
-  html+='<div style="display:inline-flex;align-items:center;gap:6px;background:'+zone.col.replace('.9','.12')+';border:1px solid '+zone.col.replace('.9','.35')+';border-radius:8px;padding:5px 10px">'
+  html+='<div id="vz-zone-badge" style="display:inline-flex;align-items:center;gap:6px;background:'+zone.col.replace('.9','.12')+';border:1px solid '+zone.col.replace('.9','.35')+';border-radius:8px;padding:5px 10px">'
     +'<div style="width:8px;height:8px;border-radius:50%;background:'+zone.col+'"></div>'
     +'<span style="font-size:11px;font-weight:700;color:var(--txt)">'+mainPct+'% → '+zone.name+'</span>'
     +'</div></div>';
@@ -5450,6 +5451,12 @@ function renderSesionView(){
       html+='<input type="range" min="'+p.min+'" max="'+p.max+'" step="'+p.step+'" value="'+val+'"'
         +' oninput="ZONAS_P[\''+p.k+'\']=+this.value;this.previousElementSibling.lastElementChild.textContent=this.value+\'%\';vzUpdatePrescription()"'
         +' style="width:100%;accent-color:var(--acc)">';
+    } else if(p.type==='select'){
+      html+='<select onchange="ZONAS_P[\''+p.k+'\']=+this.value;vzUpdatePrescription()" style="width:100%;background:var(--bg2);border:1px solid var(--b);color:var(--txt);border-radius:7px;padding:7px 10px;font-size:13px;font-weight:600;outline:none;cursor:pointer">';
+      p.options.forEach(function(opt){
+        html+='<option value="'+opt.v+'"'+(+val===opt.v?' selected':'')+'>'+opt.l+'</option>';
+      });
+      html+='</select>';
     } else {
       html+='<input type="number" min="'+p.min+'" max="'+p.max+'" step="'+p.step+'" value="'+val+'"'
         +' oninput="ZONAS_P[\''+p.k+'\']=+this.value;vzUpdatePrescription()"'
@@ -5477,22 +5484,36 @@ function buildSesionDescLine(tpl,params){
   tpl.params.forEach(function(p){
     var v=params[p.k]!==undefined?params[p.k]:p.def;
     if(p.type==='range') parts.push(p.lbl+': '+v+'%');
+    else if(p.type==='select'){var opt=p.options.find(function(o){return+o.v===+v;});if(opt&&+opt.v>0)parts.push(p.lbl+': '+opt.l);}
     else if(v) parts.push(p.lbl+': '+v+(p.unit?' '+p.unit:''));
   });
   return parts.join(' · ');
+}
+
+function vzFmtTime(secs){
+  var m=Math.floor(secs/60),s=Math.round(secs%60);
+  if(m>0) return m+':'+(s<10?'0':'')+s+'"';
+  return s+'"';
 }
 
 function buildPrescriptionTable(tpl,params){
   var hasDualPct=tpl.params.some(function(p){return p.k==='pct_rest';});
   var pct=+(params.pct||params.pct_work||tpl.params[0].def);
   var pctRest=+(params.pct_rest||0);
+  // Tempo Run distance mode
+  var isTempoByDist=tpl.id==='tempo'&&+params.distance>0;
+  var tempoDist=isTempoByDist?+params.distance:0;
 
-  var html='<div class="card" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:'+(hasDualPct?'560':'420')+'px">'
+  var zone=VZ_ZONES.find(function(z){return pct>=z.pmin&&pct<z.pmax;})||VZ_ZONES[VZ_ZONES.length-1];
+
+  var minWidth=isTempoByDist?'580':(hasDualPct?'560':'420');
+  var html='<div class="card" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:'+minWidth+'px">'
     +'<thead><tr style="border-bottom:1px solid var(--b)">'
     +'<th style="padding:8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase">Jugador</th>'
     +'<th style="padding:8px;text-align:center;font-size:9px;color:var(--mut);text-transform:uppercase">Vmax</th>'
-    +'<th style="padding:8px;text-align:center;font-size:9px;color:var(--acc);text-transform:uppercase">'+(hasDualPct?'Trabajo ('+pct+'%)':'Objetivo ('+pct+'%)')+'</th>'
-    +(hasDualPct&&pctRest>0?'<th style="padding:8px;text-align:center;font-size:9px;color:var(--yel);text-transform:uppercase">Recup. ('+pctRest+'%)</th>':'')
+    +'<th style="padding:8px;text-align:center;font-size:9px;color:var(--acc);text-transform:uppercase">'+(isTempoByDist?'Velocidad ('+pct+'%)':(hasDualPct?'Trabajo ('+pct+'%)':'Objetivo ('+pct+'%)'))+'</th>'
+    +(isTempoByDist?'<th style="padding:8px;text-align:center;font-size:9px;color:var(--grn);text-transform:uppercase">Tiempo · '+tempoDist+'m</th>':'')
+    +(hasDualPct&&pctRest>0&&!isTempoByDist?'<th style="padding:8px;text-align:center;font-size:9px;color:var(--yel);text-transform:uppercase">Recup. ('+pctRest+'%)</th>':'')
     +'<th style="padding:8px;text-align:center;font-size:9px;color:var(--mut);text-transform:uppercase">Ritmo</th>'
     +'</tr></thead><tbody>';
 
@@ -5502,7 +5523,7 @@ function buildPrescriptionTable(tpl,params){
     if(!vm){
       html+='<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
         +'<td style="padding:8px"><div style="font-size:12px;font-weight:600;color:var(--mut)">'+p.name+'</div><div style="font-size:9px;color:rgba(255,255,255,.2)">'+p.pos+'</div></td>'
-        +'<td colspan="'+(hasDualPct&&pctRest>0?4:3)+'" style="padding:8px;text-align:center;font-size:10px;color:rgba(255,255,255,.25)">Sin Vmax — configurar en Plantel · Zonas</td></tr>';
+        +'<td colspan="'+(isTempoByDist?4:(hasDualPct&&pctRest>0?4:3))+'" style="padding:8px;text-align:center;font-size:10px;color:rgba(255,255,255,.25)">Sin Vmax — configurar en Plantel · Zonas</td></tr>';
       return;
     }
     anyVmax=true;
@@ -5510,8 +5531,9 @@ function buildPrescriptionTable(tpl,params){
     var tgtMs=+(tgtKmh/3.6).toFixed(2);
     var rstKmh=pctRest>0?+(vm.val*pctRest/100).toFixed(1):null;
     var rstMs=rstKmh?+(rstKmh/3.6).toFixed(2):null;
+    // Time per rep for distance-based tempo
+    var repTime=isTempoByDist?vzFmtTime(tempoDist/(tgtKmh/3.6)):null;
 
-    var zone=VZ_ZONES.find(function(z){return pct>=z.pmin&&pct<z.pmax;})||VZ_ZONES[VZ_ZONES.length-1];
     html+='<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
       +'<td style="padding:8px"><div style="font-size:12px;font-weight:600">'+p.name+'</div><div style="font-size:9px;color:var(--mut)">'+p.pos+'</div></td>'
       +'<td style="padding:8px;text-align:center"><div style="font-size:13px;font-weight:700;color:var(--acc)">'+vm.val+'</div><div style="font-size:9px;color:var(--mut)">km/h</div></td>'
@@ -5520,11 +5542,18 @@ function buildPrescriptionTable(tpl,params){
         +'<div style="font-size:14px;font-weight:800;color:var(--txt)">'+tgtKmh+' <span style="font-size:9px;font-weight:400;color:var(--mut)">km/h</span></div>'
         +'<div style="font-size:9px;color:var(--mut)">'+tgtMs+' m/s</div>'
         +'</div></td>'
-      +(hasDualPct&&pctRest>0?'<td style="padding:8px;text-align:center">'
-        +'<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:5px 10px">'
-        +'<div style="font-size:13px;font-weight:700;color:var(--txt)">'+rstKmh+' <span style="font-size:9px;color:var(--mut)">km/h</span></div>'
-        +'<div style="font-size:9px;color:var(--mut)">'+rstMs+' m/s</div>'
-        +'</div></td>':'')
+      +(isTempoByDist
+        ?'<td style="padding:8px;text-align:center">'
+          +'<div style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.3);border-radius:8px;padding:6px 10px">'
+          +'<div style="font-size:18px;font-weight:900;color:var(--grn)">'+repTime+'</div>'
+          +'<div style="font-size:9px;color:var(--mut)">por rep</div>'
+          +'</div></td>'
+        :(hasDualPct&&pctRest>0
+          ?'<td style="padding:8px;text-align:center">'
+            +'<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:5px 10px">'
+            +'<div style="font-size:13px;font-weight:700;color:var(--txt)">'+rstKmh+' <span style="font-size:9px;color:var(--mut)">km/h</span></div>'
+            +'<div style="font-size:9px;color:var(--mut)">'+rstMs+' m/s</div>'
+            +'</div></td>':''))
       +'<td style="padding:8px;text-align:center;font-size:12px;font-weight:600;color:var(--mut)">'+vzPace(tgtKmh)+'</td>'
       +'</tr>';
   });
@@ -5533,6 +5562,19 @@ function buildPrescriptionTable(tpl,params){
     html+='<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--mut)">⚠️ Ningún jugador tiene Vmax configurado.<br>Andá a <strong>Plantel · Zonas</strong> y agregá las velocidades.</td></tr>';
   }
   html+='</tbody></table></div>';
+
+  // Resumen sesión para tempo por distancia
+  if(isTempoByDist&&anyVmax){
+    var reps=+(params.reps||8),sets=+(params.sets||3),rest=+(params.rest||2);
+    var totalReps=reps*sets;
+    var totalDist=(totalReps*tempoDist/1000).toFixed(1);
+    html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px">'
+      +'<div class="card" style="text-align:center;padding:10px"><div style="font-size:16px;font-weight:800;color:var(--acc)">'+sets+'×'+reps+'</div><div style="font-size:9px;color:var(--mut)">Series × Reps</div></div>'
+      +'<div class="card" style="text-align:center;padding:10px"><div style="font-size:16px;font-weight:800;color:var(--acc)">'+totalReps+'</div><div style="font-size:9px;color:var(--mut)">Total reps</div></div>'
+      +'<div class="card" style="text-align:center;padding:10px"><div style="font-size:16px;font-weight:800;color:var(--acc)">'+totalDist+' km</div><div style="font-size:9px;color:var(--mut)">Distancia total</div></div>'
+      +'<div class="card" style="text-align:center;padding:10px"><div style="font-size:16px;font-weight:800;color:var(--acc)">'+rest+' min</div><div style="font-size:9px;color:var(--mut)">Descanso</div></div>'
+      +'</div>';
+  }
   return html;
 }
 
@@ -5540,9 +5582,16 @@ function vzUpdatePrescription(){
   var tpl=VZ_TPLS.find(function(t){return t.id===ZONAS_ACTIVE_TPL;})||VZ_TPLS[0];
   var el=document.getElementById('vz-prescription');
   if(el)el.innerHTML=buildPrescriptionTable(tpl,ZONAS_P);
-  // update zone badge in params card
+  // Update zone badge color + text
   var mainPct=ZONAS_P[tpl.params[0].k]||tpl.params[0].def;
   var zone=VZ_ZONES.find(function(z){return mainPct>=z.pmin&&mainPct<z.pmax;})||VZ_ZONES[VZ_ZONES.length-1];
+  var badge=document.getElementById('vz-zone-badge');
+  if(badge){
+    badge.style.background=zone.col.replace('.9','.12');
+    badge.style.border='1px solid '+zone.col.replace('.9','.35');
+    badge.querySelector('div').style.background=zone.col;
+    badge.querySelector('span').textContent=mainPct+'% → '+zone.name;
+  }
 }
 
 function printZonasPrescription(){
