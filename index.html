@@ -335,11 +335,12 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
     <div style="font-size:22px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px">CT SANTIAGO FLEITAS</div>
     <div style="font-size:10px;color:var(--dim);margin-bottom:4px;letter-spacing:2px;text-transform:uppercase">Cuerpo Técnico</div>
     <div style="font-size:10px;color:var(--mut);margin-bottom:32px;opacity:.6">Plataforma de Análisis Deportivo · 2026</div>
-    <div style="font-size:10px;color:var(--dim);margin-bottom:10px;text-transform:uppercase;letter-spacing:.8px">Contraseña de acceso</div>
-    <input type="password" id="login-pass" class="login-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" autofocus>
-    <button class="login-btn" onclick="doLogin()">Ingresar →</button>
+    <div style="font-size:10px;color:var(--dim);margin-bottom:10px;text-transform:uppercase;letter-spacing:.8px">Acceso al sistema</div>
+    <input type="email" id="login-email" class="login-input" placeholder="tu@email.com" style="letter-spacing:0;text-align:left;padding-left:16px;margin-bottom:8px" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+    <input type="password" id="login-pass" class="login-input" placeholder="Contraseña" onkeydown="if(event.key==='Enter')doLogin()" style="margin-bottom:12px">
+    <button class="login-btn" onclick="doLogin()" id="login-btn">Ingresar →</button>
     <div class="login-error" id="login-error"></div>
-    <div style="font-size:10px;color:var(--mut);margin-top:24px">Sistema protegido · Solo cuerpo técnico</div>
+    <div style="font-size:10px;color:var(--mut);margin-top:24px">Sistema protegido · Solo cuerpo técnico autorizado</div>
   </div>
 </div>
 <div id="sb-overlay" onclick="closeSidebar()"></div>
@@ -372,8 +373,12 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
     <div class="nav" data-tab="semaforo" data-title="Semáforo · Disponibilidad">🚦&nbsp; Semáforo</div>
     <div class="nav" data-tab="microciclo" data-title="Planificación Microciclo">📅&nbsp; Microciclo</div>
     <div class="nav" data-tab="graficos" data-title="Gráficos · Analytics">📈&nbsp; Gráficos</div>
+    <div class="nav" data-tab="usuarios" data-title="Gestión de Usuarios" style="display:none">👥&nbsp; Usuarios</div>
   </div>
-  <div class="sb-ft">CT SF · <span style="cursor:pointer;color:var(--acc)" onclick="openGPSConfig()" title="Configurar GPS">⚙ GPS</span> · <span style="cursor:pointer;color:var(--mut)" onclick="doLogout()">Salir</span></div>
+  <div class="sb-ft" style="flex-direction:column;gap:4px;align-items:flex-start">
+    <div style="font-size:10px;color:var(--acc);font-weight:700" id="sb-role-lbl"></div>
+    <div style="display:flex;gap:10px;font-size:10px">CT SF · <span style="cursor:pointer;color:var(--acc)" onclick="openGPSConfig()" title="Configurar GPS">⚙ GPS</span> · <span style="cursor:pointer;color:var(--mut)" onclick="doLogout()">Salir</span></div>
+  </div>
 </div>
 <div class="mn">
   <div class="topbar">
@@ -4428,15 +4433,17 @@ async function removeCustomPlayer(idx){
   showBanner('Jugador eliminado','var(--mut)',2000);
 }
 
-function changePassword(){
+async function changePassword(){
   var p1=(document.getElementById('new-pass-1')||{}).value||'';
   var p2=(document.getElementById('new-pass-2')||{}).value||'';
   if(p1.length<6){showBanner('⚠️ Mínimo 6 caracteres','var(--yel)',2000);return;}
   if(p1!==p2){showBanner('⚠️ Las contraseñas no coinciden','var(--red)',2000);return;}
-  CT_PASSWORD=p1;
-  try{localStorage.setItem(SESSION_KEY,p1);}catch(e){}
-  closeGPSConfig();
-  showBanner('✅ Contraseña cambiada · Avisá al CT','var(--grn)',4000);
+  if(!ATLAS_SESSION){showBanner('⚠️ No autenticado','var(--red)',2000);return;}
+  try{
+    var r=await fetch(SUPABASE_URL+'/auth/v1/user',{method:'PUT',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+ATLAS_SESSION.access_token,'Content-Type':'application/json'},body:JSON.stringify({password:p1})});
+    if(r.ok){closeGPSConfig();showBanner('✅ Contraseña cambiada','var(--grn)',3000);}
+    else{var d=await r.json();showBanner('⚠️ '+(d.msg||'Error al cambiar contraseña'),'var(--red)',3000);}
+  }catch(e){showBanner('⚠️ Error de conexión','var(--red)',2000);}
 }
 
 function toggleGPSDevice(idx,val){
@@ -9203,7 +9210,9 @@ var TABS={
   lesiones:{title:'Registro de Lesiones',render:renderLesiones},
   semaforo:{title:'Semáforo · Disponibilidad del Plantel',render:renderSemaforo},
   microciclo:{title:'Planificación Microciclo',render:renderMicrociclo},
-  graficos:{title:'Gráficos · Analytics',render:renderGraficos}
+  graficos:{title:'Gráficos · Analytics',render:renderGraficos},
+  partidos:{title:'Partidos · Fixture',render:renderEstadisticas},
+  usuarios:{title:'Gestión de Usuarios',render:renderUsuarios}
 };
 
 // ══════════════════════════════════════════════════
@@ -10027,96 +10036,228 @@ function populateSels(){
 }
 
 // ===== LOGIN =====
-var CT_PASSWORD = 'Claypole2026';
-var SESSION_KEY = 'atlas_auth';
+var SESSION_KEY = 'atlas_session';
+var ATLAS_SESSION = null;
+var ATLAS_ROLE = null;
+var ATLAS_USER_EMAIL = null;
 
-function checkAuth(){
+var ROLE_TABS = {
+  admin: null,
+  dt:     ['plantel','carga','acumulados','historial','zonas','rpe','wellness','estadisticas','comparaciones','semaforo','microciclo','graficos','partidos'],
+  medico: ['plantel','lesiones','wellness','checkin','evaluaciones','neuro','semaforo','individual'],
+  fisio:  ['plantel','carga','acumulados','historial','evaluaciones','neuro','fp','sprints','zonas','fv','individual','comparaciones'],
+  readonly:['plantel','carga','acumulados','estadisticas','semaforo']
+};
+var ROLE_LABELS = {admin:'⚙️ Administrador',dt:'🎯 Cuerpo Técnico',medico:'🩺 Médico/Kinesiólogo',fisio:'💪 Preparador Físico',readonly:'👁 Solo lectura'};
+
+async function checkAuth(){
   try{
-    var v=localStorage.getItem(SESSION_KEY);
-    return v===CT_PASSWORD;
-  }catch(e){return false;}
+    var stored=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+    if(!stored||!stored.access_token)return false;
+    var r=await fetch(SUPABASE_URL+'/auth/v1/user',{headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+stored.access_token}});
+    if(r.ok){
+      var u=await r.json();
+      ATLAS_SESSION=stored;ATLAS_USER_EMAIL=u.email;
+      await loadUserRole(u.email);return true;
+    }
+    if(stored.refresh_token){
+      var rr=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:stored.refresh_token})});
+      if(rr.ok){
+        var ns=await rr.json();
+        ATLAS_SESSION=ns;ATLAS_USER_EMAIL=ns.user.email;
+        try{localStorage.setItem(SESSION_KEY,JSON.stringify(ns));}catch(e){}
+        await loadUserRole(ns.user.email);return true;
+      }
+    }
+  }catch(e){}
+  localStorage.removeItem(SESSION_KEY);return false;
+}
+
+async function loadUserRole(email){
+  if(!email){ATLAS_ROLE=null;return;}
+  try{
+    var rows=await sbGet('user_roles','email=eq.'+encodeURIComponent(email));
+    ATLAS_ROLE=rows&&rows.length?rows[0].role:null;
+    if(rows&&rows.length&&!rows[0].user_id&&ATLAS_SESSION)
+      sbUpdate('user_roles','email=eq.'+encodeURIComponent(email),{user_id:ATLAS_SESSION.user.id});
+  }catch(e){ATLAS_ROLE=null;}
+}
+
+function filterNavByRole(){
+  var role=ATLAS_ROLE||'readonly';
+  var allowed=ROLE_TABS[role];
+  document.querySelectorAll('.nav[data-tab]').forEach(function(el){
+    var tab=el.dataset.tab;
+    if(tab==='usuarios'){el.style.display=role==='admin'?'':'none';return;}
+    el.style.display=(allowed===null||allowed.indexOf(tab)>=0)?'':'none';
+  });
+  var lbl=document.getElementById('sb-role-lbl');
+  if(lbl)lbl.textContent=(ATLAS_USER_EMAIL?ATLAS_USER_EMAIL.split('@')[0]+' · ':'')+( ROLE_LABELS[role]||role);
 }
 
 async function doLogin(){
-  var pass=document.getElementById('login-pass');
+  var emailEl=document.getElementById('login-email');
+  var passEl=document.getElementById('login-pass');
   var err=document.getElementById('login-error');
-  if(!pass)return;
-  if(pass.value===CT_PASSWORD){
-    try{localStorage.setItem(SESSION_KEY,CT_PASSWORD);}catch(e){}
-    document.getElementById('login-screen').classList.add('hidden');
-    // Show loading indicator (same as auto-login path)
-    var loadDiv=document.createElement('div');
-    loadDiv.id='atlas-loading';
-    loadDiv.style.cssText='position:fixed;inset:0;z-index:9998;background:linear-gradient(135deg,#030b14 0%,#050f1c 60%,#070d1a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden';
-    loadDiv.innerHTML=
-      '<div style="position:absolute;top:15%;left:20%;width:500px;height:500px;background:radial-gradient(ellipse,rgba(0,229,160,.06),transparent 70%);pointer-events:none"></div>'
-      +'<div style="position:absolute;bottom:20%;right:15%;width:350px;height:350px;background:radial-gradient(ellipse,rgba(168,85,247,.05),transparent 70%);pointer-events:none"></div>'
-      +'<div style="width:88px;height:88px;border-radius:24px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 60px rgba(6,214,160,.2),0 20px 60px rgba(0,0,0,.5);margin-bottom:28px;animation:float 3s ease-in-out infinite,pulseGlow 3s ease-in-out infinite;padding:10px;overflow:hidden"><img src="'+SHIELD_IMG+'" style="width:100%;height:100%;object-fit:contain" alt="CA Claypole"></div>'
-      +'<div style="font-size:38px;font-weight:900;letter-spacing:6px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;animation:fadeIn .8s ease">ATLAS</div>'
-      +'<div style="font-size:11px;color:#475569;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:4px;animation:fadeIn 1s ease">Sistema de Monitoreo Deportivo</div>'
-      +'<div style="font-size:10px;color:#334155;letter-spacing:1px;margin-bottom:52px;animation:fadeIn 1.2s ease">CT Santiago Fleitas · Temporada 2026</div>'
-      +'<div style="width:240px;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:14px">'
-        +'<div id="load-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:2px;transition:width .6s cubic-bezier(.4,0,.2,1)"></div>'
-      +'</div>'
-      +'<div id="load-msg" style="font-size:11px;color:#475569;letter-spacing:.3px;min-height:16px;transition:opacity .3s">Iniciando sistema...</div>';
-    document.body.appendChild(loadDiv);
-    var bar=document.getElementById('load-bar');
-    var _lmsg=document.getElementById('load-msg');
-    var _lpct=10;if(bar)bar.style.width='10%';
-    var _lramp=setInterval(function(){_lpct=Math.min(80,_lpct+4);if(bar)bar.style.width=_lpct+'%';if(_lmsg){if(_lpct<28)_lmsg.textContent='Conectando con servidor...';else if(_lpct<48)_lmsg.textContent='Cargando plantel...';else if(_lpct<66)_lmsg.textContent='Procesando sesiones GPS...';else _lmsg.textContent='Preparando datos...';}},350);
-    function removeLoader(){clearInterval(_lramp);var ld=document.getElementById('atlas-loading');if(ld){ld.style.transition='opacity .4s';ld.style.opacity='0';setTimeout(function(){if(ld.parentNode)ld.parentNode.removeChild(ld);},400);}}
-    var loaderGuard=setTimeout(removeLoader,15000);
-    try{await initATLAS();}catch(e){console.error('initATLAS:',e);}
-    clearTimeout(loaderGuard);
-    if(bar)bar.style.width='100%';
-    setTimeout(removeLoader,300);
-  } else {
-    err.textContent='Contraseña incorrecta';
-    pass.value='';
-    pass.style.borderColor='var(--red)';
-    setTimeout(function(){
-      err.textContent='';
-      pass.style.borderColor='var(--b)';
-    },2000);
+  var btn=document.getElementById('login-btn');
+  if(!emailEl||!passEl)return;
+  var email=emailEl.value.trim(),pass=passEl.value;
+  if(!email||!pass){err.textContent='Completá email y contraseña';return;}
+  err.textContent='';btn.textContent='Ingresando...';btn.style.opacity='.7';
+  try{
+    var r=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})});
+    var data=await r.json();
+    if(!r.ok){err.textContent=data.msg||data.error_description||'Credenciales incorrectas';btn.textContent='Ingresar →';btn.style.opacity='1';passEl.value='';return;}
+    ATLAS_SESSION=data;ATLAS_USER_EMAIL=data.user.email;
+    try{localStorage.setItem(SESSION_KEY,JSON.stringify(data));}catch(e){}
+    await loadUserRole(data.user.email);
+    if(!ATLAS_ROLE){
+      err.textContent='Sin acceso asignado. Contactá al administrador.';
+      ATLAS_SESSION=null;localStorage.removeItem(SESSION_KEY);
+      btn.textContent='Ingresar →';btn.style.opacity='1';return;
+    }
+  }catch(e){
+    err.textContent='Error de conexión. Chequeá la red.';
+    btn.textContent='Ingresar →';btn.style.opacity='1';return;
   }
+  document.getElementById('login-screen').classList.add('hidden');
+  filterNavByRole();
+  var L=_showLoadingScreen();
+  try{await initATLAS();}catch(e){console.error('initATLAS:',e);}
+  clearTimeout(L.loaderGuard);
+  if(L.bar)L.bar.style.width='100%';
+  setTimeout(L.removeLoader,300);
 }
 
-function doLogout(){
+async function doLogout(){
+  try{
+    if(ATLAS_SESSION){
+      await fetch(SUPABASE_URL+'/auth/v1/logout',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+ATLAS_SESSION.access_token}});
+    }
+  }catch(e){}
+  ATLAS_SESSION=null;ATLAS_ROLE=null;ATLAS_USER_EMAIL=null;
   try{localStorage.removeItem(SESSION_KEY);}catch(e){}
   location.reload();
 }
 
+function _showLoadingScreen(){
+  var loadDiv=document.createElement('div');
+  loadDiv.id='atlas-loading';
+  loadDiv.style.cssText='position:fixed;inset:0;z-index:9998;background:linear-gradient(135deg,#030b14 0%,#050f1c 60%,#070d1a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden';
+  loadDiv.innerHTML=
+    '<div style="position:absolute;top:15%;left:20%;width:500px;height:500px;background:radial-gradient(ellipse,rgba(0,229,160,.06),transparent 70%);pointer-events:none"></div>'
+    +'<div style="position:absolute;bottom:20%;right:15%;width:350px;height:350px;background:radial-gradient(ellipse,rgba(168,85,247,.05),transparent 70%);pointer-events:none"></div>'
+    +'<div style="width:88px;height:88px;border-radius:24px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 60px rgba(6,214,160,.2),0 20px 60px rgba(0,0,0,.5);margin-bottom:28px;animation:float 3s ease-in-out infinite,pulseGlow 3s ease-in-out infinite;padding:10px;overflow:hidden"><img src="'+SHIELD_IMG+'" style="width:100%;height:100%;object-fit:contain" alt="CA Claypole"></div>'
+    +'<div style="font-size:38px;font-weight:900;letter-spacing:6px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;animation:fadeIn .8s ease">ATLAS</div>'
+    +'<div style="font-size:11px;color:#475569;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:4px;animation:fadeIn 1s ease">Sistema de Monitoreo Deportivo</div>'
+    +'<div style="font-size:10px;color:#334155;letter-spacing:1px;margin-bottom:52px;animation:fadeIn 1.2s ease">CT Santiago Fleitas · Temporada 2026</div>'
+    +'<div style="width:240px;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:14px">'
+      +'<div id="load-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:2px;transition:width .6s cubic-bezier(.4,0,.2,1)"></div>'
+    +'</div>'
+    +'<div id="load-msg" style="font-size:11px;color:#475569;letter-spacing:.3px;min-height:16px;transition:opacity .3s">Iniciando sistema...</div>';
+  document.body.appendChild(loadDiv);
+  var bar=document.getElementById('load-bar');
+  var _lmsg=document.getElementById('load-msg');
+  var _lpct=10;if(bar)bar.style.width='10%';
+  var _lramp=setInterval(function(){_lpct=Math.min(80,_lpct+4);if(bar)bar.style.width=_lpct+'%';if(_lmsg){if(_lpct<28)_lmsg.textContent='Conectando con servidor...';else if(_lpct<48)_lmsg.textContent='Cargando plantel...';else if(_lpct<66)_lmsg.textContent='Procesando sesiones GPS...';else _lmsg.textContent='Preparando datos...';}},350);
+  function removeLoader(){clearInterval(_lramp);var ld=document.getElementById('atlas-loading');if(ld){ld.style.transition='opacity .4s';ld.style.opacity='0';setTimeout(function(){if(ld.parentNode)ld.parentNode.removeChild(ld);},400);}}
+  var loaderGuard=setTimeout(removeLoader,15000);
+  return {bar:bar,loaderGuard:loaderGuard,removeLoader:removeLoader};
+}
+
 window.addEventListener('load',async function(){
-  if(checkAuth()){
+  var valid=await checkAuth();
+  if(valid){
     document.getElementById('login-screen').classList.add('hidden');
-    // Show loading indicator
-    var loadDiv=document.createElement('div');
-    loadDiv.id='atlas-loading';
-    loadDiv.style.cssText='position:fixed;inset:0;z-index:9998;background:linear-gradient(135deg,#030b14 0%,#050f1c 60%,#070d1a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden';
-    loadDiv.innerHTML=
-      '<div style="position:absolute;top:15%;left:20%;width:500px;height:500px;background:radial-gradient(ellipse,rgba(0,229,160,.06),transparent 70%);pointer-events:none"></div>'
-      +'<div style="position:absolute;bottom:20%;right:15%;width:350px;height:350px;background:radial-gradient(ellipse,rgba(168,85,247,.05),transparent 70%);pointer-events:none"></div>'
-      +'<div style="width:88px;height:88px;border-radius:24px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 60px rgba(6,214,160,.2),0 20px 60px rgba(0,0,0,.5);margin-bottom:28px;animation:float 3s ease-in-out infinite,pulseGlow 3s ease-in-out infinite;padding:10px;overflow:hidden"><img src="'+SHIELD_IMG+'" style="width:100%;height:100%;object-fit:contain" alt="CA Claypole"></div>'
-      +'<div style="font-size:38px;font-weight:900;letter-spacing:6px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;animation:fadeIn .8s ease">ATLAS</div>'
-      +'<div style="font-size:11px;color:#475569;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:4px;animation:fadeIn 1s ease">Sistema de Monitoreo Deportivo</div>'
-      +'<div style="font-size:10px;color:#334155;letter-spacing:1px;margin-bottom:52px;animation:fadeIn 1.2s ease">CT Santiago Fleitas · Temporada 2026</div>'
-      +'<div style="width:240px;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:14px">'
-        +'<div id="load-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--acc),var(--pur));border-radius:2px;transition:width .6s cubic-bezier(.4,0,.2,1)"></div>'
-      +'</div>'
-      +'<div id="load-msg" style="font-size:11px;color:#475569;letter-spacing:.3px;min-height:16px;transition:opacity .3s">Iniciando sistema...</div>';
-    document.body.appendChild(loadDiv);
-    var bar=document.getElementById('load-bar');
-    var _lmsg=document.getElementById('load-msg');
-    var _lpct=10;if(bar)bar.style.width='10%';
-    var _lramp=setInterval(function(){_lpct=Math.min(80,_lpct+4);if(bar)bar.style.width=_lpct+'%';if(_lmsg){if(_lpct<28)_lmsg.textContent='Conectando con servidor...';else if(_lpct<48)_lmsg.textContent='Cargando plantel...';else if(_lpct<66)_lmsg.textContent='Procesando sesiones GPS...';else _lmsg.textContent='Preparando datos...';}},350);
-    function removeLoader(){clearInterval(_lramp);var ld=document.getElementById('atlas-loading');if(ld){ld.style.transition='opacity .4s';ld.style.opacity='0';setTimeout(function(){if(ld.parentNode)ld.parentNode.removeChild(ld);},400);}}
-    var loaderGuard=setTimeout(removeLoader,15000);
+    filterNavByRole();
+    var L=_showLoadingScreen();
     try{await initATLAS();}catch(e){console.error('initATLAS:',e);}
-    clearTimeout(loaderGuard);
-    if(bar)bar.style.width='100%';
-    setTimeout(removeLoader,300);
+    clearTimeout(L.loaderGuard);
+    if(L.bar)L.bar.style.width='100%';
+    setTimeout(L.removeLoader,300);
   }
 });
+
+// ── Gestión de Usuarios (solo admin) ────────────────
+var ROLE_OPTIONS=['admin','dt','medico','fisio','readonly'];
+var ROLE_LABELS_SHORT={admin:'Admin',dt:'Cuerpo Técnico',medico:'Médico',fisio:'Preparador Físico',readonly:'Solo lectura'};
+
+async function renderUsuarios(){
+  var el=document.getElementById('tab-content');
+  if(!el)return;
+  if(ATLAS_ROLE!=='admin'){el.innerHTML='<div style="padding:40px;text-align:center;color:var(--dim)">Acceso restringido a administradores.</div>';return;}
+  el.innerHTML='<div style="padding:20px 16px 8px;font-size:13px;font-weight:700;color:var(--acc);letter-spacing:.5px">Gestión de Usuarios</div>'
+    +'<div style="padding:0 16px 16px"><button class="btn-primary" style="font-size:12px;padding:8px 16px" onclick="openAddUserModal()">+ Nuevo usuario</button></div>'
+    +'<div id="usuarios-list" style="padding:0 16px"><div style="color:var(--dim);font-size:12px">Cargando...</div></div>';
+  await loadUsuariosList();
+}
+
+async function loadUsuariosList(){
+  var container=document.getElementById('usuarios-list');
+  if(!container)return;
+  try{
+    var rows=await sbGet('user_roles','order=created_at.asc');
+    if(!rows||!rows.length){container.innerHTML='<div style="color:var(--dim);font-size:12px">Sin usuarios registrados.</div>';return;}
+    var html='<table style="width:100%;border-collapse:collapse;font-size:12px">'
+      +'<thead><tr style="color:var(--dim);text-align:left;border-bottom:1px solid var(--b)">'
+      +'<th style="padding:8px 6px">Email</th><th style="padding:8px 6px">Rol</th><th style="padding:8px 6px">Acciones</th></tr></thead><tbody>';
+    rows.forEach(function(u){
+      var isMe=u.email===ATLAS_USER_EMAIL;
+      html+='<tr style="border-bottom:1px solid var(--b2)'+(isMe?';background:rgba(0,229,160,.04)':'')+'">'
+        +'<td style="padding:10px 6px;color:var(--fg)">'+(isMe?'<b>':'')+u.email+(isMe?' <span style="color:var(--acc);font-size:10px">(vos)</span></b>':'')+'</td>'
+        +'<td style="padding:10px 6px"><select onchange="updateUserRole(\''+u.email+'\',this.value)" style="background:var(--b2);color:var(--fg);border:1px solid var(--b);border-radius:6px;padding:4px 8px;font-size:11px">'
+        +ROLE_OPTIONS.map(function(r){return '<option value="'+r+'"'+(u.role===r?' selected':'')+'>'+ROLE_LABELS_SHORT[r]+'</option>';}).join('')
+        +'</select></td>'
+        +'<td style="padding:10px 6px">'+(isMe?'<span style="color:var(--dim);font-size:11px">—</span>':'<button onclick="deleteUserRole(\''+u.email+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer">Eliminar</button>')+'</td>'
+        +'</tr>';
+    });
+    html+='</tbody></table>';
+    container.innerHTML=html;
+  }catch(e){container.innerHTML='<div style="color:var(--red);font-size:12px">Error al cargar usuarios.</div>';}
+}
+
+function openAddUserModal(){
+  var html='<div style="background:var(--card);border-radius:14px;padding:24px;max-width:380px;width:90%;border:1px solid var(--b)">'
+    +'<div style="font-weight:700;font-size:14px;margin-bottom:16px;color:var(--fg)">Nuevo usuario</div>'
+    +'<input id="new-user-email" type="email" placeholder="Email del usuario" style="width:100%;box-sizing:border-box;background:var(--b2);color:var(--fg);border:1px solid var(--b);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:10px">'
+    +'<select id="new-user-role" style="width:100%;box-sizing:border-box;background:var(--b2);color:var(--fg);border:1px solid var(--b);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:10px">'
+    +ROLE_OPTIONS.map(function(r){return '<option value="'+r+'">'+ROLE_LABELS_SHORT[r]+'</option>';}).join('')
+    +'</select>'
+    +'<div id="new-user-note" style="font-size:11px;color:var(--dim);margin-bottom:12px">⚠ El usuario debe registrarse primero en la app con ese email y contraseña.</div>'
+    +'<div style="display:flex;gap:10px">'
+    +'<button class="btn-primary" style="flex:1;padding:10px;font-size:13px" onclick="confirmAddUser()">Agregar</button>'
+    +'<button onclick="closeModal()" style="flex:1;padding:10px;font-size:13px;background:var(--b2);color:var(--dim);border:none;border-radius:8px;cursor:pointer">Cancelar</button>'
+    +'</div></div>';
+  var modal=document.getElementById('modal-overlay');
+  if(modal){modal.innerHTML='<div style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7)">'+html+'</div>';modal.classList.remove('hidden');}
+}
+
+async function confirmAddUser(){
+  var email=(document.getElementById('new-user-email')||{}).value||'';
+  var role=(document.getElementById('new-user-role')||{}).value||'readonly';
+  if(!email||!email.includes('@')){showBanner('⚠️ Email inválido','var(--red)',2000);return;}
+  try{
+    await sbUpsert('user_roles',{email:email.toLowerCase(),role:role},{conflict:'email'});
+    closeModal();showBanner('✅ Usuario agregado','var(--grn)',2000);
+    await loadUsuariosList();
+  }catch(e){showBanner('⚠️ Error al guardar','var(--red)',2000);}
+}
+
+async function updateUserRole(email,role){
+  try{
+    await sbUpdate('user_roles','email=eq.'+encodeURIComponent(email),{role:role});
+    showBanner('✅ Rol actualizado','var(--grn)',1500);
+  }catch(e){showBanner('⚠️ Error al actualizar','var(--red)',2000);}
+}
+
+async function deleteUserRole(email){
+  if(!confirm('¿Eliminar acceso de '+email+'?'))return;
+  try{
+    await sbDelete('user_roles','email=eq.'+encodeURIComponent(email));
+    showBanner('✅ Usuario eliminado','var(--grn)',2000);
+    await loadUsuariosList();
+  }catch(e){showBanner('⚠️ Error al eliminar','var(--red)',2000);}
+}
 
 async function initATLAS(){
   await initIDB();
