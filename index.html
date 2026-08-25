@@ -2572,13 +2572,63 @@ async function saveRPEList(){
   var isOffline=!navigator.onLine;
   if(rows.length)await sbUpsert('rpe',rows);
   await loadRealRPE();updateTopStats();
-  if(isOffline){
-    if(btn){btn.textContent='💾 Offline';btn.style.background='rgba(245,158,11,.2)';btn.style.color='var(--yel)';}
-    showBanner('💾 RPE guardado offline · se sincronizará al recuperar WiFi','var(--yel)',4000);
-  }else{
-    if(btn){btn.textContent='✓ Guardado';btn.style.background='rgba(16,185,129,.2)';btn.style.color='var(--grn)';}
-  }
-  setTimeout(function(){if(btn){btn.textContent='💾 Guardar';btn.style.background='';btn.style.color='';}},3000);
+  if(isOffline) showBanner('💾 RPE guardado offline · se sincronizará al recuperar WiFi','var(--yel)',4000);
+  renderRPESummary();
+}
+
+function renderRPESummary(){
+  var res=RPEST.res;
+  var pidxs=Object.keys(res).map(Number);
+  if(!pidxs.length){renderRPETeam();return;}
+  var vals=pidxs.map(function(i){return res[i];});
+  var n=vals.length;
+  var avgRPE=+(vals.reduce(function(s,v){return s+v;},0)/n).toFixed(1);
+  var avgSRPE=Math.round(avgRPE*RPEST.dur);
+  var dist=Array(10).fill(0);
+  vals.forEach(function(v){if(v>=1&&v<=10)dist[v-1]++;});
+  var maxDist=Math.max.apply(null,dist)||1;
+  var rpeColor=function(r){return r<=3?'var(--grn)':r<=5?'#a3e635':r<=7?'var(--yel)':r<=8?'#fb923c':'var(--red)';};
+  var avgCol=rpeColor(avgRPE);
+  var distBars=dist.map(function(cnt,i){
+    var h=Math.max(cnt?4:0,Math.round(cnt/maxDist*56));
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">'
+      +'<div style="font-size:8px;color:var(--mut)">'+(cnt||'')+'</div>'
+      +'<div style="width:100%;background:'+RCLR[i]+';border-radius:3px 3px 0 0;height:'+h+'px"></div>'
+      +'<div style="font-size:9px;font-weight:700;color:'+RCLR[i]+'">'+(i+1)+'</div>'
+      +'</div>';
+  }).join('');
+  var playerRows=pidxs.sort(function(a,b){return res[b]-res[a];}).map(function(i){
+    var p=PL[i];if(!p)return'';
+    var rpe=res[i],srpe=rpe*RPEST.dur;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">'
+      +'<div style="font-size:12px;font-weight:600">'+p.name+'<span style="font-size:9px;color:var(--mut);margin-left:6px">'+p.pos+'</span></div>'
+      +'<div style="display:flex;align-items:center;gap:10px">'
+      +'<span style="font-size:10px;color:var(--mut)">'+srpe+' AU</span>'
+      +'<span style="background:'+RCLR[rpe-1]+';color:rgba(0,0,0,.75);border-radius:6px;padding:2px 10px;font-weight:900;font-size:13px">'+rpe+'</span>'
+      +'</div></div>';
+  }).join('');
+  var notEntered=PL.filter(function(p,i){return res[i]===undefined&&!RPEST.skp.has(i);});
+  var skipped=Array.from(RPEST.skp);
+  $('t-rpe').innerHTML=
+    '<div style="max-width:620px;margin:0 auto">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div style="font-size:14px;font-weight:700">✅ RPE Guardado · '+TODAY+'</div>'
+    +'<button onclick="RPEST.phase=\'team\';renderRPETeam()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">Nueva sesión</button>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">'
+    +'<div class="card" style="text-align:center;padding:12px"><div style="font-size:24px;font-weight:900;color:'+avgCol+'">'+avgRPE+'</div><div style="font-size:9px;color:var(--mut)">RPE Promedio</div></div>'
+    +'<div class="card" style="text-align:center;padding:12px"><div style="font-size:24px;font-weight:900;color:var(--acc)">'+avgSRPE+'</div><div style="font-size:9px;color:var(--mut)">sRPE avg (AU)</div></div>'
+    +'<div class="card" style="text-align:center;padding:12px"><div style="font-size:24px;font-weight:900;color:var(--txt)">'+n+'/'+PL.length+'</div><div style="font-size:9px;color:var(--mut)">Completaron</div></div>'
+    +'<div class="card" style="text-align:center;padding:12px"><div style="font-size:24px;font-weight:900;color:var(--txt)">'+RPEST.dur+"'</div><div style=\"font-size:9px;color:var(--mut)\">Duración</div></div>"
+    +'</div>'
+    +'<div class="card" style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Distribución RPE</div>'
+    +'<div style="display:flex;gap:4px;height:70px;align-items:flex-end">'+distBars+'</div>'
+    +'</div>'
+    +'<div class="card"><div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Por jugador · mayor a menor</div>'
+    +playerRows
+    +(notEntered.length?'<div style="margin-top:10px;padding:8px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;font-size:11px;color:var(--yel)">⚠️ Sin dato: '+notEntered.map(function(p){return p.name;}).join(', ')+'</div>':'')
+    +(skipped.length?'<div style="margin-top:6px;font-size:10px;color:var(--mut)">No participaron: '+skipped.map(function(i){return PL[i]?PL[i].name:'#'+i;}).join(', ')+'</div>':'')
+    +'</div></div>';
 }
 async function viewRPEToday(){
   RPEST.res={};RPEST.skp=new Set();
@@ -5592,6 +5642,83 @@ function vzUpdatePrescription(){
     badge.querySelector('div').style.background=zone.col;
     badge.querySelector('span').textContent=mainPct+'% → '+zone.name;
   }
+}
+
+function printWeeklyReport(){
+  var gpsP=PL.filter(function(p){return p.hasGPSDevice;});
+  var alertas=checkAlertas();
+  var weekSessions=SESSIONS.filter(function(s){var d=new Date(s.date),w=new Date();w.setDate(w.getDate()-7);return d>=w;});
+  // Build weekly comparison data
+  var compRows=gpsP.map(function(p){
+    var d=buildAcuEWMA(p,'pl');
+    var daily=d.daily,n2=daily.length;
+    var thisW=daily.slice(-7).reduce(function(a,b){return a+b;},0);
+    var lastW=n2>=14?daily.slice(-14,-7).reduce(function(a,b){return a+b;},0):0;
+    var peak=0;for(var wi=7;wi<=n2;wi++){var ws=daily.slice(wi-7,wi).reduce(function(a,b){return a+b;},0);if(ws>peak)peak=ws;}
+    var pct=lastW>0?Math.round((thisW/lastW-1)*100):null;
+    var pctPeak=peak>0?Math.round(thisW/peak*100):null;
+    var acwr=d.acwr;
+    var acC=acwr?acwr>1.5?'#dc2626':acwr>1.3?'#f59e0b':acwr<0.8?'#f59e0b':'#10b981':'#64748b';
+    return '<tr style="border-bottom:1px solid #e2e8f0">'
+      +'<td style="padding:8px 10px;font-weight:600">'+p.name+'</td>'
+      +'<td style="padding:8px 10px;color:#64748b">'+p.pos+'</td>'
+      +'<td style="padding:8px 10px;text-align:center;font-weight:700">'+(thisW?Math.round(thisW)+' AU':'—')+'</td>'
+      +'<td style="padding:8px 10px;text-align:center;color:#64748b">'+(lastW?Math.round(lastW)+' AU':'—')+'</td>'
+      +'<td style="padding:8px 10px;text-align:center;font-weight:700;color:'+(pct!==null?(pct>20?'#dc2626':pct>10?'#f59e0b':pct<-15?'#f59e0b':'#10b981'):'#64748b')+'">'+(pct!==null?(pct>0?'+':'')+pct+'%':'—')+'</td>'
+      +'<td style="padding:8px 10px;text-align:center;font-weight:700;color:'+acC+'">'+(acwr?acwr.toFixed(2):'—')+'</td>'
+      +'<td style="padding:8px 10px;text-align:center">'+(pctPeak!==null?pctPeak+'%':'—')+'</td>'
+      +'</tr>';
+  }).join('');
+  var alertRows=alertas.map(function(a){
+    var col=a.color==='var(--red)'?'#dc2626':a.color==='var(--yel)'?'#f59e0b':'#10b981';
+    return '<tr style="border-bottom:1px solid #e2e8f0">'
+      +'<td style="padding:8px 10px;font-weight:600">'+a.player.name+'</td>'
+      +'<td style="padding:8px 10px">'+a.icon+' '+a.msg+'</td>'
+      +'<td style="padding:8px 10px;text-align:center;font-weight:700;color:'+col+'">'+(a.color==='var(--red)'?'Crítica':'Precaución')+'</td>'
+      +'</tr>';
+  }).join('');
+  var lesActivas=typeof LESIONES!=='undefined'?LESIONES.filter(function(l){return l.status==='activa';}):[];
+  var lesRows=lesActivas.map(function(l){
+    var p=PL[l.player_idx];
+    return '<tr style="border-bottom:1px solid #e2e8f0">'
+      +'<td style="padding:8px 10px;font-weight:600">'+(p?p.name:'#'+l.player_idx)+'</td>'
+      +'<td style="padding:8px 10px">'+l.tipo+'</td>'
+      +'<td style="padding:8px 10px">'+l.zona+'</td>'
+      +'<td style="padding:8px 10px">'+l.fecha_inicio+'</td>'
+      +'<td style="padding:8px 10px">'+Math.round((new Date()-new Date(l.fecha_inicio))/(1000*60*60*24))+' días</td>'
+      +'</tr>';
+  }).join('');
+  var sessRows=weekSessions.map(function(s){
+    var part=s.players.filter(function(p){return p.participated;}).length;
+    var avgPL=part?Math.round(s.players.filter(function(p){return p.participated;}).reduce(function(t,p){return t+(p.metrics.pl||0);},0)/part):0;
+    return '<tr style="border-bottom:1px solid #e2e8f0">'
+      +'<td style="padding:8px 10px">'+s.date+'</td>'
+      +'<td style="padding:8px 10px;font-weight:600">'+s.sessionType+'</td>'
+      +'<td style="padding:8px 10px;text-align:center">'+part+'</td>'
+      +'<td style="padding:8px 10px;text-align:center">'+(s.duration||'—')+' min</td>'
+      +'<td style="padding:8px 10px;text-align:center;font-weight:700">'+avgPL+' AU</td>'
+      +'</tr>';
+  }).join('');
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    +'<title>Reporte Semanal ATLAS · '+(TEAM?TEAM.name:'')+'</title>'
+    +'<style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#fff;color:#111;padding:24px;font-size:12px}'
+    +'h1{font-size:20px;margin:0 0 4px;color:#0f172a}h2{font-size:14px;margin:16px 0 8px;color:#0f172a;border-bottom:2px solid #e2e8f0;padding-bottom:6px}'
+    +'p{font-size:11px;color:#64748b;margin:0 0 12px}'
+    +'table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px}'
+    +'th{background:#f8fafc;padding:7px 10px;text-align:left;font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:.5px;border:1px solid #e2e8f0}'
+    +'td{border:1px solid #e2e8f0}'
+    +'.badge-red{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:4px;padding:2px 8px;font-weight:700}'
+    +'.badge-yel{background:#fffbeb;color:#f59e0b;border:1px solid #fde68a;border-radius:4px;padding:2px 8px;font-weight:700}'
+    +'.badge-grn{background:#f0fdf4;color:#10b981;border:1px solid #a7f3d0;border-radius:4px;padding:2px 8px;font-weight:700}'
+    +'@media print{@page{size:A4;margin:12mm}}</style></head><body>'
+    +'<h1>📊 Reporte Semanal ATLAS</h1>'
+    +'<p>'+(TEAM?TEAM.name:'')+'&nbsp;·&nbsp;Semana al '+TODAY+'&nbsp;·&nbsp;'+weekSessions.length+' sesiones &nbsp;·&nbsp;'+alertas.length+' alerta'+(alertas.length!==1?'s':'')+(lesActivas.length?' &nbsp;·&nbsp; '+lesActivas.length+' lesión'+(lesActivas.length!==1?'es':''):'')+'</p>'
+    +(alertas.length?'<h2>🚨 Alertas de riesgo</h2><table><thead><tr><th>Jugador</th><th>Alerta</th><th>Nivel</th></tr></thead><tbody>'+alertRows+'</tbody></table>':'')
+    +'<h2>⚡ Carga semanal GPS</h2><table><thead><tr><th>Jugador</th><th>Pos.</th><th>Esta sem.</th><th>Sem. ant.</th><th>Cambio</th><th>ACWR</th><th>% Pico</th></tr></thead><tbody>'+compRows+'</tbody></table>'
+    +(weekSessions.length?'<h2>📅 Sesiones de la semana</h2><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Jugadores</th><th>Duración</th><th>PL avg</th></tr></thead><tbody>'+sessRows+'</tbody></table>':'')
+    +(lesActivas.length?'<h2>🩹 Lesiones activas</h2><table><thead><tr><th>Jugador</th><th>Tipo</th><th>Zona</th><th>Inicio</th><th>Evolución</th></tr></thead><tbody>'+lesRows+'</tbody></table>':'')
+    +'<script>window.print();<\/script></body></html>';
+  var w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}
 }
 
 function printZonasPrescription(){
@@ -8930,7 +9057,69 @@ function renderAcumulados(){
       +(a?m.color:'rgba(255,255,255,.1)')+';background:'+(a?m.color+'22':'transparent')
       +';color:'+(a?m.color:'var(--mut)')+';font-size:10px;font-weight:'+(a?'700':'400')
       +';cursor:pointer;transition:.2s;white-space:nowrap">'+m.label+'</button>';}).join('');
+  // Alertas strip
+  var alertas=checkAlertas();
+  var alertasHtml='';
+  if(alertas.length){
+    var rojas=alertas.filter(function(a){return a.color==='var(--red)';});
+    var amarillas=alertas.filter(function(a){return a.color!=='var(--red)';});
+    alertasHtml='<div class="card" style="border-color:rgba(244,63,94,.3);background:rgba(244,63,94,.04);margin-bottom:4px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+      +'<div style="font-size:12px;font-weight:800;color:var(--red)">🚨 '+(rojas.length)+' crítica'+(rojas.length!==1?'s':'')+' · ⚠️ '+amarillas.length+' precaución</div>'
+      +'<button onclick="printWeeklyReport()" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.25);color:var(--acc);border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">🖨 Reporte semanal</button>'
+      +'</div>'
+      +alertas.map(function(a){
+        return '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">'
+          +'<span style="font-size:12px">'+a.icon+'</span>'
+          +'<div><span style="font-size:11px;font-weight:700;color:var(--txt)">'+a.player.name+'</span>'
+          +' <span style="font-size:10px;color:'+a.color+'">'+a.msg+'</span></div>'
+          +'</div>';
+      }).join('')
+      +'</div>';
+  }
+  // Weekly comparison table
+  var weekCompHtml='<div class="card" style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+    +'<h3 style="margin:0">📊 Comparación Semanal · Player Load</h3>'
+    +(!alertas.length?'<button onclick="printWeeklyReport()" style="background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.25);color:var(--acc);border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">🖨 Reporte semanal</button>':'')
+    +'</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:520px">'
+    +'<thead><tr style="border-bottom:1px solid var(--b)">'
+    +'<th style="text-align:left;padding:7px 8px;color:var(--mut);font-size:9px;text-transform:uppercase">Jugador</th>'
+    +'<th style="text-align:center;padding:7px 4px;color:var(--acc);font-size:9px;text-transform:uppercase">Esta semana</th>'
+    +'<th style="text-align:center;padding:7px 4px;color:var(--mut);font-size:9px;text-transform:uppercase">Sem. anterior</th>'
+    +'<th style="text-align:center;padding:7px 4px;color:var(--mut);font-size:9px;text-transform:uppercase">Cambio</th>'
+    +'<th style="text-align:center;padding:7px 4px;color:var(--mut);font-size:9px;text-transform:uppercase">Pico 8 sem.</th>'
+    +'<th style="text-align:center;padding:7px 4px;color:var(--mut);font-size:9px;text-transform:uppercase">% del pico</th>'
+    +'</tr></thead><tbody>';
+  gpsP.forEach(function(p,pi){
+    var d=buildAcuEWMA(p,'pl');
+    var daily=d.daily,n2=daily.length;
+    var thisW=daily.slice(-7).reduce(function(a,b){return a+b;},0);
+    var lastW=n2>=14?daily.slice(-14,-7).reduce(function(a,b){return a+b;},0):0;
+    var peak=0;for(var wi=7;wi<=n2;wi++){var ws=daily.slice(wi-7,wi).reduce(function(a,b){return a+b;},0);if(ws>peak)peak=ws;}
+    var pct=lastW>0?Math.round((thisW/lastW-1)*100):null;
+    var pctPeak=peak>0?Math.round(thisW/peak*100):null;
+    var pctCol=pct===null?'var(--mut)':pct>20?'var(--red)':pct>10?'var(--yel)':pct<-15?'var(--yel)':'var(--grn)';
+    var peakCol=pctPeak===null?'var(--mut)':pctPeak>=90?'var(--red)':pctPeak>=75?'var(--yel)':'var(--grn)';
+    weekCompHtml+='<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+      +'<td style="padding:7px 8px"><div style="font-weight:600">'+p.name+'</div><div style="font-size:9px;color:var(--mut)">'+p.pos+'</div></td>'
+      +'<td style="padding:7px 4px;text-align:center;font-weight:700;color:var(--acc)">'+(thisW?Math.round(thisW)+' AU':'—')+'</td>'
+      +'<td style="padding:7px 4px;text-align:center;color:var(--mut)">'+(lastW?Math.round(lastW)+' AU':'—')+'</td>'
+      +'<td style="padding:7px 4px;text-align:center;font-weight:700;color:'+pctCol+'">'+(pct!==null?(pct>0?'+':'')+pct+'%':'—')+'</td>'
+      +'<td style="padding:7px 4px;text-align:center;color:var(--mut)">'+(peak?Math.round(peak)+' AU':'—')+'</td>'
+      +'<td style="padding:7px 4px;text-align:center;font-weight:700;color:'+peakCol+'">'+(pctPeak!==null?pctPeak+'%':'—')+'</td>'
+      +'</tr>';
+  });
+  weekCompHtml+='</tbody></table></div>'
+    +'<div style="display:flex;gap:14px;margin-top:8px;font-size:9px;color:var(--mut);flex-wrap:wrap">'
+    +'Cambio: <span style="color:var(--grn)">● Estable</span>'
+    +' <span style="color:var(--yel)">● +10–20% / -15%</span>'
+    +' <span style="color:var(--red)">● +20% spike</span>'
+    +'</div></div>';
+
   el.innerHTML='<div style="display:flex;flex-direction:column;gap:12px">'
+    +alertasHtml
+    +weekCompHtml
     +'<div class="card">'
     +'<h3>📡 Acumulados Semanales · Jugadores GPS</h3>'
     +'<p style="font-size:11px;color:var(--mut);margin:0 0 10px">Suma últimos 7 días · EWMA calculado desde todas las sesiones disponibles (α aguda=0.28, α crónica=0.069).</p>'
