@@ -2493,6 +2493,7 @@ var RPEST={phase:'team',dur:75,expanded:-1,res:{},skp:new Set()};
 function renderRPETab(){
   if(RPEST.phase==='setup')renderRPESetup();
   else if(RPEST.phase==='list')renderRPEList();
+  else if(RPEST.phase==='summary')renderRPESummary();
   else renderRPETeam();
 }
 function renderRPETeam(){
@@ -2582,9 +2583,10 @@ async function saveRPEList(){
 }
 
 function renderRPESummary(){
+  RPEST.phase='summary';
   var res=RPEST.res;
   var pidxs=Object.keys(res).map(Number);
-  if(!pidxs.length){renderRPETeam();return;}
+  if(!pidxs.length){RPEST.phase='team';renderRPETeam();return;}
 
   var vals=pidxs.map(function(i){return res[i];});
   var srpeVals=pidxs.map(function(i){return res[i]*RPEST.dur;});
@@ -2712,11 +2714,19 @@ function renderRPESummary(){
 }
 async function viewRPEToday(){
   RPEST.res={};RPEST.skp=new Set();
+  // Show loading state while fetching
+  var el=$('t-rpe');
+  if(el)el.innerHTML='<div style="padding:40px;text-align:center;color:var(--mut);font-size:13px">Cargando...</div>';
   try{
     var rows=await sbGet('rpe','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY);
-    rows.forEach(function(r){RPEST.res[r.player_idx]=r.rpe_value;RPEST.dur=r.duration||RPEST.dur;});
-  }catch(e){}
-  RPEST.phase='list';RPEST.expanded=-1;renderRPEList();
+    if(rows&&rows.length){
+      rows.forEach(function(r){RPEST.res[r.player_idx]=r.rpe_value;RPEST.dur=r.duration||RPEST.dur;});
+      // If data exists show summary, otherwise show editable list
+      RPEST.phase='summary';RPEST.expanded=-1;renderRPESummary();
+    }else{
+      RPEST.phase='list';RPEST.expanded=-1;renderRPEList();
+    }
+  }catch(e){RPEST.phase='list';RPEST.expanded=-1;renderRPEList();}
 }
 
 var CIST={player:null,qIdx:0,ans:{},submitted:[]};
