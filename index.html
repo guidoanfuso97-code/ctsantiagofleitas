@@ -2585,55 +2585,130 @@ function renderRPESummary(){
   var res=RPEST.res;
   var pidxs=Object.keys(res).map(Number);
   if(!pidxs.length){renderRPETeam();return;}
+
   var vals=pidxs.map(function(i){return res[i];});
+  var srpeVals=pidxs.map(function(i){return res[i]*RPEST.dur;});
   var n=vals.length;
   var avgRPE=+(vals.reduce(function(s,v){return s+v;},0)/n).toFixed(1);
-  var avgSRPE=Math.round(avgRPE*RPEST.dur);
+  var avgSRPE=Math.round(srpeVals.reduce(function(s,v){return s+v;},0)/n);
+  var maxSRPE=Math.max.apply(null,srpeVals);
+  var minSRPE=Math.min.apply(null,srpeVals);
+
+  var rpeColor=function(r){return r<=3?'var(--grn)':r<=5?'#a3e635':r<=7?'var(--yel)':r<=8?'#fb923c':'var(--red)';};
+  var srpeZone=function(s){return s<300?{lbl:'Baja',col:'var(--grn)'}:s<450?{lbl:'Moderada',col:'var(--yel)'}:{lbl:'Alta',col:'var(--red)'};};
+  var acwrColor=function(a){return(!a||a===0)?'var(--mut)':a<0.8?'#60a5fa':a<=1.3?'var(--grn)':a<=1.5?'var(--yel)':'var(--red)';};
+
+  // Session classification by avg sRPE
+  var sesClass=avgSRPE<150?{lbl:'Recuperación',col:'#60a5fa'}:avgSRPE<250?{lbl:'Baja',col:'var(--grn)'}:avgSRPE<350?{lbl:'Moderada',col:'#a3e635'}:avgSRPE<450?{lbl:'Alta',col:'var(--yel)'}:{lbl:'Muy Alta',col:'var(--red)'};
+
+  // Distribution
   var dist=Array(10).fill(0);
   vals.forEach(function(v){if(v>=1&&v<=10)dist[v-1]++;});
   var maxDist=Math.max.apply(null,dist)||1;
-  var rpeColor=function(r){return r<=3?'var(--grn)':r<=5?'#a3e635':r<=7?'var(--yel)':r<=8?'#fb923c':'var(--red)';};
-  var avgCol=rpeColor(avgRPE);
   var distBars=dist.map(function(cnt,i){
-    var h=Math.max(cnt?4:0,Math.round(cnt/maxDist*56));
+    var h=Math.max(cnt?6:0,Math.round(cnt/maxDist*64));
     return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">'
-      +'<div style="font-size:8px;color:var(--mut)">'+(cnt||'')+'</div>'
-      +'<div style="width:100%;background:'+RCLR[i]+';border-radius:3px 3px 0 0;height:'+h+'px"></div>'
+      +'<div style="font-size:9px;color:var(--mut);min-height:12px">'+(cnt||'')+'</div>'
+      +'<div style="width:100%;background:'+RCLR[i]+';border-radius:3px 3px 0 0;height:'+h+'px;opacity:'+(cnt?1:.15)+'"></div>'
       +'<div style="font-size:9px;font-weight:700;color:'+RCLR[i]+'">'+(i+1)+'</div>'
       +'</div>';
   }).join('');
-  var playerRows=pidxs.sort(function(a,b){return res[b]-res[a];}).map(function(i){
+
+  // Player table sorted by sRPE desc
+  var playerRows=pidxs.slice().sort(function(a,b){return res[b]*RPEST.dur - res[a]*RPEST.dur;}).map(function(i){
     var p=PL[i];if(!p)return'';
     var rpe=res[i],srpe=rpe*RPEST.dur;
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">'
-      +'<div style="font-size:12px;font-weight:600">'+p.name+'<span style="font-size:9px;color:var(--mut);margin-left:6px">'+p.pos+'</span></div>'
-      +'<div style="display:flex;align-items:center;gap:10px">'
-      +'<span style="font-size:10px;color:var(--mut)">'+srpe+' AU</span>'
-      +'<span style="background:'+RCLR[rpe-1]+';color:rgba(0,0,0,.75);border-radius:6px;padding:2px 10px;font-weight:900;font-size:13px">'+rpe+'</span>'
-      +'</div></div>';
+    var zone=srpeZone(srpe);
+    var acwr=p.acwr||null;
+    var acwrCol=acwrColor(acwr);
+    var acwrTxt=acwr?acwr.toFixed(2):'—';
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">'
+      +'<td style="padding:9px 8px 9px 0;font-size:12px;font-weight:600">'+p.name+'</td>'
+      +'<td style="padding:9px 4px;font-size:10px;color:var(--mut)">'+p.pos+'</td>'
+      +'<td style="padding:9px 4px;text-align:center"><span style="background:'+RCLR[rpe-1]+';color:rgba(0,0,0,.75);border-radius:6px;padding:3px 10px;font-weight:900;font-size:13px">'+rpe+'</span></td>'
+      +'<td style="padding:9px 4px;text-align:right;font-size:12px;font-weight:700;color:var(--acc)">'+srpe+' <span style="font-size:9px;font-weight:400;color:var(--mut)">AU</span></td>'
+      +'<td style="padding:9px 4px;text-align:center"><span style="background:'+zone.col+'22;color:'+zone.col+';border:1px solid '+zone.col+'44;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">'+zone.lbl+'</span></td>'
+      +'<td style="padding:9px 0 9px 4px;text-align:right;font-size:12px;font-weight:700;color:'+acwrCol+'">'+acwrTxt+'</td>'
+      +'</tr>';
   }).join('');
+
   var notEntered=PL.filter(function(p,i){return res[i]===undefined&&!RPEST.skp.has(i);});
   var skipped=Array.from(RPEST.skp);
+
   $('t-rpe').innerHTML=
-    '<div style="max-width:620px;margin:0 auto">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
-    +'<div style="font-size:14px;font-weight:700">✅ RPE Guardado · '+TODAY+'</div>'
+    '<div style="max-width:640px;margin:0 auto">'
+
+    // Header
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">'
+    +'<div><div style="font-size:15px;font-weight:800">✅ RPE Guardado · '+TODAY+'</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:2px">'+n+'/'+PL.length+' jugadores · '+RPEST.dur+' min</div></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="RPEST.phase=\'list\';renderRPEList()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">✏ Editar</button>'
     +'<button onclick="RPEST.phase=\'team\';renderRPETeam()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">Nueva sesión</button>'
+    +'</div></div>'
+
+    // Summary cards
+    +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px">'
+    +'<div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:14px">'
+    +'<div style="font-size:38px;font-weight:900;line-height:1;color:'+rpeColor(avgRPE)+'">'+avgRPE+'</div>'
+    +'<div><div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px">RPE Promedio</div>'
+    +'<div style="font-size:11px;color:var(--dim);margin-top:2px">Escala CR-10 Foster</div></div>'
     +'</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">'
-    +'<div class="card" style="text-align:center;padding:12px"><div style="font-size:24px;font-weight:900;color:'+avgCol+'">'+avgRPE+'</div><div style="font-size:9px;color:var(--mut)">RPE Promedio</div></div>'
-    +'<div class="card" style="text-align:center;padding:12px"><div style="font-size:24px;font-weight:900;color:var(--acc)">'+avgSRPE+'</div><div style="font-size:9px;color:var(--mut)">sRPE avg (AU)</div></div>'
-    +'<div class="card" style="text-align:center;padding:12px"><div style="font-size:24px;font-weight:900;color:var(--txt)">'+n+'/'+PL.length+'</div><div style="font-size:9px;color:var(--mut)">Completaron</div></div>'
-    +'<div class="card" style="text-align:center;padding:12px"><div style="font-size:24px;font-weight:900;color:var(--txt)">'+RPEST.dur+"'</div><div style=\"font-size:9px;color:var(--mut)\">Duración</div></div>"
+    +'<div class="card" style="padding:14px 16px;display:flex;align-items:center;gap:14px">'
+    +'<div style="font-size:38px;font-weight:900;line-height:1;color:var(--acc)">'+avgSRPE+'</div>'
+    +'<div><div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px">sRPE Promedio</div>'
+    +'<div style="font-size:11px;color:var(--dim);margin-top:2px">UA · RPE × duración</div></div>'
     +'</div>'
-    +'<div class="card" style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Distribución RPE</div>'
-    +'<div style="display:flex;gap:4px;height:70px;align-items:flex-end">'+distBars+'</div>'
     +'</div>'
-    +'<div class="card"><div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Por jugador · mayor a menor</div>'
-    +playerRows
-    +(notEntered.length?'<div style="margin-top:10px;padding:8px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;font-size:11px;color:var(--yel)">⚠️ Sin dato: '+notEntered.map(function(p){return p.name;}).join(', ')+'</div>':'')
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">'
+    +'<div class="card" style="padding:12px;text-align:center">'
+    +'<div style="font-size:11px;color:var(--mut);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Sesión</div>'
+    +'<div style="font-size:13px;font-weight:800;color:'+sesClass.col+'">'+sesClass.lbl+'</div>'
+    +'</div>'
+    +'<div class="card" style="padding:12px;text-align:center">'
+    +'<div style="font-size:11px;color:var(--mut);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Rango sRPE</div>'
+    +'<div style="font-size:12px;font-weight:700;color:var(--txt)">'+minSRPE+' – '+maxSRPE+' AU</div>'
+    +'</div>'
+    +'<div class="card" style="padding:12px;text-align:center">'
+    +'<div style="font-size:11px;color:var(--mut);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Completaron</div>'
+    +'<div style="font-size:13px;font-weight:800;color:var(--txt)">'+n+'/'+PL.length+'</div>'
+    +'</div>'
+    +'</div>'
+
+    // Distribution
+    +'<div class="card" style="margin-bottom:12px;padding:14px 16px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Distribución RPE del equipo</div>'
+    +'<div style="display:flex;gap:5px;height:80px;align-items:flex-end">'+distBars+'</div>'
+    +'</div>'
+
+    // Player table
+    +'<div class="card" style="padding:14px 16px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Individual · mayor a menor carga</div>'
+    +'<table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr style="font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px">'
+    +'<th style="text-align:left;padding-bottom:6px;font-weight:600">Jugador</th>'
+    +'<th style="padding-bottom:6px;font-weight:600">Pos</th>'
+    +'<th style="padding-bottom:6px;font-weight:600">RPE</th>'
+    +'<th style="text-align:right;padding-bottom:6px;font-weight:600">sRPE</th>'
+    +'<th style="padding-bottom:6px;font-weight:600">Zona</th>'
+    +'<th style="text-align:right;padding-bottom:6px;font-weight:600">ACWR</th>'
+    +'</tr></thead>'
+    +'<tbody>'+playerRows+'</tbody>'
+    +'</table>'
+    +(notEntered.length?'<div style="margin-top:12px;padding:9px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;font-size:11px;color:var(--yel)">⚠ Sin dato: '+notEntered.map(function(p){return p.name;}).join(', ')+'</div>':'')
     +(skipped.length?'<div style="margin-top:6px;font-size:10px;color:var(--mut)">No participaron: '+skipped.map(function(i){return PL[i]?PL[i].name:'#'+i;}).join(', ')+'</div>':'')
-    +'</div></div>';
+    +'</div>'
+
+    // ACWR legend
+    +'<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--dim)">'
+    +'<span>ACWR: </span>'
+    +'<span style="color:#60a5fa">◆ &lt;0.8 descanso</span>'
+    +'<span style="color:var(--grn)">◆ 0.8–1.3 óptimo</span>'
+    +'<span style="color:var(--yel)">◆ 1.3–1.5 precaución</span>'
+    +'<span style="color:var(--red)">◆ &gt;1.5 riesgo</span>'
+    +'</div>'
+
+    +'</div>';
 }
 async function viewRPEToday(){
   RPEST.res={};RPEST.skp=new Set();
