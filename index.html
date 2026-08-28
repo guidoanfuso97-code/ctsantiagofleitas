@@ -2526,24 +2526,29 @@ function setRD(v){RPEST.dur=v;var e=$('rpe-dur');if(e)e.textContent=v;}
 
 function renderRPEList(){
   var total=PL.length,n=Object.keys(RPEST.res).length,sk=RPEST.skp.size;
+  var done=n+sk,allDone=done>=total&&total>0;
   var rows=PL.map(function(p,i){return rpeRowHTML(p,i);}).join('');
   $('t-rpe').innerHTML=
     '<div style="max-width:620px;margin:0 auto">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
-    +'<div><div style="font-size:14px;font-weight:700">RPE · '+(TEAM?TEAM.name:'—')+'</div><div style="font-size:11px;color:var(--mut);margin-top:1px">'+RPEST.dur+' min · '+n+'/'+total+' · '+sk+' omitidos</div></div>'
+    +'<div><div style="font-size:14px;font-weight:700">RPE · '+(TEAM?TEAM.name:'—')+'</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">'+RPEST.dur+' min · '+n+'/'+total+' guardados'+( sk?' · '+sk+' omitidos':'')+'</div></div>'
     +'<div style="display:flex;gap:7px">'
     +'<button onclick="RPEST.phase=\'setup\';renderRPESetup()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">⏱ '+RPEST.dur+"'</button>"
-    +'<button id="rpe-save-btn" onclick="saveRPEList()" style="background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💾 Guardar</button>'
+    +(allDone?'<button onclick="renderRPESummary()" style="background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Ver resumen →</button>':'')
     +'</div></div>'
     +'<div id="rpe-list-body">'+rows+'</div>'
+    +(allDone?'<div style="margin-top:14px;padding:12px 16px;background:rgba(6,214,160,.08);border:1px solid rgba(6,214,160,.2);border-radius:10px;font-size:12px;color:var(--acc);text-align:center">✅ Todo guardado — <span style="cursor:pointer;text-decoration:underline" onclick="renderRPESummary()">Ver resumen</span></div>':'')
     +'</div>';
 }
 function rpeRowHTML(p,i){
   var rpe=RPEST.res[i],skip=RPEST.skp.has(i),isExp=RPEST.expanded===i;
+  var saved=rpe!==undefined;
   var badge=skip?'<span style="color:var(--mut);font-size:11px">✗</span>'
     :rpe?'<span style="background:'+RCLR[rpe-1]+';color:rgba(0,0,0,.72);padding:2px 10px;border-radius:6px;font-weight:900;font-size:12px">'+rpe+'</span>'
     :'<span style="color:var(--mut)">—</span>';
   var sRPE=rpe?'<span style="font-size:10px;color:var(--mut);margin-right:8px">'+(rpe*RPEST.dur)+' AU</span>':'';
+  var savedDot=saved&&!skip?'<span style="font-size:8px;color:var(--grn);margin-right:4px">●</span>':'';
   var body='';
   if(isExp){
     var btns=[1,2,3,4,5,6,7,8,9,10].map(function(n){
@@ -2562,14 +2567,26 @@ function rpeRowHTML(p,i){
   return '<div class="rpe-row'+(isExp?' expanded':'')+'" style="'+(skip?'opacity:.45':'')+'">'
     +'<div class="rpe-row-hdr" onclick="expandRPE('+i+')">'
     +'<div><span style="font-size:12px;font-weight:700">'+p.name+'</span><span style="font-size:10px;color:var(--mut);margin-left:8px">'+p.pos+' · #'+p.num+'</span></div>'
-    +'<div style="display:flex;align-items:center;gap:6px">'+sRPE+badge+'<span style="color:var(--mut);font-size:10px">'+(isExp?'▲':'▼')+'</span></div>'
+    +'<div style="display:flex;align-items:center;gap:6px">'+savedDot+sRPE+badge+'<span style="color:var(--mut);font-size:10px">'+(isExp?'▲':'▼')+'</span></div>'
     +'</div>'+body+'</div>';
 }
 function expandRPE(i){RPEST.expanded=RPEST.expanded===i?-1:i;renderRPEList();}
-function pickRPEL(pi,rpe){RPEST.res[pi]=rpe;RPEST.skp.delete(pi);renderRPEList();clearTimeout(window._rpel);window._rpel=setTimeout(function(){RPEST.expanded=-1;renderRPEList();},420);}
+function pickRPEL(pi,rpe){
+  RPEST.res[pi]=rpe;RPEST.skp.delete(pi);
+  renderRPEList();
+  clearTimeout(window._rpel);
+  window._rpel=setTimeout(function(){RPEST.expanded=-1;renderRPEList();},420);
+  autoSaveRPE(pi);
+}
 function skipRPEL(pi){RPEST.skp.add(pi);delete RPEST.res[pi];RPEST.expanded=-1;renderRPEList();}
+async function autoSaveRPE(pi){
+  if(!TEAM||RPEST.res[pi]===undefined)return;
+  var row={team_id:TEAM.id,player_idx:pi,date:TODAY,
+    rpe_value:RPEST.res[pi],duration:RPEST.dur,srpe:RPEST.res[pi]*RPEST.dur};
+  await sbUpsert('rpe',row);
+  loadRealRPE().then(updateTopStats);
+}
 async function saveRPEList(){
-  var btn=$('rpe-save-btn');if(btn){btn.textContent='Guardando...';btn.style.opacity='.5';}
   var rows=[];
   for(var i in RPEST.res){
     rows.push({team_id:TEAM.id,player_idx:+i,date:TODAY,
@@ -2578,7 +2595,7 @@ async function saveRPEList(){
   var isOffline=!navigator.onLine;
   if(rows.length)await sbUpsert('rpe',rows);
   await loadRealRPE();updateTopStats();
-  if(isOffline) showBanner('💾 RPE guardado offline · se sincronizará al recuperar WiFi','var(--yel)',4000);
+  if(isOffline)showBanner('💾 RPE guardado offline · se sincronizará al recuperar WiFi','var(--yel)',4000);
   renderRPESummary();
 }
 
