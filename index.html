@@ -1183,6 +1183,12 @@ async function loadRealRPE(){
         return PL[i].chS[j]>0.5?+((a/PL[i].chS[j]).toFixed(2)):null;
       });
       PL[i].acwr=PL[i].acwrArr[27];
+      // Non-GPS players need ≥7 sessions of RPE history before ACWR is meaningful
+      if(!PL[i].hasGPSDevice){
+        var rpeHistDays=PL[i].sArr.filter(function(v){return v>0;}).length;
+        PL[i].rpeHistDays=rpeHistDays;
+        if(rpeHistDays<7)PL[i].acwr=null;
+      }
       PL[i].realRPE=true;
       recalcStatus(PL[i]);
     });
@@ -1434,6 +1440,8 @@ function renderPlantel(){
       var sRPEcolor=p.realRPE?'var(--acc)':'var(--mut)';
       if(p.acwr&&p.realRPE){
         acwrRow='<div class="pm"><span class="k">ACWR sRPE</span><span class="vv" style="color:'+ac(p.acwr)+'">'+p.acwr.toFixed(2)+'</span></div>';
+      } else if(p.realRPE&&p.rpeHistDays!==undefined&&p.rpeHistDays<7){
+        acwrRow='<div class="pm"><span class="k" style="color:var(--dim);font-size:8px">ACWR · construyendo historial ('+p.rpeHistDays+'/7 ses.)</span></div>';
       } else {
         acwrRow='<div class="pm"><span class="k" style="color:var(--mut);font-size:8px">📊 Cargar RPE</span></div>';
       }
@@ -3315,6 +3323,12 @@ async function applyHistoricalToACWR(){
     p.sArr=plAcwr.arr28;p.acS=plAcwr.acArr;p.chS=plAcwr.chArr;
     p.acwrArr=plAcwr.acArr.map(function(a,i){return plAcwr.chArr[i]>0.5?+((a/plAcwr.chArr[i]).toFixed(2)):null;});
     p.acwr=p.acwrArr[27];
+    // Non-GPS: require ≥7 sessions of RPE history for meaningful ACWR
+    if(!p.hasGPSDevice){
+      var rpeHistDays=p.sArr.filter(function(v){return v>0;}).length;
+      p.rpeHistDays=rpeHistDays;
+      if(rpeHistDays<7)p.acwr=null;
+    }
     // Monotony & Strain (Foster, 2001)
     var w7=p.sArr.slice(-7);
     var meanW7=w7.reduce(function(s,v){return s+v;},0)/7;
