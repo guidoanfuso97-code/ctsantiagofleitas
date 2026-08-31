@@ -8855,113 +8855,113 @@ async function renderMicrociclo(){
 // Silueta anatómica con curvas bezier + líneas musculares internas.
 var _BG='#d2cfc9';
 
-// ── Zonas frente ──────────────────────────────────────────────────────────────
+// ── Zonas frente — silueta rediseñada: más fina, brazos angulados ─────────────
 var BP_F=[
-  ['front_cabeza',         'Cabeza',           'path','d="M50,3 C61,3 68,10 68,20 C68,31 60,38 50,38 C40,38 32,31 32,20 C32,10 39,3 50,3 Z"'],
-  ['front_cuello',         'Cuello',           'path','d="M44,38 C44,44 46,52 50,56 C54,52 56,44 56,38 C54,40 51,41 50,41 C49,41 46,40 44,38 Z"'],
-  ['front_hombro_izq',     'Hombro Izq',       'path','d="M44,38 C38,42 26,47 16,54 C8,60 4,70 4,82 L4,99 L22,99 L22,77 C24,69 29,62 37,57 L50,56 C46,52 44,44 44,38 Z"'],
-  ['front_hombro_der',     'Hombro Der',       'path','d="M56,38 C62,42 74,47 84,54 C92,60 96,70 96,82 L96,99 L78,99 L78,77 C76,69 71,62 63,57 L50,56 C54,52 56,44 56,38 Z"'],
-  ['front_pecho',          'Pecho',            'path','d="M22,77 C24,69 29,62 37,57 L50,56 L63,57 C71,62 76,69 78,77 L78,99 L75,116 C67,122 58,124 50,124 C42,124 33,122 25,116 L22,99 Z"'],
-  ['front_abdomen',        'Abdomen',          'path','d="M25,116 C33,122 42,124 50,124 C58,124 67,122 75,116 L73,141 L27,141 Z"'],
-  ['front_brazo_izq',      'Bícep Izq',        'path','d="M4,99 L22,99 L21,148 C17,151 11,151 5,148 Z"'],
-  ['front_brazo_der',      'Bícep Der',        'path','d="M96,99 L78,99 L79,148 C83,151 89,151 95,148 Z"'],
-  ['front_antebrazo_izq',  'Anteb. Izq',       'path','d="M5,148 C11,151 17,151 21,148 L23,186 C20,189 14,189 7,186 Z"'],
-  ['front_antebrazo_der',  'Anteb. Der',       'path','d="M95,148 C89,151 83,151 79,148 L77,186 C80,189 86,189 93,186 Z"'],
-  ['front_mano_izq',       'Mano Izq',         'path','d="M7,186 C14,189 20,189 23,186 L25,198 C22,206 17,209 12,208 C7,207 5,203 5,197 Z"'],
-  ['front_mano_der',       'Mano Der',         'path','d="M93,186 C86,189 80,189 77,186 L75,198 C78,206 83,209 88,208 C93,207 95,203 95,197 Z"'],
-  ['front_cadera_izq',     'Cadera/Psoas Izq', 'path','d="M27,141 L50,141 L49,162 C44,168 31,167 21,160 L21,149 Z"'],
-  ['front_cadera_der',     'Cadera/Psoas Der', 'path','d="M73,141 L50,141 L51,162 C56,168 69,167 79,160 L79,149 Z"'],
-  ['front_cuadriceps_izq', 'Cuádric. Izq',     'path','d="M21,160 C31,167 44,168 49,162 L47,213 C43,217 35,217 28,214 C21,211 18,203 17,196 Z"'],
-  ['front_cuadriceps_der', 'Cuádric. Der',     'path','d="M79,160 C69,167 56,168 51,162 L53,213 C57,217 65,217 72,214 C79,211 82,203 83,196 Z"'],
-  ['front_aductor_izq',    'Aductor Izq',      'path','d="M39,163 C43,167 47,165 49,162 L47,214 L39,214 Z"'],
-  ['front_aductor_der',    'Aductor Der',      'path','d="M61,163 C57,167 53,165 51,162 L53,214 L61,214 Z"'],
-  ['front_rodilla_izq',    'Rodilla Izq',      'path','d="M17,196 C18,203 21,211 28,214 L47,214 L47,231 L15,231 C14,222 14,210 17,196 Z"'],
-  ['front_rodilla_der',    'Rodilla Der',      'path','d="M83,196 C82,203 79,211 72,214 L53,214 L53,231 L85,231 C86,222 86,210 83,196 Z"'],
-  ['front_tibial_izq',     'Tibial Izq',       'path','d="M15,231 L47,231 L46,254 C40,257 26,256 18,252 Z"'],
-  ['front_tibial_der',     'Tibial Der',       'path','d="M85,231 L53,231 L54,254 C60,257 74,256 82,252 Z"'],
-  ['front_tobillo_izq',    'Tobillo Izq',      'path','d="M18,252 C26,256 40,257 46,254 L46,266 C40,269 26,268 18,264 Z"'],
-  ['front_tobillo_der',    'Tobillo Der',      'path','d="M82,252 C74,256 60,257 54,254 L54,266 C60,269 74,268 82,264 Z"'],
-  ['front_pie_izq',        'Pie Izq',          'path','d="M18,264 C26,268 40,269 46,266 L44,277 C37,279 22,278 15,274 Z"'],
-  ['front_pie_der',        'Pie Der',          'path','d="M82,264 C74,268 60,269 54,266 L56,277 C63,279 78,278 85,274 Z"']
+  ['front_cabeza',         'Cabeza',           'path','d="M50,2 C60,2 63,9 63,19 C63,29 57,33 50,33 C43,33 37,29 37,19 C37,9 40,2 50,2 Z"'],
+  ['front_cuello',         'Cuello',           'path','d="M44,33 C44,38 46,43 50,47 C54,43 56,38 56,33 C54,35 52,36 50,36 C48,36 46,35 44,33 Z"'],
+  ['front_hombro_izq',     'Hombro Izq',       'path','d="M44,33 C39,37 27,42 17,49 C10,55 8,64 8,76 L8,90 L24,90 L24,70 C25,62 30,55 38,50 L50,47 C46,43 44,38 44,33 Z"'],
+  ['front_hombro_der',     'Hombro Der',       'path','d="M56,33 C61,37 73,42 83,49 C90,55 92,64 92,76 L92,90 L76,90 L76,70 C75,62 70,55 62,50 L50,47 C54,43 56,38 56,33 Z"'],
+  ['front_pecho',          'Pecho',            'path','d="M24,70 C25,62 30,55 38,50 L50,47 L62,50 C70,55 75,62 76,70 L76,90 L73,108 C66,113 58,115 50,115 C42,115 34,113 27,108 L24,90 Z"'],
+  ['front_abdomen',        'Abdomen',          'path','d="M27,108 C34,113 42,115 50,115 C58,115 66,113 73,108 L71,134 L29,134 Z"'],
+  ['front_brazo_izq',      'Bícep Izq',        'path','d="M8,76 L24,76 L21,134 C17,137 11,137 6,134 Z"'],
+  ['front_brazo_der',      'Bícep Der',        'path','d="M92,76 L76,76 L79,134 C83,137 89,137 94,134 Z"'],
+  ['front_antebrazo_izq',  'Anteb. Izq',       'path','d="M6,134 C11,137 17,137 21,134 L19,172 C16,175 10,175 5,172 Z"'],
+  ['front_antebrazo_der',  'Anteb. Der',       'path','d="M94,134 C89,137 83,137 79,134 L81,172 C84,175 90,175 95,172 Z"'],
+  ['front_mano_izq',       'Mano Izq',         'path','d="M5,172 C10,175 16,175 19,172 L21,184 C18,192 13,195 8,194 C3,193 2,189 2,183 Z"'],
+  ['front_mano_der',       'Mano Der',         'path','d="M95,172 C90,175 84,175 81,172 L79,184 C82,192 87,195 92,194 C97,193 98,189 98,183 Z"'],
+  ['front_cadera_izq',     'Cadera/Psoas Izq', 'path','d="M29,134 L50,134 L49,155 C44,161 31,160 22,154 L22,144 Z"'],
+  ['front_cadera_der',     'Cadera/Psoas Der', 'path','d="M71,134 L50,134 L51,155 C56,161 69,160 78,154 L78,144 Z"'],
+  ['front_cuadriceps_izq', 'Cuádric. Izq',     'path','d="M22,154 C31,160 44,161 49,155 L47,207 C43,211 35,211 28,208 C21,205 18,197 17,190 Z"'],
+  ['front_cuadriceps_der', 'Cuádric. Der',     'path','d="M78,154 C69,160 56,161 51,155 L53,207 C57,211 65,211 72,208 C79,205 82,197 83,190 Z"'],
+  ['front_aductor_izq',    'Aductor Izq',      'path','d="M39,156 C43,160 47,158 49,155 L47,208 L39,208 Z"'],
+  ['front_aductor_der',    'Aductor Der',      'path','d="M61,156 C57,160 53,158 51,155 L53,208 L61,208 Z"'],
+  ['front_rodilla_izq',    'Rodilla Izq',      'path','d="M17,190 C18,197 21,205 28,208 L47,208 L47,223 L15,223 C14,214 14,203 17,190 Z"'],
+  ['front_rodilla_der',    'Rodilla Der',      'path','d="M83,190 C82,197 79,205 72,208 L53,208 L53,223 L85,223 C86,214 86,203 83,190 Z"'],
+  ['front_tibial_izq',     'Tibial Izq',       'path','d="M15,223 L47,223 L46,247 C40,250 25,249 17,246 Z"'],
+  ['front_tibial_der',     'Tibial Der',       'path','d="M85,223 L53,223 L54,247 C60,250 75,249 83,246 Z"'],
+  ['front_tobillo_izq',    'Tobillo Izq',      'path','d="M17,246 C25,249 40,250 46,247 L46,259 C40,262 25,261 17,258 Z"'],
+  ['front_tobillo_der',    'Tobillo Der',      'path','d="M83,246 C75,249 60,250 54,247 L54,259 C60,262 75,261 83,258 Z"'],
+  ['front_pie_izq',        'Pie Izq',          'path','d="M17,258 C25,261 40,262 46,259 L44,270 C37,272 21,271 14,268 Z"'],
+  ['front_pie_der',        'Pie Der',          'path','d="M83,258 C75,261 60,262 54,259 L56,270 C63,272 79,271 86,268 Z"']
 ];
 
 // ── Zonas espalda ─────────────────────────────────────────────────────────────
 var BP_B=[
-  ['back_cabeza',          'Cabeza',           'path','d="M50,3 C61,3 68,10 68,20 C68,31 60,38 50,38 C40,38 32,31 32,20 C32,10 39,3 50,3 Z"'],
-  ['back_cuello',          'Cuello',           'path','d="M44,38 C44,44 46,52 50,56 C54,52 56,44 56,38 C54,40 51,41 50,41 C49,41 46,40 44,38 Z"'],
-  ['back_trapecio_izq',    'Trapecio Izq',     'path','d="M44,38 C38,42 26,47 16,54 C8,60 4,70 4,82 L4,99 L22,99 L22,77 C24,69 29,62 37,57 L50,56 C46,52 44,44 44,38 Z"'],
-  ['back_trapecio_der',    'Trapecio Der',     'path','d="M56,38 C62,42 74,47 84,54 C92,60 96,70 96,82 L96,99 L78,99 L78,77 C76,69 71,62 63,57 L50,56 C54,52 56,44 56,38 Z"'],
-  ['back_dorsal',          'Dorsal',           'path','d="M22,77 C24,69 29,62 37,57 L50,56 L63,57 C71,62 76,69 78,77 L78,99 L75,116 C67,122 58,124 50,124 C42,124 33,122 25,116 L22,99 Z"'],
-  ['back_lumbar',          'Lumbar',           'path','d="M25,116 C33,122 42,124 50,124 C58,124 67,122 75,116 L73,141 L27,141 Z"'],
-  ['back_brazo_izq',       'Trícep Izq',       'path','d="M4,99 L22,99 L21,148 C17,151 11,151 5,148 Z"'],
-  ['back_brazo_der',       'Trícep Der',       'path','d="M96,99 L78,99 L79,148 C83,151 89,151 95,148 Z"'],
-  ['back_antebrazo_izq',   'Anteb. Izq',       'path','d="M5,148 C11,151 17,151 21,148 L23,186 C20,189 14,189 7,186 Z"'],
-  ['back_antebrazo_der',   'Anteb. Der',       'path','d="M95,148 C89,151 83,151 79,148 L77,186 C80,189 86,189 93,186 Z"'],
-  ['back_mano_izq',        'Mano Izq',         'path','d="M7,186 C14,189 20,189 23,186 L25,198 C22,206 17,209 12,208 C7,207 5,203 5,197 Z"'],
-  ['back_mano_der',        'Mano Der',         'path','d="M93,186 C86,189 80,189 77,186 L75,198 C78,206 83,209 88,208 C93,207 95,203 95,197 Z"'],
-  ['back_gluteo_izq',      'Glúteo Izq',       'path','d="M27,141 L50,141 L49,167 C44,174 29,173 19,164 L19,150 Z"'],
-  ['back_gluteo_der',      'Glúteo Der',       'path','d="M73,141 L50,141 L51,167 C56,174 71,173 81,164 L81,150 Z"'],
-  ['back_isquios_izq',     'Isquio Izq',       'path','d="M19,164 C29,173 44,174 49,167 L47,213 C43,217 35,217 28,214 C21,211 18,203 17,196 Z"'],
-  ['back_isquios_der',     'Isquio Der',       'path','d="M81,164 C71,173 56,174 51,167 L53,213 C57,217 65,217 72,214 C79,211 82,203 83,196 Z"'],
-  ['back_rodilla_izq',     'Rodilla Izq',      'path','d="M17,196 C18,203 21,211 28,214 L47,214 L47,231 L15,231 C14,222 14,210 17,196 Z"'],
-  ['back_rodilla_der',     'Rodilla Der',      'path','d="M83,196 C82,203 79,211 72,214 L53,214 L53,231 L85,231 C86,222 86,210 83,196 Z"'],
-  ['back_gemelo_izq',      'Gemelo Izq',       'path','d="M15,231 L47,231 L46,254 C40,257 26,256 18,252 Z"'],
-  ['back_gemelo_der',      'Gemelo Der',       'path','d="M85,231 L53,231 L54,254 C60,257 74,256 82,252 Z"'],
-  ['back_soleo_izq',       'Sóleo Izq',        'path','d="M18,252 C26,256 40,257 46,254 L46,264 C40,267 26,266 18,263 Z"'],
-  ['back_soleo_der',       'Sóleo Der',        'path','d="M82,252 C74,256 60,257 54,254 L54,264 C60,267 74,266 82,263 Z"'],
-  ['back_tobillo_izq',     'Tobillo Izq',      'path','d="M18,263 C26,266 40,267 46,264 L46,270 C40,273 26,272 18,269 Z"'],
-  ['back_tobillo_der',     'Tobillo Der',      'path','d="M82,263 C74,266 60,267 54,264 L54,270 C60,273 74,272 82,269 Z"'],
-  ['back_talon_izq',       'Talón Izq',        'path','d="M18,269 C26,272 40,273 46,270 L44,277 C37,279 22,278 15,274 Z"'],
-  ['back_talon_der',       'Talón Der',        'path','d="M82,269 C74,272 60,273 54,270 L56,277 C63,279 78,278 85,274 Z"']
+  ['back_cabeza',          'Cabeza',           'path','d="M50,2 C60,2 63,9 63,19 C63,29 57,33 50,33 C43,33 37,29 37,19 C37,9 40,2 50,2 Z"'],
+  ['back_cuello',          'Cuello',           'path','d="M44,33 C44,38 46,43 50,47 C54,43 56,38 56,33 C54,35 52,36 50,36 C48,36 46,35 44,33 Z"'],
+  ['back_trapecio_izq',    'Trapecio Izq',     'path','d="M44,33 C39,37 27,42 17,49 C10,55 8,64 8,76 L8,90 L24,90 L24,70 C25,62 30,55 38,50 L50,47 C46,43 44,38 44,33 Z"'],
+  ['back_trapecio_der',    'Trapecio Der',     'path','d="M56,33 C61,37 73,42 83,49 C90,55 92,64 92,76 L92,90 L76,90 L76,70 C75,62 70,55 62,50 L50,47 C54,43 56,38 56,33 Z"'],
+  ['back_dorsal',          'Dorsal',           'path','d="M24,70 C25,62 30,55 38,50 L50,47 L62,50 C70,55 75,62 76,70 L76,90 L73,108 C66,113 58,115 50,115 C42,115 34,113 27,108 L24,90 Z"'],
+  ['back_lumbar',          'Lumbar',           'path','d="M27,108 C34,113 42,115 50,115 C58,115 66,113 73,108 L71,134 L29,134 Z"'],
+  ['back_brazo_izq',       'Trícep Izq',       'path','d="M8,76 L24,76 L21,134 C17,137 11,137 6,134 Z"'],
+  ['back_brazo_der',       'Trícep Der',       'path','d="M92,76 L76,76 L79,134 C83,137 89,137 94,134 Z"'],
+  ['back_antebrazo_izq',   'Anteb. Izq',       'path','d="M6,134 C11,137 17,137 21,134 L19,172 C16,175 10,175 5,172 Z"'],
+  ['back_antebrazo_der',   'Anteb. Der',       'path','d="M94,134 C89,137 83,137 79,134 L81,172 C84,175 90,175 95,172 Z"'],
+  ['back_mano_izq',        'Mano Izq',         'path','d="M5,172 C10,175 16,175 19,172 L21,184 C18,192 13,195 8,194 C3,193 2,189 2,183 Z"'],
+  ['back_mano_der',        'Mano Der',         'path','d="M95,172 C90,175 84,175 81,172 L79,184 C82,192 87,195 92,194 C97,193 98,189 98,183 Z"'],
+  ['back_gluteo_izq',      'Glúteo Izq',       'path','d="M29,134 L50,134 L49,160 C44,167 29,166 20,159 L20,145 Z"'],
+  ['back_gluteo_der',      'Glúteo Der',       'path','d="M71,134 L50,134 L51,160 C56,167 71,166 80,159 L80,145 Z"'],
+  ['back_isquios_izq',     'Isquio Izq',       'path','d="M20,159 C29,166 44,167 49,160 L47,207 C43,211 35,211 28,208 C21,205 18,197 17,190 Z"'],
+  ['back_isquios_der',     'Isquio Der',       'path','d="M80,159 C71,166 56,167 51,160 L53,207 C57,211 65,211 72,208 C79,205 82,197 83,190 Z"'],
+  ['back_rodilla_izq',     'Rodilla Izq',      'path','d="M17,190 C18,197 21,205 28,208 L47,208 L47,223 L15,223 C14,214 14,203 17,190 Z"'],
+  ['back_rodilla_der',     'Rodilla Der',      'path','d="M83,190 C82,197 79,205 72,208 L53,208 L53,223 L85,223 C86,214 86,203 83,190 Z"'],
+  ['back_gemelo_izq',      'Gemelo Izq',       'path','d="M15,223 L47,223 L46,247 C40,250 25,249 17,246 Z"'],
+  ['back_gemelo_der',      'Gemelo Der',       'path','d="M85,223 L53,223 L54,247 C60,250 75,249 83,246 Z"'],
+  ['back_soleo_izq',       'Sóleo Izq',        'path','d="M17,246 C25,249 40,250 46,247 L46,257 C40,260 25,259 17,256 Z"'],
+  ['back_soleo_der',       'Sóleo Der',        'path','d="M83,246 C75,249 60,250 54,247 L54,257 C60,260 75,259 83,256 Z"'],
+  ['back_tobillo_izq',     'Tobillo Izq',      'path','d="M17,256 C25,259 40,260 46,257 L46,263 C40,266 25,265 17,262 Z"'],
+  ['back_tobillo_der',     'Tobillo Der',      'path','d="M83,256 C75,259 60,260 54,257 L54,263 C60,266 75,265 83,262 Z"'],
+  ['back_talon_izq',       'Talón Izq',        'path','d="M17,262 C25,265 40,266 46,263 L44,272 C37,274 21,273 14,269 Z"'],
+  ['back_talon_der',       'Talón Der',        'path','d="M83,262 C75,265 60,266 54,263 L56,272 C63,274 79,273 86,269 Z"']
 ];
 
 // ── Líneas musculares internas — frente ───────────────────────────────────────
 var BP_DETAIL_F=
-  '<path d="M50,56 L50,116" stroke="rgba(255,255,255,.32)" stroke-width=".9" fill="none"/>'
-  +'<path d="M38,57 C43,54 48,55 50,56" stroke="rgba(255,255,255,.3)" stroke-width=".85" fill="none"/>'
-  +'<path d="M62,57 C57,54 52,55 50,56" stroke="rgba(255,255,255,.3)" stroke-width=".85" fill="none"/>'
-  +'<path d="M22,99 C31,110 43,116 50,116" stroke="rgba(255,255,255,.28)" stroke-width=".9" fill="none"/>'
-  +'<path d="M78,99 C69,110 57,116 50,116" stroke="rgba(255,255,255,.28)" stroke-width=".9" fill="none"/>'
-  +'<path d="M50,116 L50,141" stroke="rgba(255,255,255,.24)" stroke-width=".8" fill="none"/>'
+  '<path d="M50,47 L50,108" stroke="rgba(255,255,255,.32)" stroke-width=".9" fill="none"/>'
+  +'<path d="M38,50 C44,48 48,47 50,47" stroke="rgba(255,255,255,.3)" stroke-width=".85" fill="none"/>'
+  +'<path d="M62,50 C56,48 52,47 50,47" stroke="rgba(255,255,255,.3)" stroke-width=".85" fill="none"/>'
+  +'<path d="M24,90 C32,102 43,108 50,108" stroke="rgba(255,255,255,.28)" stroke-width=".9" fill="none"/>'
+  +'<path d="M76,90 C68,102 57,108 50,108" stroke="rgba(255,255,255,.28)" stroke-width=".9" fill="none"/>'
+  +'<path d="M50,108 L50,134" stroke="rgba(255,255,255,.24)" stroke-width=".8" fill="none"/>'
+  +'<path d="M34,115 Q50,119 66,115" stroke="rgba(255,255,255,.25)" stroke-width=".75" fill="none"/>'
   +'<path d="M33,123 Q50,127 67,123" stroke="rgba(255,255,255,.25)" stroke-width=".75" fill="none"/>'
-  +'<path d="M32,131 Q50,135 68,131" stroke="rgba(255,255,255,.25)" stroke-width=".75" fill="none"/>'
-  +'<path d="M30,139 Q50,143 70,139" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M30,120 C27,129 27,135 27,141" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M70,120 C73,129 73,135 73,141" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M34,164 C32,183 31,200 33,213" stroke="rgba(255,255,255,.19)" stroke-width=".7" fill="none"/>'
-  +'<path d="M66,164 C68,183 69,200 67,213" stroke="rgba(255,255,255,.19)" stroke-width=".7" fill="none"/>'
-  +'<path d="M33,202 C30,210 33,216 38,215" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
-  +'<path d="M67,202 C70,210 67,216 62,215" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
-  +'<ellipse cx="30" cy="223" rx="8" ry="5" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
-  +'<ellipse cx="70" cy="223" rx="8" ry="5" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
-  +'<path d="M29,231 L28,254" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
-  +'<path d="M71,231 L72,254" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
-  +'<path d="M13,99 C12,116 12,132 13,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>'
-  +'<path d="M87,99 C88,116 88,132 87,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>';
+  +'<path d="M31,131 Q50,135 69,131" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M30,118 C28,126 28,130 30,134" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M70,118 C72,126 72,130 70,134" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M34,158 C32,177 31,195 33,207" stroke="rgba(255,255,255,.19)" stroke-width=".7" fill="none"/>'
+  +'<path d="M66,158 C68,177 69,195 67,207" stroke="rgba(255,255,255,.19)" stroke-width=".7" fill="none"/>'
+  +'<path d="M33,197 C30,205 33,210 38,209" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
+  +'<path d="M67,197 C70,205 67,210 62,209" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
+  +'<ellipse cx="31" cy="216" rx="7" ry="4" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
+  +'<ellipse cx="69" cy="216" rx="7" ry="4" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
+  +'<path d="M29,223 L28,247" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M71,223 L72,247" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M16,90 C15,107 15,121 16,134" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>'
+  +'<path d="M84,90 C85,107 85,121 84,134" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>';
 
 // ── Líneas musculares internas — espalda ──────────────────────────────────────
 var BP_DETAIL_B=
-  '<path d="M50,56 L50,141" stroke="rgba(255,255,255,.3)" stroke-width=".9" fill="none"/>'
-  +'<path d="M50,58 L25,83 L50,116 L75,83 Z" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
-  +'<path d="M27,91 C34,98 44,102 50,101" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M73,91 C66,98 56,102 50,101" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M24,85 C21,97 23,109 25,116" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
-  +'<path d="M76,85 C79,97 77,109 75,116" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
-  +'<path d="M46,116 L45,141" stroke="rgba(255,255,255,.23)" stroke-width=".8" fill="none"/>'
-  +'<path d="M54,116 L55,141" stroke="rgba(255,255,255,.23)" stroke-width=".8" fill="none"/>'
-  +'<path d="M50,144 L50,169" stroke="rgba(255,255,255,.32)" stroke-width=".9" fill="none"/>'
-  +'<path d="M27,155 C33,170 45,174 50,169" stroke="rgba(255,255,255,.29)" stroke-width=".85" fill="none"/>'
-  +'<path d="M73,155 C67,170 55,174 50,169" stroke="rgba(255,255,255,.29)" stroke-width=".85" fill="none"/>'
-  +'<path d="M34,170 C34,186 34,202 35,213" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M66,170 C66,186 66,202 65,213" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<ellipse cx="30" cy="222" rx="8" ry="5" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.28)" stroke-width=".8"/>'
-  +'<ellipse cx="70" cy="222" rx="8" ry="5" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.28)" stroke-width=".8"/>'
-  +'<path d="M31,234 C29,246 30,254 32,254" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M69,234 C71,246 70,254 68,254" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M28,263 L28,270" stroke="rgba(255,255,255,.42)" stroke-width="1.3" fill="none"/>'
-  +'<path d="M72,263 L72,270" stroke="rgba(255,255,255,.42)" stroke-width="1.3" fill="none"/>'
-  +'<path d="M13,99 C12,116 12,132 13,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>'
-  +'<path d="M87,99 C88,116 88,132 87,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>';
+  '<path d="M50,47 L50,134" stroke="rgba(255,255,255,.3)" stroke-width=".9" fill="none"/>'
+  +'<path d="M50,49 L27,78 L50,110 L73,78 Z" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
+  +'<path d="M28,86 C34,93 43,97 50,96" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M72,86 C66,93 57,97 50,96" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M26,80 C23,92 24,104 27,108" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M74,80 C77,92 76,104 73,108" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M46,110 L45,134" stroke="rgba(255,255,255,.23)" stroke-width=".8" fill="none"/>'
+  +'<path d="M54,110 L55,134" stroke="rgba(255,255,255,.23)" stroke-width=".8" fill="none"/>'
+  +'<path d="M50,137 L50,162" stroke="rgba(255,255,255,.32)" stroke-width=".9" fill="none"/>'
+  +'<path d="M29,149 C34,164 44,168 50,162" stroke="rgba(255,255,255,.29)" stroke-width=".85" fill="none"/>'
+  +'<path d="M71,149 C66,164 56,168 50,162" stroke="rgba(255,255,255,.29)" stroke-width=".85" fill="none"/>'
+  +'<path d="M35,164 C34,181 34,197 35,207" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M65,164 C66,181 66,197 65,207" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<ellipse cx="31" cy="216" rx="7" ry="4" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.28)" stroke-width=".8"/>'
+  +'<ellipse cx="69" cy="216" rx="7" ry="4" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.28)" stroke-width=".8"/>'
+  +'<path d="M32,228 C30,240 30,247 32,247" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M68,228 C70,240 70,247 68,247" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M28,256 L28,263" stroke="rgba(255,255,255,.42)" stroke-width="1.3" fill="none"/>'
+  +'<path d="M72,256 L72,263" stroke="rgba(255,255,255,.42)" stroke-width="1.3" fill="none"/>'
+  +'<path d="M16,90 C15,107 15,121 16,134" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>'
+  +'<path d="M84,90 C85,107 85,121 84,134" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>';
 
 function bpC(lv){
   return lv===0?[_BG,'rgba(255,255,255,.45)']:
