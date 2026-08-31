@@ -1046,7 +1046,7 @@ function acuGetVal(metrics,sKey){
   return v;
 }
 function buildAcuEWMA(player,sKey){
-  var ALPHA_FAST=0.28,ALPHA_SLOW=0.069;
+  var ALPHA_FAST=0.25,ALPHA_SLOW=0.069;
   if(!SESSIONS.length)return{daily:[],dates:[],ac:[],ch:[],acwr:null,weekSum:0,hasData:false};
   var sorted=SESSIONS.slice().sort(function(a,b){return new Date(a.date)-new Date(b.date);});
   var firstDate=new Date(sorted[0].date);
@@ -1178,7 +1178,7 @@ async function loadRealRPE(){
       PL[i].sArr[27]=sRPE;PL[i].loads[27].sRPE=sRPE;
       PL[i].loads[27].rpe=r.rpe_value;PL[i].loads[27].dur=r.duration;
       // Recalculate EWMA for ALL players (GPS and non-GPS use sRPE ACWR)
-      PL[i].acS=ewma(PL[i].sArr,.28);PL[i].chS=ewma(PL[i].sArr,.069);
+      PL[i].acS=ewma(PL[i].sArr,.25);PL[i].chS=ewma(PL[i].sArr,.069);
       PL[i].acwrArr=PL[i].acS.map(function(a,j){
         return PL[i].chS[j]>0.5?+((a/PL[i].chS[j]).toFixed(2)):null;
       });
@@ -2496,7 +2496,7 @@ function renderIndCharts(p,metIdx){
 
 
 var RCLR=['#10b981','#00cc60','#7ac722','#b8cc22','#f59e0b','#ffb830','#ff8a20','#ff6010','#ff3a10','#ff1a1a'];
-var RPEST={phase:'team',dur:75,expanded:-1,res:{},skp:new Set()};
+var RPEST={phase:'team',dur:75,type:'training',expanded:-1,res:{},skp:new Set()};
 
 function renderRPETab(){
   if(RPEST.phase==='setup')renderRPESetup();
@@ -2514,17 +2514,29 @@ function renderRPETeam(){
     +'</div>';
 }
 function renderRPESetup(){
+  var types=[
+    {id:'training',label:'🏋 Entrenamiento',desc:'Sesión normal'},
+    {id:'recovery',label:'🔄 Recuperación',desc:'Baja intensidad'},
+    {id:'match',label:'⚽ Partido',desc:'Competencia'}
+  ];
+  var typeBtns=types.map(function(t){
+    var sel=RPEST.type===t.id;
+    return '<button onclick="RPEST.type=\''+t.id+'\';renderRPESetup()" style="flex:1;padding:10px 8px;border-radius:10px;background:'+(sel?'rgba(0,229,160,.12)':'var(--c)')+';border:1px solid '+(sel?'rgba(0,229,160,.4)':'var(--b)')+';color:'+(sel?'var(--acc)':'var(--mut)')+';font-size:11px;font-weight:'+(sel?'700':'500')+';cursor:pointer;text-align:center">'
+      +'<div>'+t.label+'</div><div style="font-size:9px;margin-top:2px;opacity:.7">'+t.desc+'</div></button>';
+  }).join('');
   $('t-rpe').innerHTML=
-    '<div style="max-width:400px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:22px;padding:20px 0">'
+    '<div style="max-width:420px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:20px;padding:20px 0">'
     +'<button onclick="RPEST.phase=\'team\';renderRPETeam()" style="align-self:flex-start;background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">← Volver</button>'
-    +'<div style="text-align:center"><div style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Duración de la sesión</div>'
-    +'<div style="display:flex;align-items:center;gap:20px">'
+    +'<div style="width:100%"><div style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;text-align:center">Tipo de sesión</div>'
+    +'<div style="display:flex;gap:8px;width:100%">'+typeBtns+'</div></div>'
+    +'<div style="text-align:center;width:100%"><div style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Duración</div>'
+    +'<div style="display:flex;align-items:center;gap:20px;justify-content:center">'
     +'<button onclick="adjRD(-5)" style="width:54px;height:54px;border-radius:12px;background:var(--c);border:1px solid var(--b);color:var(--txt);font-size:24px;font-weight:700;cursor:pointer">−</button>'
     +'<div style="text-align:center"><div id="rpe-dur" style="font-size:68px;font-weight:900;color:var(--acc);line-height:1;min-width:140px">'+RPEST.dur+'</div><div style="font-size:12px;color:var(--mut);margin-top:2px">minutos</div></div>'
     +'<button onclick="adjRD(5)" style="width:54px;height:54px;border-radius:12px;background:var(--c);border:1px solid var(--b);color:var(--txt);font-size:24px;font-weight:700;cursor:pointer">+</button>'
     +'</div></div>'
     +'<div style="display:flex;gap:7px">'
-    +[45,60,75,90,105].map(function(v){return '<button onclick="setRD('+v+')" style="padding:9px 14px;border-radius:9px;background:var(--c);border:1px solid var(--b);color:var(--dim);font-size:12px;font-weight:600;cursor:pointer">'+v+"'</button>";}).join('')
+    +[30,45,60,75,90].map(function(v){return '<button onclick="setRD('+v+')" style="padding:9px 14px;border-radius:9px;background:var(--c);border:1px solid var(--b);color:var(--dim);font-size:12px;font-weight:600;cursor:pointer">'+v+"'</button>";}).join('')
     +'</div>'
     +'<button onclick="RPEST.phase=\'list\';RPEST.expanded=-1;renderRPEList()" style="width:100%;padding:15px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:15px;font-weight:800;cursor:pointer">Comenzar →</button>'
     +'</div>';
@@ -2540,7 +2552,7 @@ function renderRPEList(){
     '<div style="max-width:620px;margin:0 auto">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
     +'<div><div style="font-size:14px;font-weight:700">RPE · '+(TEAM?TEAM.name:'—')+'</div>'
-    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">'+RPEST.dur+' min · '+n+'/'+total+' guardados'+( sk?' · '+sk+' omitidos':'')+'</div></div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">'+RPEST.dur+' min · '+(RPEST.type==='recovery'?'🔄 Recuperación':RPEST.type==='match'?'⚽ Partido':'🏋 Entrenamiento')+' · '+n+'/'+total+' guardados'+( sk?' · '+sk+' omitidos':'')+'</div></div>'
     +'<div style="display:flex;gap:7px">'
     +'<button onclick="RPEST.phase=\'setup\';renderRPESetup()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">⏱ '+RPEST.dur+"'</button>"
     +(allDone?'<button onclick="renderRPESummary()" style="background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">Ver resumen →</button>':'')
@@ -2590,7 +2602,8 @@ function skipRPEL(pi){RPEST.skp.add(pi);delete RPEST.res[pi];RPEST.expanded=-1;r
 async function autoSaveRPE(pi){
   if(!TEAM||RPEST.res[pi]===undefined)return;
   var row={team_id:TEAM.id,player_idx:pi,date:TODAY,
-    rpe_value:RPEST.res[pi],duration:RPEST.dur,srpe:RPEST.res[pi]*RPEST.dur};
+    rpe_value:RPEST.res[pi],duration:RPEST.dur,srpe:RPEST.res[pi]*RPEST.dur,
+    session_type:RPEST.type||'training'};
   await sbUpsert('rpe',row);
   loadRealRPE().then(updateTopStats);
 }
@@ -2668,7 +2681,7 @@ function renderRPESummary(){
     // Header
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">'
     +'<div><div style="font-size:15px;font-weight:800">✅ RPE Guardado · '+TODAY+'</div>'
-    +'<div style="font-size:11px;color:var(--mut);margin-top:2px">'+n+'/'+PL.length+' jugadores · '+RPEST.dur+' min</div></div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:2px">'+n+'/'+PL.length+' jugadores · '+RPEST.dur+' min · '+(RPEST.type==='recovery'?'🔄 Recuperación':RPEST.type==='match'?'⚽ Partido':'🏋 Entrenamiento')+'</div></div>'
     +'<div style="display:flex;gap:8px">'
     +'<button onclick="RPEST.phase=\'list\';renderRPEList()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">✏ Editar</button>'
     +'<button onclick="RPEST.phase=\'team\';renderRPETeam()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer">Nueva sesión</button>'
@@ -3307,7 +3320,7 @@ async function applyHistoricalToACWR(){
       return loadsArr.map(function(m){return m?+(m[key]||0):0;});
     }
     function calcACWR(arr){
-      var ac=ewma(arr,0.28),ch=ewma(arr,0.069);
+      var ac=ewma(arr,0.25),ch=ewma(arr,0.069);
       return {
         acArr:ac.slice(-28),chArr:ch.slice(-28),
         acwr:ch[N-1]>0.5?+((ac[N-1]/ch[N-1]).toFixed(2)):null,
@@ -9282,7 +9295,7 @@ function renderAcuChart(){
   if(kpis)kpis.innerHTML=
     kpiBox('Acum. 7 días',d.hasData?dw:'—',m.color,'')
     +kpiBox('ACWR '+m.label,d.acwr?d.acwr.toFixed(2):'—',aC,aZ)
-    +kpiBox('EWMA Aguda',d.ac.length?Math.round(d.ac[d.ac.length-1])+' '+m.unit:'—','#f59e0b','α=0.28')
+    +kpiBox('EWMA Aguda',d.ac.length?Math.round(d.ac[d.ac.length-1])+' '+m.unit:'—','#f59e0b','α=0.25')
     +kpiBox('EWMA Crónica',d.ch.length?Math.round(d.ch[d.ch.length-1])+' '+m.unit:'—','#64748b','α=0.069');
   if(!d.hasData){
     var cv=$('acu-c');
@@ -9295,7 +9308,7 @@ function renderAcuChart(){
       backgroundColor:d.daily.map(function(v){return v>0?m.color+'33':'rgba(255,255,255,.02)';}),
       borderColor:d.daily.map(function(v){return v>0?m.color+'99':'transparent';}),
       borderWidth:1,borderRadius:3,order:3},
-    {label:'EWMA Aguda (α=0.28)',data:d.ac,type:'line',
+    {label:'EWMA Aguda (α=0.25)',data:d.ac,type:'line',
       borderColor:'#f59e0b',backgroundColor:'transparent',
       borderWidth:2.5,tension:.35,pointRadius:0,pointHoverRadius:4,order:1},
     {label:'EWMA Crónica (α=0.069)',data:d.ch,type:'line',
