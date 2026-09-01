@@ -1176,21 +1176,22 @@ async function loadRealRPE(){
       var i=r.player_idx;
       if(i<0||i>=PL.length)return;
       var sRPE=r.srpe||0;
-      PL[i].sArr[27]=sRPE;PL[i].loads[27].sRPE=sRPE;
+      PL[i].loads[27].sRPE=sRPE;
       PL[i].loads[27].rpe=r.rpe_value;PL[i].loads[27].dur=r.duration;
-      // Recalculate EWMA for ALL players (GPS and non-GPS use sRPE ACWR)
-      PL[i].acS=ewma(PL[i].sArr,.25);PL[i].chS=ewma(PL[i].sArr,.069);
-      PL[i].acwrArr=PL[i].acS.map(function(a,j){
-        return PL[i].chS[j]>0.5?+((a/PL[i].chS[j]).toFixed(2)):null;
-      });
-      PL[i].acwr=PL[i].acwrArr[27];
-      // Non-GPS players need ≥7 sessions of RPE history before ACWR is meaningful
+      PL[i].realRPE=true;
+      // GPS players: ACWR comes from applyHistoricalToACWR() using Player Load — don't mix units here.
+      // Non-GPS players: sRPE is their only load signal, update ACWR from 28-day sArr immediately.
       if(!PL[i].hasGPSDevice){
+        PL[i].sArr[27]=sRPE;
+        PL[i].acS=ewma(PL[i].sArr,.25);PL[i].chS=ewma(PL[i].sArr,.069);
+        PL[i].acwrArr=PL[i].acS.map(function(a,j){
+          return PL[i].chS[j]>0.5?+((a/PL[i].chS[j]).toFixed(2)):null;
+        });
+        PL[i].acwr=PL[i].acwrArr[27];
         var rpeHistDays=PL[i].sArr.filter(function(v){return v>0;}).length;
         PL[i].rpeHistDays=rpeHistDays;
         if(rpeHistDays<7)PL[i].acwr=null;
       }
-      PL[i].realRPE=true;
       recalcStatus(PL[i]);
     });
   }catch(e){}
@@ -1221,17 +1222,17 @@ async function doRefresh(){
   var btn=document.querySelector('.ref-btn');
   if(btn){btn.textContent='⏳';btn.style.opacity='.6';}
   try{
+    var rpeCountBefore=Object.keys(RPE_HISTORY_56).reduce(function(s,d){return s+Object.keys(RPE_HISTORY_56[d]).length;},0);
     var _rr=await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE(),loadSessionsCached(),loadRealDolor(),loadRestDays()]);
     var freshSessions=_rr[3];
+    var sessionsChanged=false;
     if(freshSessions&&freshSessions.length>0){
       var sig=freshSessions.length+'|'+(freshSessions[0]?freshSessions[0].date:'');
       var oldSig=SESSIONS.length+'|'+(SESSIONS[0]?SESSIONS[0].date:'');
-      if(sig!==oldSig){
-        SESSIONS=freshSessions;
-        _lastSessionCount=0;
-        await applyHistoricalToACWR();
-      }
+      if(sig!==oldSig){SESSIONS=freshSessions;_lastSessionCount=0;sessionsChanged=true;}
     }
+    var rpeCountAfter=Object.keys(RPE_HISTORY_56).reduce(function(s,d){return s+Object.keys(RPE_HISTORY_56[d]).length;},0);
+    if(sessionsChanged||rpeCountAfter!==rpeCountBefore)await applyHistoricalToACWR();
   }catch(e){
     console.error('Refresh error:',e);
   }
