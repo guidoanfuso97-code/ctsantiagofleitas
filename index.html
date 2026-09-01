@@ -3072,7 +3072,25 @@ async function removePlayer(idx){
     var warn=[];if(hasEvals)warn.push('evaluaciones físicas');if(hasFP)warn.push('force plates');
     if(!confirm('⚠️ '+pname+' tiene '+warn.join(' y ')+' guardadas.\nSi lo eliminás, esos datos quedan sin jugador asociado y no se van a poder ver más.\n¿Eliminar de todas formas?'))return;
   }
-  TM_EDIT.players.splice(idx,1);await saveTeams();if(isActive)buildPL();renderPlayerManager();
+  var oldCount=TM_EDIT.players.length;
+  TM_EDIT.players.splice(idx,1);
+  await saveTeams();
+  if(isActive){
+    await reindexPlayerData(idx,oldCount);
+    buildPL();
+    await doRefresh();
+  }
+  renderPlayerManager();
+}
+async function reindexPlayerData(deletedIdx,oldCount){
+  if(!TEAM)return;
+  var tables=['rpe','wellness','dolor','evaluaciones','force_plates','microciclo','player_vmax'];
+  var tid='team_id=eq.'+TEAM.id;
+  await Promise.all(tables.map(function(t){return sbDelete(t,tid+'&player_idx=eq.'+deletedIdx);}));
+  for(var i=deletedIdx;i<oldCount-1;i++){
+    var from=i+1,to=i;
+    await Promise.all(tables.map(function(t){return sbUpdate(t,tid+'&player_idx=eq.'+from,{player_idx:to});}));
+  }
 }
 async function editPlayerEmail(idx){if(!TM_EDIT)return;var p=TM_EDIT.players[idx];var cur=p.email||'';var email=prompt('Email de '+p.name+' (borrar para quitar):',cur);if(email===null)return;p.email=email.trim();await saveTeams();if(TEAM&&TEAM.id===TM_EDIT.id)buildPL();renderPlayerManager();}
 

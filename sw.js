@@ -1,4 +1,4 @@
-var CACHE = 'atlas-v54';
+var CACHE = 'atlas-v55';
 var SUPABASE_URL = 'https://gbgvcipaeipanfciwylg.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3ZjaXBhZWlwYW5mY2l3eWxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjMzMzgsImV4cCI6MjA5NjIzOTMzOH0.taAZnfsb8YX50DoPVuk1az8YppWZVD_WAiW8oh9kXT8';
 var MAX_RETRIES = 3;
