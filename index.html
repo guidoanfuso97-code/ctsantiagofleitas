@@ -4207,7 +4207,6 @@ function trendArrow(trend,goodDir){
 var _compView='semanas';
 var _compPlayerIdx=-1;
 var _compMatchA='';
-var _compMatchB='';
 var _compN=3;        // N for "vs promedio" view
 var _compMode='partido'; // 'partido' or 'semana' in vs-promedio view
 
@@ -4273,6 +4272,26 @@ function teamTotalMicro(sessions,key){
   },0);
 }
 
+// Últimos N partidos (más recientes primero), excluyendo una fecha puntual
+function lastNMatches(excludeDate,n){
+  return getMatches().filter(function(m){return m.date!==excludeDate;}).slice(0,n);
+}
+// Promedio de una métrica sobre una lista de partidos, en modo 'partido' (solo el MD)
+// o 'semana' (microciclo completo de cada partido)
+function avgLastN(list,mode,key,isTeamFlag,playerIdx){
+  var vals=list.map(function(m){
+    if(mode==='partido')return isTeamFlag?teamAvgSession(m,key):metricVal(m,playerIdx,key);
+    var micro=getMicro(m.date);
+    return isTeamFlag?teamAvgMicro(micro,key):microTotal(micro,playerIdx,key);
+  }).filter(function(v){return v>0;});
+  return vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0;
+}
+// Promedio de los totales de equipo por semana (para el gráfico de acumulados)
+function avgLastNTotal(list,key){
+  var vals=list.map(function(m){return teamTotalMicro(getMicro(m.date),key);}).filter(function(v){return v>0;});
+  return vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0;
+}
+
 function renderComparaciones(){
   var tab=document.getElementById('t-comparaciones');if(!tab)return;
   var matches=getMatches();
@@ -4281,7 +4300,6 @@ function renderComparaciones(){
   var p=isTeam?null:PL[_compPlayerIdx];
 
   if(!_compMatchA&&matches.length>0)_compMatchA=matches[0].date;
-  if(!_compMatchB&&matches.length>1)_compMatchB=matches[1].date;
 
   var pOpts='<option value="-1"'+(isTeam?' selected':'')+'>🏟 Equipo completo</option>'
     +gps.map(function(pl){
@@ -4327,23 +4345,20 @@ function renderComparaciones(){
     tab.innerHTML=html;return;
   }
 
-  var sameWarn=_compMatchA===_compMatchB
-    ?'<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--yel);margin-bottom:10px">⚠️ Seleccionaste el mismo partido en A y B — elegí dos distintos para comparar.</div>'
-    :'';
-
   // ===== SEMANA VS SEMANA =====
   if(_compView==='semanas'){
-    var microA=getMicro(_compMatchA),microB=getMicro(_compMatchB);
+    var microA=getMicro(_compMatchA);
     var matchA=matches.find(function(m){return m.date===_compMatchA;});
-    var matchB=matches.find(function(m){return m.date===_compMatchB;});
     var lblA=matchA?(matchA.opponent?'vs '+matchA.opponent:_compMatchA):_compMatchA;
-    var lblB=matchB?(matchB.opponent?'vs '+matchB.opponent:_compMatchB):_compMatchB;
+    var refWeeks=lastNMatches(_compMatchA,4);
+    var lblB='Prom. últimas '+refWeeks.length+' semanas';
     var vA=function(key){return isTeam?teamAvgMicro(microA,key):microTotal(microA,p.idx,key);};
-    var vB=function(key){return isTeam?teamAvgMicro(microB,key):microTotal(microB,p.idx,key);};
+    var vB=function(key){return avgLastN(refWeeks,'semana',key,isTeam,p?p.idx:-1);};
+    var notEnoughW=refWeeks.length<4?'<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:7px 12px;font-size:11px;color:var(--yel);margin-top:8px">⚠️ Solo hay '+refWeeks.length+' semana'+(refWeeks.length!==1?'s':'')+' previa'+(refWeeks.length!==1?'s':'')+' disponible'+(refWeeks.length!==1?'s':'')+' (se usan '+refWeeks.length+' de 4).</div>':'';
     html+=
       '<div style="background:rgba(6,214,160,.05);border:1px solid rgba(6,214,160,.15);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:11px;color:var(--dim)">'
-      +'📅 <strong>Semana vs Semana</strong> — microciclo completo: todas las sesiones del período anterior al partido. A = semana a analizar, B = referencia.'
-      +'</div>'+sameWarn
+      +'📅 <strong>Semana vs Semana</strong> — microciclo completo de la semana elegida contra el promedio de las últimas 4 semanas anteriores.'
+      +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
       +'<div class="card" style="border-color:rgba(6,214,160,.3)">'
       +'<div style="font-size:10px;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📅 Semana A · '+microA.length+' sesiones</div>'
@@ -4351,41 +4366,43 @@ function renderComparaciones(){
       +'<div style="font-size:10px;color:var(--mut);margin-top:5px">'+microA.map(function(s){return s.sessionType;}).join(' → ')+'</div>'
       +'</div>'
       +'<div class="card" style="border-color:rgba(167,139,250,.3)">'
-      +'<div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📅 Semana B · '+microB.length+' sesiones</div>'
-      +'<select onchange="setCompMatch(\'b\',this.value)" style="width:100%;background:var(--bg2);border:1px solid rgba(167,139,250,.3);border-radius:7px;padding:8px;color:#a78bfa;font-size:12px;font-weight:700;outline:none;cursor:pointer">'+matchOpts(_compMatchB)+'</select>'
-      +'<div style="font-size:10px;color:var(--mut);margin-top:5px">'+microB.map(function(s){return s.sessionType;}).join(' → ')+'</div>'
+      +'<div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📊 '+lblB+'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:#a78bfa;padding:8px 0">'+refWeeks.map(function(m){return m.opponent?'vs '+m.opponent:m.date;}).join(' · ')+'</div>'
+      +notEnoughW
       +'</div></div>';
-    html+=buildMetricCards(vA,vB,isTeam,microA,microB);
+    html+=buildMetricCards(vA,vB,false,null,null);
     html+='<div class="card mb"><h3>'+(isTeam?'Equipo':''+p.name)+' · Semana '+lblA+' vs '+lblB+'</h3><div class="cwl"><canvas id="comp-c"></canvas></div></div>';
     if(isTeam)html+='<div class="card mb"><h3>Equipo · Totales acumulados</h3><div class="cwl"><canvas id="comp-total-c"></canvas></div></div>';
     tab.innerHTML=html;
     setTimeout(function(){
       renderCompChart('comp-c',COMP_METRICS.map(function(m){return +vA(m.key).toFixed(1);}),COMP_METRICS.map(function(m){return +vB(m.key).toFixed(1);}),lblA,lblB);
       if(isTeam&&document.getElementById('comp-total-c')){
-        renderCompChart('comp-total-c',COMP_METRICS.map(function(m){return Math.round(teamTotalMicro(microA,m.key));}),COMP_METRICS.map(function(m){return Math.round(teamTotalMicro(microB,m.key));}), 'Total Sem A','Total Sem B');
+        renderCompChart('comp-total-c',COMP_METRICS.map(function(m){return Math.round(teamTotalMicro(microA,m.key));}),COMP_METRICS.map(function(m){return Math.round(avgLastNTotal(refWeeks,m.key));}), 'Total Sem A','Prom. total últimas semanas');
       }
     },80);
 
   // ===== PARTIDO VS PARTIDO =====
   } else if(_compView==='partidos'){
     var mA=matches.find(function(m){return m.date===_compMatchA;});
-    var mB=matches.find(function(m){return m.date===_compMatchB;});
-    var vA2=function(key){return isTeam?teamAvgSession(mA,key):metricVal(mA,p.idx,key);};
-    var vB2=function(key){return isTeam?teamAvgSession(mB,key):metricVal(mB,p.idx,key);};
     var lblA2=mA?(mA.opponent?'vs '+mA.opponent:_compMatchA):_compMatchA;
-    var lblB2=mB?(mB.opponent?'vs '+mB.opponent:_compMatchB):_compMatchB;
+    var refMatches2=lastNMatches(_compMatchA,4);
+    var lblB2='Prom. últimos '+refMatches2.length+' partidos';
+    var vA2=function(key){return isTeam?teamAvgSession(mA,key):metricVal(mA,p.idx,key);};
+    var vB2=function(key){return avgLastN(refMatches2,'partido',key,isTeam,p?p.idx:-1);};
+    var notEnoughM=refMatches2.length<4?'<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:7px 12px;font-size:11px;color:var(--yel);margin-top:8px">⚠️ Solo hay '+refMatches2.length+' partido'+(refMatches2.length!==1?'s':'')+' previo'+(refMatches2.length!==1?'s':'')+' (se usan '+refMatches2.length+' de 4).</div>':'';
     html+=
       '<div style="background:rgba(244,63,94,.05);border:1px solid rgba(244,63,94,.15);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:11px;color:var(--dim)">'
-      +'⚽ <strong>Partido vs Partido</strong> — métricas de un partido individual contra otro. A = partido a analizar, B = referencia.'
-      +'</div>'+sameWarn
+      +'⚽ <strong>Partido vs Partido</strong> — un partido individual contra el promedio de los últimos 4 partidos anteriores.'
+      +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
       +'<div class="card" style="border-color:rgba(244,63,94,.3)">'
       +'<div style="font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⚽ Partido A</div>'
       +'<select onchange="setCompMatch(\'a\',this.value)" style="width:100%;background:var(--bg2);border:1px solid rgba(244,63,94,.3);border-radius:7px;padding:8px;color:var(--red);font-size:12px;font-weight:700;outline:none;cursor:pointer">'+matchOpts(_compMatchA)+'</select>'
       +'</div>'
       +'<div class="card" style="border-color:rgba(167,139,250,.3)">'
-      +'<div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⚽ Partido B</div>'
-      +'<select onchange="setCompMatch(\'b\',this.value)" style="width:100%;background:var(--bg2);border:1px solid rgba(167,139,250,.3);border-radius:7px;padding:8px;color:#a78bfa;font-size:12px;font-weight:700;outline:none;cursor:pointer">'+matchOpts(_compMatchB)+'</select>'
+      +'<div style="font-size:10px;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📊 '+lblB2+'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:#a78bfa;padding:8px 0">'+refMatches2.map(function(m){return m.opponent?'vs '+m.opponent:m.date;}).join(' · ')+'</div>'
+      +notEnoughM
       +'</div></div>';
     html+=buildMetricCards(vA2,vB2,false,null,null);
     html+='<div class="card mb"><h3>'+(isTeam?'Equipo':''+p.name)+' · '+lblA2+' vs '+lblB2+'</h3><div class="cwl"><canvas id="comp-c"></canvas></div></div>';
@@ -4422,6 +4439,29 @@ function renderComparaciones(){
         +'<div style="height:100%;width:'+Math.min(pct,100)+'%;background:'+pc+';border-radius:3px"></div>'
         +'</div>'
         +'<div style="font-size:10px;font-weight:700;color:'+pc+'">'+pct+'% del microciclo</div>'
+        +'</div>';
+    });
+    html+='</div>';
+    // Referencia: últimos 4 partidos / últimas 4 semanas (excluyendo la seleccionada)
+    var refMatchesPV=lastNMatches(_compMatchA,4);
+    var pidxPV=p?p.idx:-1;
+    html+='<div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📊 Referencia · últimos '+refMatchesPV.length+' partidos / semanas</div>';
+    html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">';
+    COMP_METRICS.slice(0,4).forEach(function(m){
+      var vMatch=isTeam?teamTotalMicro([mPV],m.key):metricVal(mPV,p.idx,m.key);
+      var vMicro=isTeam?teamTotalMicro(microPV,m.key):microTotal(microPV,p.idx,m.key);
+      var avgPartido=avgLastN(refMatchesPV,'partido',m.key,isTeam,pidxPV);
+      var avgSemana=avgLastN(refMatchesPV,'semana',m.key,isTeam,pidxPV);
+      var pctP=avgPartido>0?Math.round((vMatch-avgPartido)/avgPartido*100):0;
+      var pctS=avgSemana>0?Math.round((vMicro-avgSemana)/avgSemana*100):0;
+      var pcP=Math.abs(pctP)>20?'var(--red)':Math.abs(pctP)>10?'var(--yel)':'var(--mut)';
+      var pcS=Math.abs(pctS)>20?'var(--red)':Math.abs(pctS)>10?'var(--yel)':'var(--mut)';
+      html+='<div class="card" style="text-align:center">'
+        +'<div style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">'+m.label+'</div>'
+        +'<div style="font-size:9px;color:var(--mut)">Partido vs prom. últ. 4</div>'
+        +'<div style="font-size:14px;font-weight:800;color:'+pcP+'">'+(pctP>=0?'+':'')+pctP+'%</div>'
+        +'<div style="font-size:9px;color:var(--mut);margin-top:6px">Semana vs prom. últ. 4</div>'
+        +'<div style="font-size:14px;font-weight:800;color:'+pcS+'">'+(pctS>=0?'+':'')+pctS+'%</div>'
         +'</div>';
     });
     html+='</div>';
@@ -4599,7 +4639,7 @@ function renderCompChart(canvasId,dataA,dataB,lblA,lblB){
 
 function setCompView(v){_compView=v;renderComparaciones();}
 function setCompPlayer(v){_compPlayerIdx=+v;renderComparaciones();}
-function setCompMatch(ab,val){if(ab==='a')_compMatchA=val;else _compMatchB=val;renderComparaciones();}
+function setCompMatch(ab,val){_compMatchA=val;renderComparaciones();}
 function setCompN(n){_compN=n;renderComparaciones();}
 function setCompMode(m){_compMode=m;renderComparaciones();}
 
