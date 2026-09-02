@@ -4272,9 +4272,12 @@ function teamTotalMicro(sessions,key){
   },0);
 }
 
-// Últimos N partidos (más recientes primero), excluyendo una fecha puntual
-function lastNMatches(excludeDate,n){
-  return getMatches().filter(function(m){return m.date!==excludeDate;}).slice(0,n);
+// Promedio móvil: los N partidos inmediatamente ANTERIORES a beforeDate (más
+// recientes primero). Al cambiar el partido/semana elegido, la ventana se
+// desplaza con él — no es un top-N fijo del calendario.
+function lastNMatches(beforeDate,n){
+  var d=new Date(beforeDate);
+  return getMatches().filter(function(m){return new Date(m.date)<d;}).slice(0,n);
 }
 // Promedio de una métrica sobre una lista de partidos, en modo 'partido' (solo el MD)
 // o 'semana' (microciclo completo de cada partido)
