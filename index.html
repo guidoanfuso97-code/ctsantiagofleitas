@@ -397,6 +397,7 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
       <button class="ref-btn" id="alertas-btn" onclick="toggleAlertasPanel()" style="display:none;background:rgba(244,63,94,.1);border-color:rgba(244,63,94,.25);color:var(--red)">⚠ Alertas</button>
       <button class="ref-btn" onclick="openRPEView()" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.25);color:var(--grn)">📊 RPE Hoy</button>
       <button class="ref-btn" onclick="openWellnessHoy()" style="background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.25);color:#a78bfa" id="ws-hoy-btn">💚 Wellness Hoy</button>
+      <button class="ref-btn" onclick="openInformeDia()" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.25);color:#818cf8" id="informe-dia-btn">📋 Informe del Día</button>
       <button class="ref-btn" onclick="openImport()" style="background:rgba(6,214,160,.1);border-color:rgba(6,214,160,.25);color:var(--acc)">+ GPS</button>
       <button class="ref-btn" onclick="exportData()" style="background:rgba(16,185,129,.08);border-color:rgba(16,185,129,.2);color:var(--grn)" title="Guardar todas las sesiones en tu computadora">💾 Exportar</button>
       <label class="ref-btn" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.2);color:var(--yel);cursor:pointer" title="Cargar sesiones guardadas">📥 Importar<input type="file" accept=".json" style="display:none" onchange="importData(this.files[0])"></label>
@@ -448,6 +449,15 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
       <button onclick="closeWellnessHoy()" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>
     </div>
     <div id="ws-hoy-body"></div>
+  </div>
+</div>
+<div id="informe-dia-modal" class="modal" onclick="if(event.target===this)closeInformeDia()">
+  <div class="mbox" style="max-width:700px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div><div style="font-size:16px;font-weight:800">📋 Informe del Día</div><div style="font-size:11px;color:var(--mut);margin-top:2px" id="informe-dia-subtitle">Cargando...</div></div>
+      <button onclick="closeInformeDia()" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>
+    </div>
+    <div id="informe-dia-body"></div>
   </div>
 </div>
 <div id="lesion-modal" class="modal" onclick="if(event.target===this)closeLesionModal()">
@@ -3955,6 +3965,115 @@ async function openWellnessHoy(){
     +'<div style="font-size:10px;color:var(--red);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">⏳ Pendientes ('+pending.length+')</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:5px">'+pendingCards+'</div>'
     +'</div>':'<div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:12px 14px;text-align:center;font-size:13px;font-weight:700;color:var(--grn)">✅ Todos los jugadores completaron el check-in</div>');
+}
+
+function closeInformeDia(){document.getElementById('informe-dia-modal').classList.remove('on');}
+function toggleInformeDetail(idx){
+  var d=document.getElementById('inf-det-'+idx),c=document.getElementById('inf-chev-'+idx);
+  if(!d)return;
+  var open=d.style.display==='block';
+  d.style.display=open?'none':'block';
+  if(c)c.textContent=open?'▼':'▲';
+}
+// Informe del Día — vista adicional que resume wellness + RPE de hoy agrupados por
+// semáforo (riesgo/precaución/disponible), con detalle expandible por jugador.
+// No reemplaza "RPE Hoy" ni "Wellness Hoy": es un tercer atajo para lectura rápida.
+async function openInformeDia(){
+  document.getElementById('informe-dia-modal').classList.add('on');
+  var body=document.getElementById('informe-dia-body');
+  var sub=document.getElementById('informe-dia-subtitle');
+  body.innerHTML='<div style="text-align:center;padding:20px;color:var(--mut)">⏳ Cargando...</div>';
+
+  var wsMap={},rpeMap={};
+  try{
+    var wsRows=await sbGet('wellness','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY);
+    wsRows.forEach(function(r){wsMap[r.player_idx]=r;});
+  }catch(e){}
+  try{
+    var rpeRows=await sbGet('rpe','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY);
+    rpeRows.forEach(function(r){if(r.player_idx>=0&&r.player_idx<PL.length)rpeMap[r.player_idx]=r;});
+  }catch(e){}
+
+  function wsSev(v){return v==null?null:v<4?2:v<7?1:0;}
+  function rpeSev(v){return v==null?null:v>=8?2:v>=6?1:0;}
+  function acwrSev(v,hist){return v==null?null:v>1.5?2:v>1.3?1:(v<0.8&&hist)?1:0;}
+  function wsColorSev(v){return v==null?'var(--mut)':v<4?'var(--red)':v<7?'var(--yel)':'var(--grn)';}
+  function rpeColorSev(v){return v==null?'var(--mut)':v>=8?'var(--red)':v>=6?'var(--yel)':'var(--grn)';}
+
+  var wsN=0,rpeN=0;
+  var rows=PL.map(function(p,i){
+    var wd=wsMap[i],rd=rpeMap[i];
+    var ws=wd?calcWS(wd):null;
+    var rpe=rd?rd.rpe_value:null;
+    var sRPE=rd?rd.srpe:null;
+    var dur=rd?rd.duration:null;
+    var acwr=p.acwr!=null?p.acwr:null;
+    if(wd)wsN++;
+    if(rd)rpeN++;
+    var sevs=[wsSev(ws),rpeSev(rpe),acwrSev(acwr,p.hasRealHistory)].filter(function(s){return s!==null;});
+    var sev=sevs.length?Math.max.apply(null,sevs):null;
+    return{idx:i,p:p,ws:ws,rpe:rpe,sRPE:sRPE,dur:dur,acwr:acwr,wd:wd,hasAny:!!(wd||rd),sev:sev};
+  });
+
+  var pctWs=Math.round(wsN/PL.length*100),pctRpe=Math.round(rpeN/PL.length*100);
+  sub.textContent=wsN+'/'+PL.length+' wellness · '+rpeN+'/'+PL.length+' RPE cargados hoy';
+
+  var riesgo=rows.filter(function(r){return r.sev===2;});
+  var precaucion=rows.filter(function(r){return r.sev===1;});
+  var disponible=rows.filter(function(r){return r.sev===0;});
+  var sinDatos=rows.filter(function(r){return !r.hasAny;});
+
+  function badge(label,val,color){
+    return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(0,0,0,.25);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:800;color:'+color+'">'+label+' '+(val==null?'—':val)+'</span>';
+  }
+  var dimLabelsID=['😴 Sueño','⚡ Energía','🧠 Estrés','💪 DOMS','🔋 Fatiga'];
+  var dimKeysID=['sleep','energy','stress','doms','fatigue'];
+  var dimInvID=[false,false,true,true,true];
+  function dimColorID(val,inv){var s=inv?10-val:val;return s>=7?'var(--grn)':s>=5?'var(--yel)':'var(--red)';}
+  function playerDetail(r){
+    var dimsHtml=r.wd?'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px">'
+      +dimKeysID.map(function(k,i){
+        var v=r.wd[k]||0;
+        return '<div style="text-align:center"><div style="font-size:9px;color:var(--mut)">'+dimLabelsID[i]+'</div><div style="font-size:14px;font-weight:800;color:'+dimColorID(v,dimInvID[i])+'">'+v+'</div></div>';
+      }).join('')+'</div>':'<div style="font-size:11px;color:var(--mut);margin-bottom:8px">Sin check-in de wellness hoy.</div>';
+    var rpeHtml=r.rpe!=null?'<div style="font-size:11px;color:var(--dim)">RPE '+r.rpe+' · '+(r.sRPE!=null?r.sRPE+' AU':'—')+' · '+(r.dur!=null?r.dur+"'":'—')+'</div>':'<div style="font-size:11px;color:var(--mut)">Sin RPE cargado hoy.</div>';
+    return '<div id="inf-det-'+r.idx+'" style="display:none;padding:8px 10px 12px;background:rgba(0,0,0,.15);border-bottom:1px solid rgba(255,255,255,.04)">'+dimsHtml+rpeHtml+'</div>';
+  }
+  function playerRow(r){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="toggleInformeDetail('+r.idx+')">'
+      +'<div style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px"><span id="inf-chev-'+r.idx+'" style="font-size:8px;color:var(--mut)">▼</span>'+r.p.name+'</div>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
+        +badge('WS',r.ws,wsColorSev(r.ws))
+        +badge('RPE',r.rpe,rpeColorSev(r.rpe))
+        +badge('ACWR',r.acwr!=null?r.acwr.toFixed(2):null,r.acwr!=null?ac(r.acwr):'var(--mut)')
+      +'</div></div>'
+      +playerDetail(r);
+  }
+  function section(title,icon,color,list){
+    if(!list.length)return'';
+    return '<div class="card mb" style="border-color:'+color+';padding:0;overflow:hidden">'
+      +'<div style="padding:10px 12px;background:rgba(0,0,0,.15);font-size:11px;font-weight:800;color:'+color+';text-transform:uppercase;letter-spacing:.5px">'+icon+' '+title+' ('+list.length+')</div>'
+      +list.map(playerRow).join('')
+      +'</div>';
+  }
+
+  var pendingCards=sinDatos.map(function(r){
+    return '<span style="background:var(--c);border:1px solid var(--b);border-radius:6px;padding:3px 10px;font-size:10px;color:var(--mut)">'+r.p.name+'</span>';
+  }).join(' ');
+
+  body.innerHTML=
+    '<div class="g4 mb" style="grid-template-columns:repeat(3,1fr)">'
+    +'<div class="card" style="text-align:center"><div style="font-size:22px;font-weight:900;color:'+(pctWs>=80?'var(--grn)':pctWs>=50?'var(--yel)':'var(--red)')+'">'+wsN+'/'+PL.length+'</div><div style="font-size:9px;color:var(--mut);text-transform:uppercase;margin-top:2px">Wellness Hoy</div></div>'
+    +'<div class="card" style="text-align:center"><div style="font-size:22px;font-weight:900;color:'+(pctRpe>=80?'var(--grn)':pctRpe>=50?'var(--yel)':'var(--red)')+'">'+rpeN+'/'+PL.length+'</div><div style="font-size:9px;color:var(--mut);text-transform:uppercase;margin-top:2px">RPE Hoy</div></div>'
+    +'<div class="card" style="text-align:center"><div style="font-size:14px;font-weight:900"><span style="color:var(--red)">'+riesgo.length+'🔴</span> <span style="color:var(--yel)">'+precaucion.length+'🟡</span> <span style="color:var(--grn)">'+disponible.length+'🟢</span></div><div style="font-size:9px;color:var(--mut);text-transform:uppercase;margin-top:2px">Estado Plantel</div></div>'
+    +'</div>'
+    +section('Riesgo','🔴','var(--red)',riesgo)
+    +section('Precaución','🟡','var(--yel)',precaucion)
+    +section('Disponible','🟢','var(--grn)',disponible)
+    +(sinDatos.length?'<div style="background:rgba(100,116,139,.08);border:1px solid var(--b);border-radius:10px;padding:12px 14px">'
+      +'<div style="font-size:10px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">⏳ Sin wellness ni RPE hoy ('+sinDatos.length+')</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:5px">'+pendingCards+'</div>'
+      +'</div>':'');
 }
 
 // ===== ALERTAS DE RIESGO =====
