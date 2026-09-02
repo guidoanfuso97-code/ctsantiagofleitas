@@ -2059,12 +2059,18 @@ function calcTeamZScores(){
     mono:   ms(function(p){return p.monotony||null;})
   };
 }
-function zBar(label,val,mean,sd,higherBad){
+function zBar(label,val,mean,sd,higherBad,bothSided){
   if(val===null||val===undefined||isNaN(val))return'';
   var z=(val-mean)/(sd||0.01),zr=+z.toFixed(2);
   var pct=Math.min(Math.abs(z)/3*100,100);
-  var isBad=higherBad?z>0.5:z<-0.5,isCrit=higherBad?z>1.5:z<-1.5;
-  var col=isCrit?'var(--red)':isBad?'var(--yel)':'var(--grn)';
+  var col;
+  if(bothSided){
+    // Ambas colas importan: sobrecarga (z alto) escala a rojo, subcarga (z bajo) queda en amarillo
+    col=z>1.5?'var(--red)':(z>0.5||z<-0.5)?'var(--yel)':'var(--grn)';
+  }else{
+    var isBad=higherBad?z>0.5:z<-0.5,isCrit=higherBad?z>1.5:z<-1.5;
+    col=isCrit?'var(--red)':isBad?'var(--yel)':'var(--grn)';
+  }
   var isR=z>=0;
   return'<div style="margin-bottom:8px">'
     +'<div style="display:flex;justify-content:space-between;margin-bottom:3px">'
@@ -2259,11 +2265,11 @@ function renderIndividual(){
       +'<div style="font-size:9px;color:var(--mut)">Cada métrica comparada contra la media/DE del propio historial de ESTE jugador (mín. 14 días) — más sensible a su variabilidad personal que un umbral igual para todos</div></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
       +'<div>'
-      +(p.acwrIndivZ!==null?zBar('ACWR PL',p.acwr,p.acwrIndivMean,p.acwrIndivSD,true):indivInsufficient('ACWR PL',p.acwrIndivN))
-      +(p.hasGPSDevice?(p.acwrDistIndivZ!==null?zBar('ACWR Dist',p.acwrDist,p.acwrDistIndivMean,p.acwrDistIndivSD,true):indivInsufficient('ACWR Dist',p.acwrDistIndivN)):'')
+      +(p.acwrIndivZ!==null?zBar('ACWR PL',p.acwr,p.acwrIndivMean,p.acwrIndivSD,true,true):indivInsufficient('ACWR PL',p.acwrIndivN))
+      +(p.hasGPSDevice?(p.acwrDistIndivZ!==null?zBar('ACWR Dist',p.acwrDist,p.acwrDistIndivMean,p.acwrDistIndivSD,true,true):indivInsufficient('ACWR Dist',p.acwrDistIndivN)):'')
       +'</div><div>'
-      +(p.hasGPSDevice?(p.acwrHIIndivZ!==null?zBar('ACWR HI',p.acwrHI,p.acwrHIIndivMean,p.acwrHIIndivSD,true):indivInsufficient('ACWR HI',p.acwrHIIndivN)):'')
-      +(p.hasGPSDevice?(p.acwrSprintIndivZ!==null?zBar('ACWR Sprint',p.acwrSprint,p.acwrSprintIndivMean,p.acwrSprintIndivSD,true):indivInsufficient('ACWR Sprint',p.acwrSprintIndivN)):'')
+      +(p.hasGPSDevice?(p.acwrHIIndivZ!==null?zBar('ACWR HI',p.acwrHI,p.acwrHIIndivMean,p.acwrHIIndivSD,true,true):indivInsufficient('ACWR HI',p.acwrHIIndivN)):'')
+      +(p.hasGPSDevice?(p.acwrSprintIndivZ!==null?zBar('ACWR Sprint',p.acwrSprint,p.acwrSprintIndivMean,p.acwrSprintIndivSD,true,true):indivInsufficient('ACWR Sprint',p.acwrSprintIndivN)):'')
       +'</div></div>'
       +'</div>'
       :'')
@@ -4137,9 +4143,9 @@ function checkAlertas(){
     ].forEach(function(m){
       if(m.z===null||m.z===undefined)return;
       if(m.z>1.5){
-        alertas.push({player:p,type:'acwr_individual',msg:m.label+' a +'+m.z+'σ de su propio historial ('+m.n+' días) — inusual para este jugador aunque el umbral general no lo marque',color:'var(--yel)',icon:'🎯'});
+        alertas.push({player:p,type:'acwr_individual',msg:m.label+' a +'+m.z+'σ de su propio historial ('+m.n+' días) — sobrecarga inusual para este jugador aunque el umbral general no lo marque',color:'var(--red)',icon:'🎯'});
       } else if(m.z<-1.5){
-        alertas.push({player:p,type:'acwr_individual',msg:m.label+' a '+m.z+'σ de su propio historial ('+m.n+' días) — carga inusualmente baja para este jugador',color:'var(--yel)',icon:'🎯'});
+        alertas.push({player:p,type:'acwr_individual',msg:m.label+' a '+m.z+'σ de su propio historial ('+m.n+' días) — subcarga inusual para este jugador',color:'var(--yel)',icon:'🎯'});
       }
     });
     // Wellness crítico
