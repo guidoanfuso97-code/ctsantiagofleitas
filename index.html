@@ -2280,7 +2280,7 @@ function renderIndividual(){
     +robustCard('Tolerancia a la Carga',robIdx.tolerance,robIdx.toleranceColor,robIdx.toleranceSub)
     +robustCard('Variabilidad Semanal',robIdx.variability,robIdx.variabilityColor,robIdx.variabilitySub)
     +robustCard('Recup. Post-MD',robIdx.recovery,robIdx.recoveryColor,robIdx.recoverySub)
-    +robustCard('Asimetría Esfuerzo',robIdx.asymmetry,robIdx.asymmetryColor,robIdx.asymmetrySub)
+    +robustCard('Perfil de Intensidad',robIdx.asymmetry,robIdx.asymmetryColor,robIdx.asymmetrySub)
     +'</div></div>'
     // Interactive chart section
     +'<div class="card mb">'
@@ -2443,7 +2443,8 @@ function calcRobustness(p){
       result.recoverySub=mdSessions.length+' MD en historial';
     }
   }
-  // 4. Asimetría de esfuerzo: ratio HI+Sprint vs Distancia total
+  // 4. Perfil de Intensidad (antes "Asimetría Esfuerzo" — no es asimetría bilateral,
+  // es la proporción de esfuerzos de alta intensidad/sprint sobre la distancia total)
   var totalDist=avg(p.distArr28||plArr.map(function(){return 0;}))||1;
   var totalHiSp=avg(hiArr.map(function(h,i){return h+(spArr[i]||0);}));
   var asymRatio=totalHiSp/totalDist;
