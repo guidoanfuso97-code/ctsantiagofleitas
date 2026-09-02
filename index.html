@@ -2249,6 +2249,16 @@ function renderIndividual(){
     +'<span style="color:var(--yel)">● Atención (0.5–1.5σ)</span>'
     +'<span style="color:var(--red)">● Crítico (>1.5σ)</span>'
     +'</div></div>'
+    // Riesgo individualizado (vs el propio historial del jugador, no vs el plantel)
+    +(p.hasRealHistory&&p.acwrIndivZ!==null&&p.acwrIndivZ!==undefined?
+      '<div class="card mb" style="border-color:rgba(245,158,11,.25)">'
+      +'<div style="margin-bottom:10px"><h3 style="margin-bottom:2px;color:var(--yel)">🎯 Riesgo Individual · ACWR vs propio historial</h3>'
+      +'<div style="font-size:9px;color:var(--mut)">El ACWR de hoy comparado contra la media/DE de los últimos '+p.acwrIndivN+' días de ESTE jugador — más sensible a su variabilidad personal que un umbral igual para todos</div></div>'
+      +zBar('ACWR PL (individual)',p.acwr,p.acwrIndivMean,p.acwrIndivSD,true)
+      +'<div style="font-size:9px;color:var(--mut);margin-top:4px">Media histórica propia: '+p.acwrIndivMean+' · DE propia: '+p.acwrIndivSD+'</div>'
+      +'</div>'
+      :(p.hasRealHistory?'<div class="card mb" style="border-color:var(--b);text-align:center;padding:14px;color:var(--mut);font-size:11px">🎯 Riesgo Individual: se necesitan ≥14 días de historial real de carga para este jugador (tiene '+(p.acwrIndivN||0)+'). Mientras tanto se usa el criterio general del plantel.</div>':'')
+    )
     // Robustness block
     +'<div class="card mb" style="border-color:rgba(6,214,160,.2)">'
     +'<h3 style="color:var(--acc)">🏗 Índices de Robustez</h3>'
@@ -3380,6 +3390,19 @@ async function applyHistoricalToACWR(){
       p.rpeHistDays=rpeHistDays;
       if(rpeHistDays<7)p.acwr=null;
     }
+    // Riesgo individualizado: ACWR de hoy vs la media/DE del propio historial del
+    // jugador (últimos 27 días, sin contar hoy) en vez de umbrales fijos para todos.
+    // Requiere ≥14 días válidos para que la media/DE individual sea confiable.
+    var acwrHist=p.acwrArr.slice(0,27).filter(function(v){return v!==null&&v!==undefined;});
+    p.acwrIndivN=acwrHist.length;
+    if(acwrHist.length>=14&&p.acwr!==null){
+      var indivMean=avg(acwrHist),indivSD=std(acwrHist)||0.01;
+      p.acwrIndivMean=+indivMean.toFixed(2);
+      p.acwrIndivSD=+indivSD.toFixed(2);
+      p.acwrIndivZ=+((p.acwr-indivMean)/indivSD).toFixed(2);
+    }else{
+      p.acwrIndivMean=null;p.acwrIndivSD=null;p.acwrIndivZ=null;
+    }
     // Monotony & Strain (Foster, 2001)
     var w7=p.sArr.slice(-7);
     var meanW7=w7.reduce(function(s,v){return s+v;},0)/7;
@@ -4086,6 +4109,14 @@ function checkAlertas(){
       alertas.push({player:p,type:'acwr_alto',msg:'ACWR '+p.acwr.toFixed(2)+' — Zona de pico de carga',color:'var(--red)',icon:'🚨'});
     } else if(p.acwr!==null&&p.acwr<0.8&&p.hasRealHistory){
       alertas.push({player:p,type:'acwr_bajo',msg:'ACWR '+p.acwr.toFixed(2)+' — Subcarga, riesgo de desentrenamiento',color:'var(--yel)',icon:'⚠️'});
+    }
+    // ACWR fuera de lo habitual PARA ESTE JUGADOR (z-score individual, no umbral fijo)
+    if(p.acwrIndivZ!==null&&p.acwrIndivZ!==undefined){
+      if(p.acwrIndivZ>1.5){
+        alertas.push({player:p,type:'acwr_individual',msg:'ACWR a +'+p.acwrIndivZ+'σ de su propio historial ('+p.acwrIndivN+' días) — inusual para este jugador aunque el umbral general no lo marque',color:'var(--yel)',icon:'🎯'});
+      } else if(p.acwrIndivZ<-1.5){
+        alertas.push({player:p,type:'acwr_individual',msg:'ACWR a '+p.acwrIndivZ+'σ de su propio historial ('+p.acwrIndivN+' días) — carga inusualmente baja para este jugador',color:'var(--yel)',icon:'🎯'});
+      }
     }
     // Wellness crítico
     if(p.wscore&&p.wscore<4&&p.realWellness){
