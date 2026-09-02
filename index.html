@@ -2547,6 +2547,13 @@ async function confirmImport(){
 }
 
 function closeInformeDia(){document.getElementById('informe-dia-modal').classList.remove('on');}
+function toggleInformeDetail(idx){
+  var d=document.getElementById('inf-det-'+idx),c=document.getElementById('inf-chev-'+idx);
+  if(!d)return;
+  var open=d.style.display==='block';
+  d.style.display=open?'none':'block';
+  if(c)c.textContent=open?'▼':'▲';
+}
 
 // Informe del Día — vista única y simplificada que fusiona wellness + RPE de hoy.
 // Agrupa por severidad (riesgo/precaución/disponible) en vez de mostrar todas las
@@ -2579,12 +2586,13 @@ async function openInformeDia(){
     var ws=wd?calcWS(wd):null;
     var rpe=rd?rd.rpe_value:null;
     var sRPE=rd?rd.srpe:null;
+    var dur=rd?rd.duration:null;
     var acwr=p.acwr!=null?p.acwr:null;
     if(wd)wsN++;
     if(rd)rpeN++;
     var sevs=[wsSev(ws),rpeSev(rpe),acwrSev(acwr,p.hasRealHistory)].filter(function(s){return s!==null;});
     var sev=sevs.length?Math.max.apply(null,sevs):null;
-    return{p:p,ws:ws,rpe:rpe,sRPE:sRPE,acwr:acwr,hasAny:!!(wd||rd),sev:sev};
+    return{idx:i,p:p,ws:ws,rpe:rpe,sRPE:sRPE,dur:dur,acwr:acwr,wd:wd,hasAny:!!(wd||rd),sev:sev};
   });
 
   var pctWs=Math.round(wsN/PL.length*100),pctRpe=Math.round(rpeN/PL.length*100);
@@ -2598,14 +2606,28 @@ async function openInformeDia(){
   function badge(label,val,color){
     return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(0,0,0,.25);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:800;color:'+color+'">'+label+' '+(val==null?'—':val)+'</span>';
   }
+  var dimLabels=['😴 Sueño','⚡ Energía','🧠 Estrés','💪 DOMS','🔋 Fatiga'];
+  var dimKeys=['sleep','energy','stress','doms','fatigue'];
+  var dimInv=[false,false,true,true,true];
+  function dimColor(val,inv){var s=inv?10-val:val;return s>=7?'var(--grn)':s>=5?'var(--yel)':'var(--red)';}
+  function playerDetail(r){
+    var dimsHtml=r.wd?'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px">'
+      +dimKeys.map(function(k,i){
+        var v=r.wd[k]||0;
+        return '<div style="text-align:center"><div style="font-size:9px;color:var(--mut)">'+dimLabels[i]+'</div><div style="font-size:14px;font-weight:800;color:'+dimColor(v,dimInv[i])+'">'+v+'</div></div>';
+      }).join('')+'</div>':'<div style="font-size:11px;color:var(--mut);margin-bottom:8px">Sin check-in de wellness hoy.</div>';
+    var rpeHtml=r.rpe!=null?'<div style="font-size:11px;color:var(--dim)">RPE '+r.rpe+' · '+(r.sRPE!=null?r.sRPE+' AU':'—')+' · '+(r.dur!=null?r.dur+"'":'—')+'</div>':'<div style="font-size:11px;color:var(--mut)">Sin RPE cargado hoy.</div>';
+    return '<div id="inf-det-'+r.idx+'" style="display:none;padding:8px 10px 12px;background:rgba(0,0,0,.15);border-bottom:1px solid rgba(255,255,255,.04)">'+dimsHtml+rpeHtml+'</div>';
+  }
   function playerRow(r){
-    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04)">'
-      +'<div style="font-size:12px;font-weight:700">'+r.p.name+'</div>'
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="toggleInformeDetail('+r.idx+')">'
+      +'<div style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px"><span id="inf-chev-'+r.idx+'" style="font-size:8px;color:var(--mut)">▼</span>'+r.p.name+'</div>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'
         +badge('WS',r.ws,wsColor(r.ws))
         +badge('RPE',r.rpe,rpeColor(r.rpe))
         +badge('ACWR',r.acwr,ac(r.acwr))
-      +'</div></div>';
+      +'</div></div>'
+      +playerDetail(r);
   }
   function section(title,icon,color,list){
     if(!list.length)return'';
