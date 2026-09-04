@@ -1439,9 +1439,9 @@ function renderPlantel(){
     if(p.dolorMax===3)badges+='<span class="real-badge" style="background:rgba(244,63,94,.18);color:var(--red)" title="Dolor intenso reportado">🔴 Dolor</span>';
     else if(p.dolorMax===2)badges+='<span class="real-badge" style="background:rgba(245,158,11,.15);color:var(--yel)" title="Dolor moderado reportado">🟡 Dolor</span>';
     else if(p.dolorMax===1)badges+='<span class="real-badge" style="background:rgba(16,185,129,.12);color:var(--grn)" title="Dolor leve reportado">🟢 Dolor</span>';
-    var rdns=calcReadiness(p.idx);
-    var rdBg=rdns.score>=80?'rgba(16,185,129,.13)':rdns.score>=60?'rgba(245,158,11,.13)':'rgba(244,63,94,.13)';
-    var rdBd=rdns.score>=80?'rgba(16,185,129,.3)':rdns.score>=60?'rgba(245,158,11,.3)':'rgba(244,63,94,.3)';
+    var rdns=calcReadinessScore(p);
+    var rdBg=rdns.score>=75?'rgba(16,185,129,.13)':rdns.score>=50?'rgba(245,158,11,.13)':'rgba(244,63,94,.13)';
+    var rdBd=rdns.score>=75?'rgba(16,185,129,.3)':rdns.score>=50?'rgba(245,158,11,.3)':'rgba(244,63,94,.3)';
     badges+='<span class="real-badge" style="background:'+rdBg+';color:'+rdns.color+';border:1px solid '+rdBd+'">⚡'+rdns.score+'</span>';
     var sel=p.idx===selP?' sel':'';
     var ds=p.status;
@@ -8850,22 +8850,6 @@ async function loadLesiones(){
     var rows=await sbGet('lesiones','team_id=eq.'+TEAM.id+'&order=created_at.desc');
     LESIONES=rows||[];
   }catch(e){LESIONES=[];}
-}
-function calcReadiness(playerIdx){
-  var p=PL[playerIdx];if(!p)return{score:50,color:'var(--yel)',label:'?'};
-  var score=100;
-  var acwr=p.acwr||1;
-  if(acwr>1.5)score-=30;else if(acwr>1.3)score-=15;else if(acwr<0.7)score-=15;else if(acwr<0.8)score-=8;
-  var ws=p.wellnessScore||75;
-  if(ws<50)score-=25;else if(ws<65)score-=12;
-  var hoop=calcHooper(p.tw);
-  if(hoop&&hoop>22)score-=20;else if(hoop&&hoop>14)score-=8;
-  var hasInjury=LESIONES.some(function(l){return l.player_idx===playerIdx&&l.status==='activa';});
-  if(hasInjury)score=Math.min(score,30);
-  score=Math.max(0,Math.min(100,score));
-  var color=score>=80?'var(--grn)':score>=60?'var(--yel)':'var(--red)';
-  var label=score>=80?'Listo':score>=60?'Precaución':'Descanso';
-  return{score:Math.round(score),color:color,label:label};
 }
 function openLesionModal(lesionId){
   _editLesionId=lesionId||null;
