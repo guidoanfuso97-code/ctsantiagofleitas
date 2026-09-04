@@ -1179,6 +1179,43 @@ async function loadHistoricalRPE(){
     });
   }catch(e){RPE_HISTORY_56={};}
 }
+// Historial real de wellness (56 días) — necesario para individualizar el Hooper
+// Index (media/DE propia de cada jugador) en vez de usar cortes fijos (14/22)
+// pensados para una escala 1-7 cuando el check-in acá es 1-10.
+var WELLNESS_HISTORY_56={};
+async function loadHistoricalWellness(){
+  var cutoff=new Date();cutoff.setDate(cutoff.getDate()-57);
+  var cutStr=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
+  try{
+    var rows=await sbGet('wellness','team_id=eq.'+TEAM.id+'&date=gte.'+cutStr+'&order=date.asc');
+    WELLNESS_HISTORY_56={};
+    (rows||[]).forEach(function(r){
+      if(!WELLNESS_HISTORY_56[r.date])WELLNESS_HISTORY_56[r.date]={};
+      WELLNESS_HISTORY_56[r.date][r.player_idx]=calcHooper(r);
+    });
+  }catch(e){WELLNESS_HISTORY_56={};}
+}
+// Z-score individualizado de Hooper: hoy vs la media/DE del propio historial del
+// jugador (≥14 días reales), igual criterio que ya se usa para ACWR. Hooper es de
+// una sola cola (más alto = siempre peor), a diferencia de ACWR.
+function applyHooperIndividualZ(){
+  var dates=Object.keys(WELLNESS_HISTORY_56).sort();
+  var todayIdx=dates.indexOf(TODAY);
+  var histDates=todayIdx>=0?dates.slice(Math.max(0,todayIdx-27),todayIdx):dates.slice(-27);
+  PL.forEach(function(p){
+    var hist=histDates.map(function(d){return WELLNESS_HISTORY_56[d]&&WELLNESS_HISTORY_56[d][p.idx];})
+      .filter(function(v){return v!==null&&v!==undefined;});
+    var todayHooper=p.realWellness?calcHooper(p.tw):null;
+    p.hooperIndivN=hist.length;
+    if(hist.length>=14&&todayHooper!==null){
+      var m=avg(hist),sd=std(hist)||0.01;
+      p.hooperIndivMean=+m.toFixed(1);p.hooperIndivSD=+sd.toFixed(1);
+      p.hooperIndivZ=+((todayHooper-m)/sd).toFixed(2);
+    }else{
+      p.hooperIndivMean=null;p.hooperIndivSD=null;p.hooperIndivZ=null;
+    }
+  });
+}
 async function loadRealRPE(){
   try{
     var rows=await sbGet('rpe','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY);
@@ -1236,7 +1273,8 @@ async function doRefresh(){
   if(btn){btn.textContent='⏳';btn.style.opacity='.6';}
   try{
     var rpeCountBefore=Object.keys(RPE_HISTORY_56).reduce(function(s,d){return s+Object.keys(RPE_HISTORY_56[d]).length;},0);
-    var _rr=await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE(),loadSessionsCached(),loadRealDolor(),loadRestDays()]);
+    var _rr=await Promise.all([loadRealWellness(),loadRealRPE(),loadHistoricalRPE(),loadSessionsCached(),loadRealDolor(),loadRestDays(),loadHistoricalWellness()]);
+    applyHooperIndividualZ();
     var freshSessions=_rr[3];
     var sessionsChanged=false;
     if(freshSessions&&freshSessions.length>0){
@@ -1977,7 +2015,7 @@ function _renderWellness(){
   });
   var hooHc=hooColor(hooToday),hooHl=hooLabel(hooToday);
   // Individual Hooper ranking (today, sorted worst first)
-  var hooRanking=PL.map(function(p){return{name:p.name,hi:calcHooper(p.tw),real:p.realWellness};})
+  var hooRanking=PL.map(function(p){return{name:p.name,hi:calcHooper(p.tw),real:p.realWellness,z:p.hooperIndivZ};})
     .filter(function(r){return r.hi!==null;})
     .sort(function(a,b){return b.hi-a.hi;})
     .slice(0,8);
@@ -2006,7 +2044,10 @@ function _renderWellness(){
     // Ranking individual
     +'<div><div style="font-size:9px;color:var(--mut);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Ranking individual hoy</div>'
     +hooRanking.map(function(r){
-      var c=hooColor(r.hi),bar=Math.min(r.hi/39*100,100);
+      // Con ≥14 días reales, el color refleja la desviación vs el propio historial
+      // del jugador; si no, cae al corte fijo (14/22) como referencia general.
+      var c=(r.z!==null&&r.z!==undefined)?(r.z>1.5?'var(--red)':r.z>0.5?'var(--yel)':'var(--grn)'):hooColor(r.hi);
+      var bar=Math.min(r.hi/39*100,100);
       return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
         +'<div style="font-size:9px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:80px">'+r.name.split(' ')[0]+'</div>'
         +'<div style="flex:1;height:5px;background:var(--b);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+bar+'%;background:'+c+';border-radius:3px"></div></div>'
@@ -2267,17 +2308,19 @@ function renderIndividual(){
     +'<span style="color:var(--red)">● Crítico (>1.5σ)</span>'
     +'</div></div>'
     // Riesgo individualizado (vs el propio historial del jugador, no vs el plantel)
-    +(p.hasRealHistory?
+    // Se muestra si tiene historial real de carga O de wellness (no ambos obligatorio)
+    +((p.hasRealHistory||p.hooperIndivN>0)?
       '<div class="card mb" style="border-color:rgba(245,158,11,.25)">'
-      +'<div style="margin-bottom:10px"><h3 style="margin-bottom:2px;color:var(--yel)">🎯 Riesgo Individual · ACWR vs propio historial</h3>'
+      +'<div style="margin-bottom:10px"><h3 style="margin-bottom:2px;color:var(--yel)">🎯 Riesgo Individual · vs propio historial</h3>'
       +'<div style="font-size:9px;color:var(--mut)">Cada métrica comparada contra la media/DE del propio historial de ESTE jugador (mín. 14 días) — más sensible a su variabilidad personal que un umbral igual para todos</div></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
       +'<div>'
       +(p.acwrIndivZ!==null?zBar('ACWR PL',p.acwr,p.acwrIndivMean,p.acwrIndivSD,true,true):indivInsufficient('ACWR PL',p.acwrIndivN))
       +(p.hasGPSDevice?(p.acwrDistIndivZ!==null?zBar('ACWR Dist',p.acwrDist,p.acwrDistIndivMean,p.acwrDistIndivSD,true,true):indivInsufficient('ACWR Dist',p.acwrDistIndivN)):'')
-      +'</div><div>'
       +(p.hasGPSDevice?(p.acwrHIIndivZ!==null?zBar('ACWR HI',p.acwrHI,p.acwrHIIndivMean,p.acwrHIIndivSD,true,true):indivInsufficient('ACWR HI',p.acwrHIIndivN)):'')
+      +'</div><div>'
       +(p.hasGPSDevice?(p.acwrSprintIndivZ!==null?zBar('ACWR Sprint',p.acwrSprint,p.acwrSprintIndivMean,p.acwrSprintIndivSD,true,true):indivInsufficient('ACWR Sprint',p.acwrSprintIndivN)):'')
+      +(p.hooperIndivZ!==null?zBar('Wellness (Hooper)',calcHooper(p.tw),p.hooperIndivMean,p.hooperIndivSD,true):indivInsufficient('Wellness (Hooper)',p.hooperIndivN))
       +'</div></div>'
       +'</div>'
       :'')
@@ -10711,8 +10754,10 @@ async function initATLAS(){
     loadDocs(),
     loadLesiones(),
     loadRealDolor(),
-    loadRestDays()
+    loadRestDays(),
+    loadHistoricalWellness()
   ]);
+  applyHooperIndividualZ();
   await injectPretemporadaData(); // pre-load sheets data
   SESSIONS=results[0];
   // If Supabase returned nothing, retry once after 1.5 seconds
