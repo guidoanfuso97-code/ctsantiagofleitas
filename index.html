@@ -8894,6 +8894,32 @@ async function loadLesiones(){
     LESIONES=rows||[];
   }catch(e){LESIONES=[];}
 }
+// Sana lesiones.player_idx por nombre, igual que healSessionIndices() ya hace para
+// sesiones GPS. Sin esto, una lesión guardada antes de un cambio en el orden del
+// plantel puede quedar apuntando al jugador equivocado silenciosamente (caso
+// detectado con Gastón Maidana — ver auditoría 2026-09-04).
+async function healLesionIndices(){
+  var fixed=[];
+  LESIONES.forEach(function(l){
+    if(!l.player_name){
+      // Registro viejo, previo a esta columna: completar el nombre con el idx actual
+      // (asume que hoy todavía es correcto) para que de acá en más sí se pueda sanar.
+      var cur=PL[l.player_idx];
+      if(cur){l.player_name=cur.name;fixed.push({id:l.id,player_idx:l.player_idx,player_name:cur.name});}
+      return;
+    }
+    var m=matchPlayer(l.player_name);
+    if(m&&m.idx!==l.player_idx){
+      var old=l.player_idx;
+      l.player_idx=m.idx;
+      fixed.push({id:l.id,player_idx:m.idx,player_name:l.player_name});
+      console.warn('Lesión sanada: "'+l.player_name+'" estaba en player_idx '+old+', corregido a '+m.idx);
+    }
+  });
+  for(var i=0;i<fixed.length;i++){
+    try{await sbUpdate('lesiones','id=eq.'+fixed[i].id,{player_idx:fixed[i].player_idx,player_name:fixed[i].player_name});}catch(e){}
+  }
+}
 function openLesionModal(lesionId){
   _editLesionId=lesionId||null;
   var opts=PL.map(function(p,i){return '<option value="'+i+'">'+p.name+'</option>';}).join('');
@@ -8926,7 +8952,7 @@ async function saveLesion(){
   var fechaInicio=$('les-fecha').value;
   if(!fechaInicio){showBanner('Completá la fecha de inicio','var(--yel)',3000);return;}
   var existingLesion=_editLesionId?LESIONES.find(function(l){return l.id===_editLesionId;}):null;
-  var row={team_id:TEAM.id,player_idx:playerIdx,fecha_inicio:fechaInicio,
+  var row={team_id:TEAM.id,player_idx:playerIdx,player_name:PL[playerIdx]?PL[playerIdx].name:null,fecha_inicio:fechaInicio,
     fecha_alta_est:$('les-alta').value||null,tipo:$('les-tipo').value,
     zona:$('les-zona').value,gravedad:$('les-gravedad').value,
     descripcion:$('les-desc').value.trim(),
@@ -10758,6 +10784,7 @@ async function initATLAS(){
     loadHistoricalWellness()
   ]);
   applyHooperIndividualZ();
+  await healLesionIndices();
   await injectPretemporadaData(); // pre-load sheets data
   SESSIONS=results[0];
   // If Supabase returned nothing, retry once after 1.5 seconds
