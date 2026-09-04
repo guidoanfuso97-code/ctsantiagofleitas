@@ -1207,14 +1207,17 @@ async function loadRealRPE(){
   }catch(e){}
 }
 function recalcStatus(p){
+  var isInjured=(typeof LESIONES!=='undefined')&&LESIONES.some(function(l){return l.player_idx===p.idx&&l.status==='activa';});
+  if(isInjured){p.status='g';return;} // lesionado: no evaluar carga, se gestiona en Lesiones
   var s='g';
   var ws=p.wscore; // null = no data → ignore
+  var acwr=p.hasRealHistory?p.acwr:null; // sin historial real, no fabricar riesgo por ACWR
   if(p.hasGPSDevice){
-    if((p.acwr!==null&&p.acwr>1.5)||(ws!==null&&ws<3.5)||p.cmjDelta<-10)s='r';
-    else if((p.acwr!==null&&(p.acwr>1.3||p.acwr<0.8))||(ws!==null&&ws<5)||p.cmjDelta<-5)s='y';
+    if((acwr!==null&&acwr>1.5)||(ws!==null&&ws<3.5)||p.cmjDelta<-10)s='r';
+    else if((acwr!==null&&(acwr>1.3||acwr<0.8))||(ws!==null&&ws<5)||p.cmjDelta<-5)s='y';
   } else {
-    if((p.acwr!==null&&p.acwr>1.5)||(ws!==null&&ws<3.5))s='r';
-    else if((p.acwr!==null&&(p.acwr>1.3||p.acwr<0.8))||(ws!==null&&ws<5))s='y';
+    if((acwr!==null&&acwr>1.5)||(ws!==null&&ws<3.5))s='r';
+    else if((acwr!==null&&(acwr>1.3||acwr<0.8))||(ws!==null&&ws<5))s='y';
   }
   p.status=s;
 }
@@ -1242,7 +1245,12 @@ async function doRefresh(){
       if(sig!==oldSig){SESSIONS=freshSessions;_lastSessionCount=0;sessionsChanged=true;}
     }
     var rpeCountAfter=Object.keys(RPE_HISTORY_56).reduce(function(s,d){return s+Object.keys(RPE_HISTORY_56[d]).length;},0);
-    if(sessionsChanged||rpeCountAfter!==rpeCountBefore)await applyHistoricalToACWR();
+    // Autocuración: si algún jugador nunca pasó por applyHistoricalToACWR (ej. se
+    // agregó al plantel después de la última sesión importada), forzar el cálculo
+    // aunque no haya sesiones/RPE nuevos — si no, queda con el ACWR placeholder
+    // (1.0) o desactualizado para siempre.
+    var missingHistory=SESSIONS.length>0&&PL.some(function(p){return !p.hasRealHistory;});
+    if(sessionsChanged||rpeCountAfter!==rpeCountBefore||missingHistory)await applyHistoricalToACWR();
   }catch(e){
     console.error('Refresh error:',e);
   }
@@ -3361,9 +3369,12 @@ async function applyHistoricalToACWR(){
   if(!SESSIONS.length)return;
   // Heal stale playerIdx values before any processing
   var healed=healSessionIndices();
-  // Skip if sessions haven't changed and no healing was needed
+  // Skip if sessions haven't changed, no healing was needed, y todos los jugadores
+  // ya pasaron por este cálculo al menos una vez (si no, un jugador agregado
+  // después de la última sesión importada quedaría con el ACWR placeholder para siempre)
   var currentSig=SESSIONS.length+'|'+(SESSIONS[0]?SESSIONS[0].date:'');
-  if(!healed&&currentSig===_lastSessionCount+'|'+_lastSessionDate&&_lastSessionCount>0){
+  var allProcessed=PL.every(function(p){return p.hasRealHistory;});
+  if(!healed&&allProcessed&&currentSig===_lastSessionCount+'|'+_lastSessionDate&&_lastSessionCount>0){
     // Just recalc status, don't redo EWMA
     PL.forEach(function(p){recalcStatus(p);});
     return;
@@ -4130,25 +4141,30 @@ function checkAlertas(){
   var alertas=[];
   PL.forEach(function(p){
     if(!p.hasGPSDevice&&!p.realRPE) return; // sin datos, no alertar
-    // ACWR crítico
-    if(p.acwr!==null&&p.acwr>1.5){
+    var isInjured=(typeof LESIONES!=='undefined')&&LESIONES.some(function(l){return l.player_idx===p.idx&&l.status==='activa';});
+    if(isInjured) return; // lesionado: gestionado en el módulo de Lesiones, no acá
+    // ACWR crítico — requiere historial real de carga para este jugador
+    if(p.hasRealHistory&&p.acwr!==null&&p.acwr>1.5){
       alertas.push({player:p,type:'acwr_alto',msg:'ACWR '+p.acwr.toFixed(2)+' — Zona de pico de carga',color:'var(--red)',icon:'🚨'});
-    } else if(p.acwr!==null&&p.acwr<0.8&&p.hasRealHistory){
+    } else if(p.hasRealHistory&&p.acwr!==null&&p.acwr<0.8){
       alertas.push({player:p,type:'acwr_bajo',msg:'ACWR '+p.acwr.toFixed(2)+' — Subcarga, riesgo de desentrenamiento',color:'var(--yel)',icon:'⚠️'});
     }
     // ACWR fuera de lo habitual PARA ESTE JUGADOR (z-score individual, no umbral fijo)
-    [{label:'ACWR PL',z:p.acwrIndivZ,n:p.acwrIndivN},
+    // Se consolida a lo sumo 1 alerta (la más severa de las 4 métricas) para no repetir
+    // el mismo jugador varias veces en la lista.
+    var indivMetrics=[{label:'ACWR PL',z:p.acwrIndivZ,n:p.acwrIndivN},
      {label:'ACWR Dist',z:p.acwrDistIndivZ,n:p.acwrDistIndivN},
      {label:'ACWR HI',z:p.acwrHIIndivZ,n:p.acwrHIIndivN},
      {label:'ACWR Sprint',z:p.acwrSprintIndivZ,n:p.acwrSprintIndivN}
-    ].forEach(function(m){
-      if(m.z===null||m.z===undefined)return;
-      if(m.z>1.5){
-        alertas.push({player:p,type:'acwr_individual',msg:m.label+' a +'+m.z+'σ de su propio historial ('+m.n+' días) — sobrecarga inusual para este jugador aunque el umbral general no lo marque',color:'var(--red)',icon:'🎯'});
-      } else if(m.z<-1.5){
-        alertas.push({player:p,type:'acwr_individual',msg:m.label+' a '+m.z+'σ de su propio historial ('+m.n+' días) — subcarga inusual para este jugador',color:'var(--yel)',icon:'🎯'});
+    ].filter(function(m){return m.z!==null&&m.z!==undefined&&Math.abs(m.z)>1.5;});
+    if(indivMetrics.length){
+      var worst=indivMetrics.reduce(function(a,b){return Math.abs(b.z)>Math.abs(a.z)?b:a;});
+      if(worst.z>0){
+        alertas.push({player:p,type:'acwr_individual',msg:worst.label+' a +'+worst.z+'σ de su propio historial ('+worst.n+' días) — sobrecarga inusual para este jugador aunque el umbral general no lo marque',color:'var(--red)',icon:'🎯'});
+      } else {
+        alertas.push({player:p,type:'acwr_individual',msg:worst.label+' a '+worst.z+'σ de su propio historial ('+worst.n+' días) — subcarga inusual para este jugador',color:'var(--yel)',icon:'🎯'});
       }
-    });
+    }
     // Wellness crítico
     if(p.wscore&&p.wscore<4&&p.realWellness){
       alertas.push({player:p,type:'wellness',msg:'Wellness '+p.wscore+'/10 — Estado crítico',color:'var(--red)',icon:'🔴'});
@@ -4197,31 +4213,46 @@ function showAlertasPanel(){
   if(btn){
     btn.style.display='block';
     var rojas=alertas.filter(function(a){return a.color==='var(--red)';}).length;
-    btn.textContent='🚨 '+alertas.length+' alerta'+(alertas.length!==1?'s':'');
+    var jugadoresConAlerta=alertas.reduce(function(s,a){return s.indexOf(a.player.idx)<0?s.concat(a.player.idx):s;},[]).length;
+    btn.textContent='🚨 '+jugadoresConAlerta+' jugador'+(jugadoresConAlerta!==1?'es':'');
     btn.style.background=rojas>0?'rgba(244,63,94,.15)':'rgba(245,158,11,.12)';
     btn.style.borderColor=rojas>0?'rgba(244,63,94,.35)':'rgba(245,158,11,.3)';
     btn.style.color=rojas>0?'var(--red)':'var(--yel)';
   }
   panel.style.display='block';
-  // Group by severity
+  // Group by severity (para el conteo del header)
   var rojas=alertas.filter(function(a){return a.color==='var(--red)';});
   var amarillas=alertas.filter(function(a){return a.color==='var(--yel)';});
+  // Agrupar por jugador: un jugador con 4 issues era 4 filas separadas — ahora es 1
+  // tarjeta con todas sus razones adentro, para que la lista sea legible.
+  var byPlayer={};
+  alertas.forEach(function(a){
+    var k=a.player.idx;
+    if(!byPlayer[k])byPlayer[k]={player:a.player,items:[],hasRed:false};
+    byPlayer[k].items.push(a);
+    if(a.color==='var(--red)')byPlayer[k].hasRed=true;
+  });
+  var groups=Object.keys(byPlayer).map(function(k){return byPlayer[k];})
+    .sort(function(a,b){
+      if(a.hasRed!==b.hasRed)return a.hasRed?-1:1;
+      return b.items.length-a.items.length;
+    });
   panel.innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
-    +'<div style="font-size:12px;font-weight:700;color:var(--txt)">⚠️ Alertas activas</div>'
+    +'<div style="font-size:12px;font-weight:700;color:var(--txt)">⚠️ Alertas activas · '+groups.length+' jugador'+(groups.length!==1?'es':'')+'</div>'
     +'<div style="display:flex;gap:6px">'
     +(rojas.length?'<span style="background:rgba(244,63,94,.2);color:var(--red);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">🚨 '+rojas.length+' críticas</span>':'')
     +(amarillas.length?'<span style="background:rgba(245,158,11,.15);color:var(--yel);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">⚠️ '+amarillas.length+' precaución</span>':'')
     +'<button onclick="toggleAlertasPanel()" style="background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer">✕</button>'
     +'</div></div>'
-    +alertas.map(function(a){
-      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(0,0,0,.2);border-left:3px solid '+a.color+';border-radius:0 6px 6px 0;margin-bottom:5px;cursor:pointer" onclick="selP2('+a.player.idx+');switchTab(\'individual\')">'
-        +'<span style="font-size:16px;flex-shrink:0">'+a.icon+'</span>'
-        +'<div style="flex:1;min-width:0">'
-        +'<div style="font-size:11px;font-weight:700;color:'+a.color+'">'+a.player.name+'</div>'
-        +'<div style="font-size:10px;color:var(--mut);margin-top:1px">'+a.msg+'</div>'
-        +'</div>'
+    +groups.map(function(g){
+      var col=g.hasRed?'var(--red)':'var(--yel)';
+      return '<div style="padding:8px 10px;background:rgba(0,0,0,.2);border-left:3px solid '+col+';border-radius:0 6px 6px 0;margin-bottom:5px;cursor:pointer" onclick="selP2('+g.player.idx+');switchTab(\'individual\')">'
+        +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
+        +'<div style="font-size:11px;font-weight:700;color:'+col+'">'+g.player.name+(g.items.length>1?' <span style="color:var(--mut);font-weight:600">· '+g.items.length+' issues</span>':'')+'</div>'
         +'<span style="font-size:10px;color:var(--mut);flex-shrink:0">Ver →</span>'
+        +'</div>'
+        +g.items.map(function(a){return '<div style="font-size:10px;color:var(--mut);margin-top:2px">'+a.icon+' '+a.msg+'</div>';}).join('')
         +'</div>';
     }).join('');
 }
@@ -9591,9 +9622,16 @@ var TABS={
 //  SEMÁFORO · Disponibilidad del Plantel
 // ══════════════════════════════════════════════════
 function calcReadinessScore(p){
+  // Lesionado activo: no está en planificación de carga — no evaluar ACWR/wellness/CMJ
+  // como si estuviera entrenando, o aparecen falsos positivos tipo "carga alta" en
+  // alguien que hace semanas no pisa el campo.
+  var isInjured=(typeof LESIONES!=='undefined')&&LESIONES.some(function(l){return l.player_idx===p.idx&&l.status==='activa';});
+  if(isInjured){
+    return{score:100,color:'var(--dim)',emoji:'🩹',reasons:['🩹 Lesionado — no evaluado por carga'],positives:[],acwr:null,ws:p.wscore,cmjDelta:0,injured:true};
+  }
   var score=100, reasons=[], positives=[];
-  // ACWR (35 pts)
-  var acwr=p.acwr||null;
+  // ACWR (35 pts) — solo si hay historial real de carga para este jugador
+  var acwr=(p.hasRealHistory&&p.acwr!=null)?p.acwr:null;
   if(acwr!==null){
     if(acwr>1.5){score-=35;reasons.push('Carga muy alta (ACWR '+acwr.toFixed(2)+')');}
     else if(acwr>1.3){score-=20;reasons.push('Carga alta (ACWR '+acwr.toFixed(2)+')');}
