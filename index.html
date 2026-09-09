@@ -425,6 +425,7 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(0,
     <div class="tab" id="t-semaforo"></div>
     <div class="tab" id="t-microciclo"><div id="microciclo-body"></div></div>
     <div class="tab" id="t-graficos"></div>
+    <div class="tab" id="t-usuarios"></div>
   </div>
 </div>
 </div>
@@ -10663,7 +10664,7 @@ var ROLE_OPTIONS=['admin','dt','medico','fisio','readonly'];
 var ROLE_LABELS_SHORT={admin:'Admin',dt:'Cuerpo Técnico',medico:'Médico',fisio:'Preparador Físico',readonly:'Solo lectura'};
 
 async function renderUsuarios(){
-  var el=document.getElementById('tab-content');
+  var el=document.getElementById('t-usuarios');
   if(!el)return;
   if(ATLAS_ROLE!=='admin'){el.innerHTML='<div style="padding:40px;text-align:center;color:var(--dim)">Acceso restringido a administradores.</div>';return;}
   el.innerHTML='<div style="padding:20px 16px 8px;font-size:13px;font-weight:700;color:var(--acc);letter-spacing:.5px">Gestión de Usuarios</div>'
@@ -10697,8 +10698,7 @@ async function loadUsuariosList(){
 }
 
 function openAddUserModal(){
-  var html='<div style="background:var(--card);border-radius:14px;padding:24px;max-width:380px;width:90%;border:1px solid var(--b)">'
-    +'<div style="font-weight:700;font-size:14px;margin-bottom:16px;color:var(--fg)">Nuevo usuario</div>'
+  var html='<div style="font-weight:700;font-size:14px;margin-bottom:16px;color:var(--fg)">Nuevo usuario</div>'
     +'<input id="new-user-email" type="email" placeholder="Email del usuario" style="width:100%;box-sizing:border-box;background:var(--b2);color:var(--fg);border:1px solid var(--b);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:10px">'
     +'<select id="new-user-role" style="width:100%;box-sizing:border-box;background:var(--b2);color:var(--fg);border:1px solid var(--b);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:10px">'
     +ROLE_OPTIONS.map(function(r){return '<option value="'+r+'">'+ROLE_LABELS_SHORT[r]+'</option>';}).join('')
@@ -10707,9 +10707,8 @@ function openAddUserModal(){
     +'<div style="display:flex;gap:10px">'
     +'<button class="btn-primary" style="flex:1;padding:10px;font-size:13px" onclick="confirmAddUser()">Agregar</button>'
     +'<button onclick="closeModal()" style="flex:1;padding:10px;font-size:13px;background:var(--b2);color:var(--dim);border:none;border-radius:8px;cursor:pointer">Cancelar</button>'
-    +'</div></div>';
-  var modal=document.getElementById('modal-overlay');
-  if(modal){modal.innerHTML='<div style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7)">'+html+'</div>';modal.classList.remove('hidden');}
+    +'</div>';
+  openModal(html);
 }
 
 async function confirmAddUser(){
