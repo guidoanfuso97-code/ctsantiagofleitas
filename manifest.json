@@ -1,7 +1,7 @@
 {
-  "name": "ATLAS · CT Santiago Fleitas",
+  "name": "ATLAS · Sistema de Monitoreo de Cargas",
   "short_name": "ATLAS",
-  "description": "Plataforma de análisis deportivo - Club El Porvenir 2026",
+  "description": "Plataforma de análisis deportivo y monitoreo de carga",
   "start_url": "/ctsantiagofleitas/",
   "scope": "/ctsantiagofleitas/",
   "display": "standalone",
