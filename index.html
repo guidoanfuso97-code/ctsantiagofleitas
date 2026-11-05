@@ -3663,6 +3663,9 @@ function handleGPSFile(file){
 // Handles: "Arrieta Jeremias" vs "Jeremias Arrieta", partial matches, accents
 function normalize(s){
   // Remove accents/tildes and lowercase: á→a, é→e, í→i, ó→o, ú→u, ü→u, ñ→n
+  // Los dígitos se conservan (no solo las letras): dos jugadores con nombre casi
+  // idéntico distinguidos por un número en el nombre de origen (CSV de GPS, etc.)
+  // antes colapsaban a la misma palabra normalizada y matchPlayer() los confundía.
   return s.toLowerCase()
     .replace(/[áàäâã]/g,'a')
     .replace(/[éèëê]/g,'e')
@@ -3670,12 +3673,15 @@ function normalize(s){
     .replace(/[óòöôõ]/g,'o')
     .replace(/[úùüû]/g,'u')
     .replace(/ñ/g,'n')
-    .replace(/[^a-z ]/g,'');
+    .replace(/[^a-z0-9 ]/g,'');
 }
 function matchPlayer(csvName){
   if(!csvName)return null;
   var norm=normalize(csvName);
-  var words=norm.split(/\s+/).filter(function(w){return w.length>=3;});
+  // Palabras >=3 letras, o un número completo (p.ej. "5", "23") que ayude a
+  // desambiguar dos nombres casi iguales — un token puramente numérico nunca
+  // puede dar un falso positivo contra una palabra normal.
+  var words=norm.split(/\s+/).filter(function(w){return w.length>=3||/^[0-9]+$/.test(w);});
   if(!words.length)return null;
   var best=null,bestScore=0;
   PL.forEach(function(p){
