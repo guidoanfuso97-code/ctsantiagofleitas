@@ -5,8 +5,8 @@
   "start_url": "/ctsantiagofleitas/",
   "scope": "/ctsantiagofleitas/",
   "display": "standalone",
-  "background_color": "#050c1a",
-  "theme_color": "#06d6a0",
+  "background_color": "#FBF7F1",
+  "theme_color": "#B5542D",
   "orientation": "any",
   "icons": [
     {
