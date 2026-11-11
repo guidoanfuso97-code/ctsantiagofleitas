@@ -9878,19 +9878,28 @@ function renderSemaforo(){
     +'</div>';
 
   // Player grid — sorted by score asc (worst first)
-  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">';
+  var statusLbl=function(r){return r.injured?'Lesionado':r.score>=75?'Disponible':r.score>=50?'Monitorear':'Atención';};
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">';
   readiness.slice().sort(function(a,b){return a.r.score-b.r.score;}).forEach(function(x){
     var r=x.r, p=x.p;
-    var borderCol=r.score>=75?'rgba(16,185,129,.3)':r.score>=50?'rgba(245,158,11,.3)':'rgba(244,63,94,.3)';
-    html+='<div class="card" style="border:1px solid '+borderCol+';position:relative">'
-      // Score circle
-      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
-        +'<div style="width:44px;height:44px;border-radius:50%;background:'+r.color+';display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;flex-shrink:0">'+r.score+'</div>'
-        +'<div>'
-          +'<div style="font-size:13px;font-weight:700;color:var(--txt)">'+p.name.split(' ')[0]+' '+( p.name.split(' ')[1]||'')+'</div>'
+    var borderCol=r.score>=75?'rgba(16,185,129,.35)':r.score>=50?'rgba(245,158,11,.35)':'rgba(244,63,94,.35)';
+    html+='<div class="card" style="border:1px solid '+borderCol+';position:relative;padding-left:21px;overflow:hidden">'
+      +'<div style="position:absolute;left:0;top:0;bottom:0;width:5px;background:'+r.color+'"></div>'
+      // Avatar + status dot
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+        +'<div style="position:relative;flex-shrink:0">'
+          +playerAvatar(p.idx,44)
+          +'<div style="position:absolute;bottom:-1px;right:-1px;width:14px;height:14px;border-radius:50%;background:'+r.color+';border:2px solid var(--bg)"></div>'
+        +'</div>'
+        +'<div style="min-width:0;flex:1">'
+          +'<div style="font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name.split(' ')[0]+' '+( p.name.split(' ')[1]||'')+'</div>'
           +'<div style="font-size:10px;color:var(--mut)">'+p.pos+(p.num?' · #'+p.num:'')+'</div>'
         +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+          +'<div style="font-size:18px;font-weight:900;color:'+r.color+';line-height:1">'+r.score+'</div>'
+        +'</div>'
       +'</div>'
+      +'<div style="display:inline-flex;align-items:center;gap:5px;background:'+r.color+';color:#fff;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:800;margin-bottom:10px">'+r.emoji+' '+statusLbl(r).toUpperCase()+'</div>'
       // Mini metrics
       +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:8px">'
         +[{label:'ACWR',val:r.acwr!==null?r.acwr.toFixed(2):'—',col:r.acwr===null?'var(--mut)':r.acwr>1.3?'var(--red)':r.acwr<0.8?'var(--yel)':'var(--grn)'},
