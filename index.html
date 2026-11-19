@@ -5429,14 +5429,14 @@ function gymGroupAssign(playerIdx){
   if(!latestCMJ&&!latestCMJR){
     return{group:null,label:'Sin datos',reasons:['Sin tests de CMJ ni CMJ Rebound cargados'],details:[]};
   }
-  var details=[],weighted=0,severe=null;
+  var details=[],weighted=0,severeList=[];
   function checkAsym(entry,def){
     if(!entry)return;
     var raw=entry[def.key];
     var val=parseAsymPct(raw);
     var d={label:def.label,raw:raw,val:val,critical:def.critical,altered:false,severe:false};
     if(val!==null){
-      if(val>=GYM_ASYM_SEVERE){d.severe=true;if(!severe)severe=def.label+' ('+val.toFixed(1)+'%)';}
+      if(val>=GYM_ASYM_SEVERE){d.severe=true;severeList.push(def.label+' ('+val.toFixed(1)+'%)');}
       if(val>=GYM_ASYM_ALTERED){d.altered=true;weighted+=1;}
     }
     details.push(d);
@@ -5444,9 +5444,9 @@ function gymGroupAssign(playerIdx){
   GYM_CMJ_ASYM.forEach(function(def){checkAsym(latestCMJ,def);});
   GYM_CMJR_ASYM.forEach(function(def){checkAsym(latestCMJR,def);});
 
-  if(severe||weighted>=2){
+  if(severeList.length||weighted>=2){
     var reasons=[];
-    if(severe)reasons.push('Asimetría muy marcada (≥'+GYM_ASYM_SEVERE+'%): '+severe);
+    if(severeList.length)reasons.push('Asimetría muy marcada (≥'+GYM_ASYM_SEVERE+'%): '+severeList.join(', '));
     var alteredList=details.filter(function(d){return d.altered;}).map(function(d){return d.label+' ('+d.val.toFixed(1)+'%)'+(d.critical?' · crítica':'');});
     if(alteredList.length)reasons.push(alteredList.length+' variable(s) alterada(s) (≥'+GYM_ASYM_ALTERED+'%): '+alteredList.join(', '));
     return{group:1,label:GYM_GROUPS[1].label,reasons:reasons,details:details};
