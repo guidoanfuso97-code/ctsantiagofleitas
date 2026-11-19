@@ -5399,7 +5399,7 @@ async function confirmFPImport(rows){
 //  GRUPOS DE GIMNASIO — clasificación por CMJ/CMJ Rebound
 //  Heurístico interno de Guido Anfuso, no de literatura publicada.
 // ══════════════════════════════════════════════════
-var GYM_ASYM_ALTERED=10, GYM_ASYM_SEVERE=30, GYM_MIN_FP_HISTORY=3;
+var GYM_ASYM_ALTERED=15, GYM_ASYM_SEVERE=30, GYM_MIN_FP_HISTORY=3;
 var GYM_CMJ_ASYM=[
   {key:'concentric_impulse_asym',label:'Concentric Impulse',critical:false},
   {key:'eccentric_braking_asym', label:'Eccentric Braking Impulse',critical:false},
@@ -5436,7 +5436,7 @@ function gymGroupAssign(playerIdx){
     var d={label:def.label,raw:raw,val:val,critical:def.critical,altered:false,severe:false};
     if(val!==null){
       if(val>=GYM_ASYM_SEVERE){d.severe=true;if(!severe)severe=def.label+' ('+val.toFixed(1)+'%)';}
-      if(val>=GYM_ASYM_ALTERED){d.altered=true;weighted+=def.critical?2:1;}
+      if(val>=GYM_ASYM_ALTERED){d.altered=true;weighted+=1;}
     }
     details.push(d);
   }
