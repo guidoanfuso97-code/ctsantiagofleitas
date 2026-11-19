@@ -5222,6 +5222,14 @@ async function saveFPManual(playerIdx,testType){
   var row={team_id:TEAM.id,player_idx:playerIdx,date:date,test_type:testType,notes:notes,source:'manual'};
   tt.metrics.forEach(function(m){var el=document.getElementById('fp-'+m.key);row[m.key]=el&&el.value!==''?+el.value:null;});
   if(tt.asymMetrics)tt.asymMetrics.forEach(function(m){var el=document.getElementById('fp-'+m.key);row[m.key]=el&&el.value.trim()!==''?el.value.trim():null;});
+  var dup=FP_DATA.filter(function(e){return e.player_idx===playerIdx&&e.test_type===testType&&e.date===date;});
+  if(dup.length){
+    var replace=confirm('Ya hay un test de '+tt.label+' cargado para '+PL[playerIdx].name+' el '+date+'.\n\nAceptar = reemplazarlo por este nuevo.\nCancelar = guardar este igual, como registro adicional.');
+    if(replace){
+      for(var k=0;k<dup.length;k++)await sbDelete('force_plates','id=eq.'+dup[k].id);
+      FP_DATA=FP_DATA.filter(function(e){return !(e.player_idx===playerIdx&&e.test_type===testType&&e.date===date);});
+    }
+  }
   var saved=await sbInsertReturn('force_plates',row);
   if(!saved){showBanner('❌ Error al guardar — chequeá la conexión','var(--red)',4000);return;}
   row.id=saved.id;
@@ -5384,6 +5392,27 @@ function parseFPCSV(text){
 
 async function confirmFPImport(rows){
   var btn=document.getElementById('fp-confirm-btn');
+  // Aviso de duplicados: mismo jugador + tipo de test + fecha ya cargado.
+  // Pasa esto siempre que se re-testee varias veces hasta que el jugador
+  // entiende el protocolo — dejamos elegir en vez de pisar en silencio.
+  var dupes=rows.filter(function(r){
+    return FP_DATA.some(function(e){return e.player_idx===r.player_idx&&e.test_type===r.test_type&&e.date===r.date;});
+  });
+  if(dupes.length){
+    var fechas=dupes.map(function(r){return r.date;}).filter(function(v,i,a){return a.indexOf(v)===i;}).join(', ');
+    var replace=confirm('Ya hay '+dupes.length+' test(s) cargado(s) para esta fecha('+(dupes.length>1?'s':'')+': '+fechas+'.\n\nAceptar = reemplazar los viejos por estos nuevos.\nCancelar = guardar estos igual, como registros adicionales (vas a tener más de un test ese día).');
+    if(replace){
+      for(var j=0;j<dupes.length;j++){
+        var old=FP_DATA.filter(function(e){return e.player_idx===dupes[j].player_idx&&e.test_type===dupes[j].test_type&&e.date===dupes[j].date;});
+        for(var k=0;k<old.length;k++){
+          await sbDelete('force_plates','id=eq.'+old[k].id);
+        }
+      }
+      FP_DATA=FP_DATA.filter(function(e){
+        return !dupes.some(function(d){return e.player_idx===d.player_idx&&e.test_type===d.test_type&&e.date===d.date;});
+      });
+    }
+  }
   if(btn){btn.disabled=true;btn.textContent='Importando...';}
   var saved=0;
   for(var i=0;i<rows.length;i++){
@@ -5508,9 +5537,9 @@ function renderGymGroups(){
     +'</div>';
 
   function asymRow(d){
-    if(d.val===null)return'<div style="display:flex;justify-content:space-between;font-size:10px;padding:2px 0"><span style="color:var(--mut)">'+d.label+(d.critical?' ⭐':'')+'</span><span style="color:var(--mut)">—</span></div>';
+    if(d.val===null)return'<div style="display:flex;justify-content:space-between;font-size:10px;padding:2px 0"><span style="color:var(--mut)">'+d.label+'</span><span style="color:var(--mut)">—</span></div>';
     var col=d.severe?'var(--red)':d.altered?'var(--yel)':'var(--grn)';
-    return'<div style="display:flex;justify-content:space-between;font-size:10px;padding:2px 0"><span style="color:var(--mut)">'+d.label+(d.critical?' ⭐':'')+'</span><span style="color:'+col+';font-weight:700">'+d.raw+'</span></div>';
+    return'<div style="display:flex;justify-content:space-between;font-size:10px;padding:2px 0"><span style="color:var(--mut)">'+d.label+'</span><span style="color:'+col+';font-weight:700">'+d.raw+'</span></div>';
   }
 
   var sorted=assigns.slice().sort(function(a,b){
