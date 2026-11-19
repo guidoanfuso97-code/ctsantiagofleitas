@@ -5400,6 +5400,7 @@ async function confirmFPImport(rows){
 //  Heurístico interno de Guido Anfuso, no de literatura publicada.
 // ══════════════════════════════════════════════════
 var GYM_ASYM_ALTERED=15, GYM_ASYM_SEVERE=30, GYM_MIN_FP_HISTORY=3;
+var GYM_CONTACT_TIME_HIGH=250, GYM_RSI_MOD_LOW=0.60;
 var GYM_CMJ_ASYM=[
   {key:'concentric_impulse_asym',label:'Concentric Impulse',critical:false},
   {key:'eccentric_braking_asym', label:'Eccentric Braking Impulse',critical:false},
@@ -5451,34 +5452,37 @@ function gymGroupAssign(playerIdx){
     return{group:1,label:GYM_GROUPS[1].label,reasons:reasons,details:details};
   }
 
-  // 0-1 variables alteradas → candidato a Potencia Mecánica o Reactividad,
-  // desempatado por RSI-mod (CMJ) y Rebound Contact Time (CMJR) vs historial propio del jugador.
+  // 0-1 variables alteradas → candidato a Potencia Mecánica o Reactividad.
+  // Criterio principal: corte fijo (Contact Time>250ms + RSI-mod<0.60) — funciona
+  // desde el primer test, sin necesitar historial. El z-score vs su propio
+  // historial es un criterio EXTRA para detectar caída real aunque no cruce
+  // el corte fijo (ej. RSI-mod que bajó mucho pero sigue >0.60).
+  var rsiMod=latestCMJ?latestCMJ.rsi_mod:null, contactT=latestCMJR?latestCMJR.contact_time:null;
+  var rsiAbsLow=rsiMod!=null&&rsiMod<GYM_RSI_MOD_LOW;
+  var ctAbsHigh=contactT!=null&&contactT>GYM_CONTACT_TIME_HIGH;
+
+  if(rsiAbsLow&&ctAbsHigh){
+    return{group:3,label:GYM_GROUPS[3].label,
+      reasons:['RSI-mod bajo (<'+GYM_RSI_MOD_LOW+': '+rsiMod.toFixed(2)+') + Rebound Contact Time elevado (>'+GYM_CONTACT_TIME_HIGH+'ms: '+contactT+'ms) → limitación en el ciclo estiramiento-acortamiento (SSC)'],
+      details:details,rsiMod:rsiMod,contactT:contactT};
+  }
+
   var rsiHist=cmjEntries.slice(0,-1).map(function(e){return e.rsi_mod;}).filter(function(v){return v!==null&&v!==undefined;});
   var ctHist=cmjrEntries.slice(0,-1).map(function(e){return e.contact_time;}).filter(function(v){return v!==null&&v!==undefined;});
   var rsiZ=null,ctZ=null;
-  if(latestCMJ&&latestCMJ.rsi_mod!=null&&rsiHist.length>=GYM_MIN_FP_HISTORY){
-    rsiZ=(latestCMJ.rsi_mod-avg(rsiHist))/(std(rsiHist)||0.01);
-  }
-  if(latestCMJR&&latestCMJR.contact_time!=null&&ctHist.length>=GYM_MIN_FP_HISTORY){
-    ctZ=(latestCMJR.contact_time-avg(ctHist))/(std(ctHist)||0.01);
-  }
-  var rsiLow=rsiZ!==null&&rsiZ<=-HOPKINS_MODERATE;
-  var ctHigh=ctZ!==null&&ctZ>=HOPKINS_MODERATE;
+  if(rsiMod!=null&&rsiHist.length>=GYM_MIN_FP_HISTORY)rsiZ=(rsiMod-avg(rsiHist))/(std(rsiHist)||0.01);
+  if(contactT!=null&&ctHist.length>=GYM_MIN_FP_HISTORY)ctZ=(contactT-avg(ctHist))/(std(ctHist)||0.01);
+  var rsiLowZ=rsiZ!==null&&rsiZ<=-HOPKINS_MODERATE, ctHighZ=ctZ!==null&&ctZ>=HOPKINS_MODERATE;
 
-  if(rsiZ===null&&ctZ===null){
-    return{group:null,label:'Falta historial',
-      reasons:['Sin alteraciones de riesgo (descarta Grupo 1), pero falta historial propio (≥'+GYM_MIN_FP_HISTORY+' tests previos) de RSI-mod o Rebound Contact Time para decidir entre Potencia Mecánica y Reactividad'],
-      details:details,rsiZ:rsiZ,ctZ:ctZ};
-  }
-  if(rsiLow&&ctHigh){
+  if(rsiLowZ&&ctHighZ){
     return{group:3,label:GYM_GROUPS[3].label,
-      reasons:['RSI-mod bajo vs su propio historial ('+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ) + Rebound Contact Time elevado ('+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ) → limitación en el ciclo estiramiento-acortamiento (SSC)'],
-      details:details,rsiZ:rsiZ,ctZ:ctZ};
+      reasons:['No cruza el corte fijo, pero cayó fuerte vs su propio historial: RSI-mod ('+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ) + Rebound Contact Time ('+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ) → limitación en el ciclo estiramiento-acortamiento (SSC)'],
+      details:details,rsiMod:rsiMod,contactT:contactT,rsiZ:rsiZ,ctZ:ctZ};
   }
   var reasons2=['Índice lesivo aceptable, sin patrón claro de déficit reactivo (SSC)'];
-  if(rsiZ!==null)reasons2.push('RSI-mod: '+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ vs su historial');
-  if(ctZ!==null)reasons2.push('Rebound Contact Time: '+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ vs su historial');
-  return{group:2,label:GYM_GROUPS[2].label,reasons:reasons2,details:details,rsiZ:rsiZ,ctZ:ctZ};
+  if(rsiMod!=null)reasons2.push('RSI-mod: '+rsiMod.toFixed(2)+(rsiZ!==null?' ('+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ vs su historial)':''));
+  if(contactT!=null)reasons2.push('Rebound Contact Time: '+contactT+'ms'+(ctZ!==null?' ('+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ vs su historial)':''));
+  return{group:2,label:GYM_GROUPS[2].label,reasons:reasons2,details:details,rsiMod:rsiMod,contactT:contactT,rsiZ:rsiZ,ctZ:ctZ};
 }
 
 function renderGymGroups(){
