@@ -5522,6 +5522,7 @@ function renderGymGroups(){
 
   var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px">'
     +'<div style="font-size:15px;font-weight:700">🏋️ Grupos de Gimnasio'+sciTag('heuristic','Protocolo interno de Guido Anfuso basado en CMJ/CMJ Rebound (VALD ForceDecks). Los cortes de asimetría (10%/30%) y el criterio de desempate por RSI-mod/Contact Time son heurísticos propios, no están validados en literatura publicada — el z-score individualizado sí sigue la misma convención (Hopkins et al. 2009) que ACWR y Hooper.')+'</div>'
+    +'<button onclick="generarInformeGimnasio()" style="padding:8px 14px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:11px;font-weight:700;cursor:pointer">📄 Informe 8 Semanas</button>'
     +'</div>'
     +'<div style="font-size:11px;color:var(--mut);margin-bottom:16px">Clasificación por CMJ + CMJ Rebound más recientes de cada jugador</div>';
 
@@ -5565,6 +5566,55 @@ function renderGymGroups(){
   });
   html+='</div>';
   tab.innerHTML=html;
+}
+
+var GYM_GROUP_DESC={
+  1:'Jugadores con asimetrías marcadas entre ambas piernas en la fase de aterrizaje/frenado del salto. Objetivo de estas 8 semanas: reducir esa diferencia entre miembros con trabajo correctivo unilateral, antes de la reevaluación.',
+  2:'Jugadores sin asimetrías de riesgo, pero con baja producción de fuerza/potencia en el salto (RSI-mod y/o CMJ bajo). Objetivo: ganar fuerza y potencia mecánica.',
+  3:'Jugadores sin asimetrías de riesgo, con limitación en el ciclo de estiramiento-acortamiento (RSI bajo + tiempo de contacto elevado). Objetivo: mejorar la capacidad reactiva/elástica.'
+};
+function generarInformeGimnasio(){
+  var assigns=PL.map(function(p){return{p:p,a:gymGroupAssign(p.idx)};});
+  var now=new Date();
+  var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var fechaHoy=now.getDate()+' de '+meses[now.getMonth()]+' '+now.getFullYear();
+  var reeval=new Date(now);reeval.setDate(reeval.getDate()+56);
+  var fechaReeval=reeval.getDate()+' de '+meses[reeval.getMonth()]+' '+reeval.getFullYear();
+
+  function groupSection(g){
+    var gi=GYM_GROUPS[g];
+    var players=assigns.filter(function(x){return x.a.group===g;});
+    if(!players.length)return'';
+    var rows=players.map(function(x){
+      return'<tr style="border-bottom:1px solid #e2e8f0">'
+        +'<td style="padding:8px 10px;font-weight:600">'+x.p.name+'</td>'
+        +'<td style="padding:8px 10px;color:#64748b">'+x.p.pos+(x.p.num?' · #'+x.p.num:'')+'</td>'
+        +'<td style="padding:8px 10px;font-size:10.5px;color:#334155">'+x.a.reasons.join(' · ')+'</td>'
+        +'</tr>';
+    }).join('');
+    return'<h2>'+gi.icon+' '+gi.label+' ('+players.length+')</h2>'
+      +'<p>'+GYM_GROUP_DESC[g]+'</p>'
+      +'<table><thead><tr><th>Jugador</th><th>Pos.</th><th>Motivo de la clasificación</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+
+  var sinDatos=assigns.filter(function(x){return x.a.group===null;});
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    +'<title>Plan de Gimnasio ATLAS · '+(TEAM?TEAM.name:'')+'</title>'
+    +'<style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#fff;color:#111;padding:24px;font-size:12px}'
+    +'h1{font-size:20px;margin:0 0 4px;color:#0f172a}h2{font-size:14px;margin:18px 0 6px;color:#0f172a;border-bottom:2px solid #e2e8f0;padding-bottom:6px}'
+    +'p{font-size:11px;color:#64748b;margin:0 0 10px}'
+    +'table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px}'
+    +'th{background:#f8fafc;padding:7px 10px;text-align:left;font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:.5px;border:1px solid #e2e8f0}'
+    +'td{border:1px solid #e2e8f0}'
+    +'.foot{margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:9.5px;color:#94a3b8}'
+    +'@media print{@page{size:A4;margin:12mm}}</style></head><body>'
+    +'<h1>🏋️ Plan de Trabajo de Gimnasio</h1>'
+    +'<p>'+(TEAM?TEAM.name:'')+'&nbsp;·&nbsp;Generado el '+fechaHoy+'&nbsp;·&nbsp;Reevaluación sugerida: '+fechaReeval+' (8 semanas)&nbsp;·&nbsp;Basado en CMJ + CMJ Rebound (VALD ForceDecks)</p>'
+    +groupSection(1)+groupSection(2)+groupSection(3)
+    +(sinDatos.length?'<h2>❔ Sin clasificar ('+sinDatos.length+')</h2><p>Sin tests de CMJ ni CMJ Rebound cargados todavía.</p><table><thead><tr><th>Jugador</th><th>Pos.</th></tr></thead><tbody>'+sinDatos.map(function(x){return'<tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 10px;font-weight:600">'+x.p.name+'</td><td style="padding:8px 10px;color:#64748b">'+x.p.pos+'</td></tr>';}).join('')+'</tbody></table>':'')
+    +'<div class="foot">Clasificación según protocolo interno de evaluación con CMJ/CMJ Rebound — heurístico propio, no es un diagnóstico médico. Generado por ATLAS.</div>'
+    +'<script>window.print();<\/script></body></html>';
+  var w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}
 }
 
 // ===== PERFIL F-V MODULE =====
