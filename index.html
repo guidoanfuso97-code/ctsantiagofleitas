@@ -356,6 +356,7 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(18
     <div class="nav" data-tab="wellness" data-title="Monitor de Wellness">💚&nbsp; Wellness</div>
     <div class="nav" data-tab="neuro" data-title="Estado Neuromuscular">⚡&nbsp; Neuromuscular</div>
     <div class="nav" data-tab="fp" data-title="Force Plates · VALD ForceDecks">🔬&nbsp; Force Plates</div>
+    <div class="nav" data-tab="gimnasio" data-title="Grupos de Gimnasio">🏋️&nbsp; Grupos Gimnasio</div>
     <div class="nav" data-tab="sprints" data-title="Velocidad · Sprints · Fotocélulas">🏃&nbsp; Sprints</div>
     <div class="nav" data-tab="zonas" data-title="Zonas de Velocidad · Programar Sesión">⚡&nbsp; Zonas Vel.</div>
     <div class="nav" data-tab="fv" data-title="Perfil Fuerza-Velocidad">📐&nbsp; Perfil F-V</div>
@@ -408,6 +409,7 @@ input:focus,select.fi:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(18
     <div class="tab" id="t-wellness"><div id="wellness-body"></div></div>
     <div class="tab" id="t-neuro"><select class="psel" id="neuro-sel"></select><div id="neuro-body"></div></div>
     <div class="tab" id="t-fp"></div>
+    <div class="tab" id="t-gimnasio"></div>
     <div class="tab" id="t-sprints"></div>
     <div class="tab" id="t-zonas"></div>
     <div class="tab" id="t-fv"></div>
@@ -5029,6 +5031,13 @@ var FP_TYPES=[
      {key:'rsi_mod',         label:'RSI-Mod',      unit:'',      main:false},
      {key:'contraction_time',label:'Cont. Time',   unit:'ms',    main:false},
      {key:'braking_rfd',     label:'Braking RFD',  unit:'N/s/kg',main:false}
+   ],
+   // Asimetrías por fase — solo para Grupos de Gimnasio (gymGroupAssign), no se
+   // muestran en la grilla/tabla genérica de arriba para no saturarla.
+   asymMetrics:[
+     {key:'concentric_impulse_asym',label:'Concentric Impulse Asym.'},
+     {key:'eccentric_braking_asym', label:'Eccentric Braking Asym.'},
+     {key:'peak_landing_asym',      label:'Peak Landing Asym.'}
    ]},
   {id:'cmj_rebound',label:'CMJ Rebound', icon:'🔁', color:'var(--pur)',
    metrics:[
@@ -5036,6 +5045,11 @@ var FP_TYPES=[
      {key:'jump_height',label:'Altura',       unit:'cm', main:false},
      {key:'contact_time',label:'Contact Time',unit:'ms', main:false},
      {key:'asymmetry',  label:'Asimetría',    unit:'%',  main:false,alert:true}
+   ],
+   asymMetrics:[
+     {key:'peak_drop_landing_asym',   label:'Peak Drop Landing Asym.'},
+     {key:'drop_landing_rfd_asym',    label:'Drop Landing RFD Asym.'},
+     {key:'rebound_peak_impact_asym', label:'Rebound Peak Impact Asym.'}
    ]},
   {id:'imtp',       label:'IMTP',        icon:'💪', color:'var(--yel)',
    metrics:[
@@ -5189,6 +5203,11 @@ function openFPManual(playerIdx,testType){
       return'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">'+m.label+(m.unit?' ('+m.unit+')':'')+'</div>'
         +'<input type="number" step="0.01" id="fp-'+m.key+'" placeholder="—" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:9px 10px;color:var(--txt);font-size:14px;font-weight:600;outline:none;text-align:center"></div>';
     }).join('')
+    +(tt.asymMetrics?'<div style="font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--b)">🏋️ Grupos de Gimnasio (opcional)</div>'
+      +tt.asymMetrics.map(function(m){
+        return'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">'+m.label+'</div>'
+          +'<input type="text" id="fp-'+m.key+'" placeholder="ej. 12 R" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:9px 10px;color:var(--txt);font-size:14px;font-weight:600;outline:none;text-align:center"></div>';
+      }).join(''):'')
     +'<div style="margin-bottom:14px"><div style="font-size:10px;color:var(--mut);margin-bottom:4px">Notas</div>'
     +'<input type="text" id="fp-notes" placeholder="Observaciones..." style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:7px;padding:8px 10px;color:var(--txt);font-size:12px;outline:none"></div>'
     +'<button onclick="saveFPManual('+playerIdx+',\''+testType+'\')" style="width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">Guardar</button>'
@@ -5202,6 +5221,7 @@ async function saveFPManual(playerIdx,testType){
   var tt=FP_TYPES.find(function(t){return t.id===testType;})||FP_TYPES[0];
   var row={team_id:TEAM.id,player_idx:playerIdx,date:date,test_type:testType,notes:notes,source:'manual'};
   tt.metrics.forEach(function(m){var el=document.getElementById('fp-'+m.key);row[m.key]=el&&el.value!==''?+el.value:null;});
+  if(tt.asymMetrics)tt.asymMetrics.forEach(function(m){var el=document.getElementById('fp-'+m.key);row[m.key]=el&&el.value.trim()!==''?el.value.trim():null;});
   var saved=await sbInsertReturn('force_plates',row);
   if(!saved){showBanner('❌ Error al guardar — chequeá la conexión','var(--red)',4000);return;}
   row.id=saved.id;
@@ -5272,24 +5292,30 @@ function parseFPCSV(text){
   var cAth=fc(['athlete','name','player','jugador','atleta']);
   var cDat=fc(['date','fecha']);
   var cTyp=fc(['test type','test_type','type','tipo']);
-  var cJH=fc(['jump height','jump_height','altura de salto']);
+  var cJH=fc(['rebound jump height','jump height','jump_height','altura de salto']);
   var cPP=fc(['peak power','peak_power','relative peak power']);
   var cAsym=fc(['asymmetry','asimetr']);
   var cRSIM=fc(['rsi-modified','rsi modified','rsi-mod','rsimod','rsi mod']);
   var cContT=fc(['contraction time','contraction_time']);
   var cBRFD=fc(['braking rfd','braking_rfd','braking mean']);
-  var cRSI=fc(['reactive strength index']);
+  var cRSI=fc(['rebound rsi','reactive strength index']);
   if(cRSI===-1){var rx=hdrs.findIndex(function(h){return /^rsi$/i.test(h.trim());});if(rx!==-1)cRSI=rx;}
   var cContactT=fc(['contact time','contact_time']);
   var cPF=fc(['peak force','peak_force','relative peak force','net peak force']);
   var cRFD1=fc(['rfd - 100','rfd_100','rfd100','100ms','100 ms']);
   var cRFD2=fc(['rfd - 200','rfd_200','rfd200','200ms','200 ms']);
+  // Asimetrías específicas por fase — Grupos de Gimnasio (ver gymGroupAssign)
+  var cConcImp=fc(['concentric impulse']);
+  var cEccBrake=fc(['eccentric braking impulse']);
+  var cPeakLand=fc(['peak landing force']);
+  var cDropRFD=fc(['drop landing rfd']);
+  var cReboundImpact=fc(['rebound peak impact force']);
 
   function mapType(raw){
-    if(!raw)return null;var r=raw.toLowerCase();
-    if(r.includes('rebound')||r.includes('10/5'))return'cmj_rebound';
+    if(!raw)return null;var r=raw.toLowerCase().trim();
+    if(r==='cmrj'||r.includes('rebound')||r.includes('10/5'))return'cmj_rebound';
     if(r.includes('imtp')||r.includes('isometric'))return'imtp';
-    if(r.includes('cmj')||r.includes('countermovement'))return'cmj';
+    if(r==='cmj'||r.includes('countermovement'))return'cmj';
     return null;
   }
   function parseDate(s){
@@ -5319,12 +5345,26 @@ function parseFPCSV(text){
     var testType=mapType(cTyp!==-1?vals[cTyp]:'cmj');
     if(!testType){skipped++;continue;}
     function gv(col){if(col===-1)return null;var v=vals[col];return(v!==undefined&&v!==''&&v!=='—'&&v!=='N/A')?+parseFloat(v).toFixed(3):null;}
+    function gvAsym(col){if(col===-1)return null;var v=(vals[col]||'').trim();return(v!==''&&v!=='—'&&v!=='N/A')?v:null;}
     var jh=gv(cJH);if(jh!==null&&jh<5)jh=+(jh*100).toFixed(2);
-    parsed.push({team_id:TEAM.id,player_idx:playerIdx,date:date,test_type:testType,source:'csv',notes:'',
+    var row={team_id:TEAM.id,player_idx:playerIdx,date:date,test_type:testType,source:'csv',notes:'',
       jump_height:jh,peak_power:gv(cPP),asymmetry:gv(cAsym),rsi_mod:gv(cRSIM),
       contraction_time:gv(cContT)!==null?Math.round(gv(cContT)):null,braking_rfd:gv(cBRFD),
       rsi:gv(cRSI),contact_time:gv(cContactT)!==null?Math.round(gv(cContactT)):null,
-      peak_force:gv(cPF),rfd_100:gv(cRFD1),rfd_200:gv(cRFD2)});
+      peak_force:gv(cPF),rfd_100:gv(cRFD1),rfd_200:gv(cRFD2)};
+    // Asimetrías por fase — Grupos de Gimnasio. "Peak Landing Force" es la misma
+    // columna en el export de VALD para CMJ y CMJ Rebound pero significa cosas
+    // distintas en cada test, así que el destino cambia según testType.
+    if(testType==='cmj'){
+      row.concentric_impulse_asym=gvAsym(cConcImp);
+      row.eccentric_braking_asym=gvAsym(cEccBrake);
+      row.peak_landing_asym=gvAsym(cPeakLand);
+    }else if(testType==='cmj_rebound'){
+      row.peak_drop_landing_asym=gvAsym(cPeakLand);
+      row.drop_landing_rfd_asym=gvAsym(cDropRFD);
+      row.rebound_peak_impact_asym=gvAsym(cReboundImpact);
+    }
+    parsed.push(row);
   }
 
   if(!parsed.length){
@@ -5353,6 +5393,145 @@ async function confirmFPImport(rows){
   var m=document.getElementById('fp-import-modal');if(m)m.parentNode.removeChild(m);
   renderForcePlates();
   showBanner('✅ '+saved+' registros importados de VALD','var(--grn)',3000);
+}
+
+// ══════════════════════════════════════════════════
+//  GRUPOS DE GIMNASIO — clasificación por CMJ/CMJ Rebound
+//  Heurístico interno de Guido Anfuso, no de literatura publicada.
+// ══════════════════════════════════════════════════
+var GYM_ASYM_ALTERED=10, GYM_ASYM_SEVERE=30, GYM_MIN_FP_HISTORY=3;
+var GYM_CMJ_ASYM=[
+  {key:'concentric_impulse_asym',label:'Concentric Impulse',critical:false},
+  {key:'eccentric_braking_asym', label:'Eccentric Braking Impulse',critical:false},
+  {key:'peak_landing_asym',      label:'Peak Landing Force',critical:true}
+];
+var GYM_CMJR_ASYM=[
+  {key:'peak_drop_landing_asym',   label:'Peak Drop Landing',critical:true},
+  {key:'drop_landing_rfd_asym',    label:'Drop Landing RFD',critical:false},
+  {key:'rebound_peak_impact_asym', label:'Rebound Peak Impact',critical:true}
+];
+var GYM_GROUPS={
+  1:{label:'Reducción Índice Lesivo',icon:'🩹',color:'var(--red)',border:'rgba(244,63,94,.35)'},
+  2:{label:'Potencia Mecánica',      icon:'⚡',color:'var(--acc)',border:'rgba(181,84,45,.35)'},
+  3:{label:'Reactividad',            icon:'🔁',color:'var(--pur)',border:'rgba(122,79,143,.35)'}
+};
+function parseAsymPct(s){
+  if(s===null||s===undefined||s==='')return null;
+  var m=String(s).match(/-?[\d.]+/);
+  return m?Math.abs(parseFloat(m[0])):null;
+}
+function gymGroupAssign(playerIdx){
+  var cmjEntries=fpEntries(playerIdx,'cmj');
+  var cmjrEntries=fpEntries(playerIdx,'cmj_rebound');
+  var latestCMJ=cmjEntries.length?cmjEntries[cmjEntries.length-1]:null;
+  var latestCMJR=cmjrEntries.length?cmjrEntries[cmjrEntries.length-1]:null;
+  if(!latestCMJ&&!latestCMJR){
+    return{group:null,label:'Sin datos',reasons:['Sin tests de CMJ ni CMJ Rebound cargados'],details:[]};
+  }
+  var details=[],weighted=0,severe=null;
+  function checkAsym(entry,def){
+    if(!entry)return;
+    var raw=entry[def.key];
+    var val=parseAsymPct(raw);
+    var d={label:def.label,raw:raw,val:val,critical:def.critical,altered:false,severe:false};
+    if(val!==null){
+      if(val>=GYM_ASYM_SEVERE){d.severe=true;if(!severe)severe=def.label+' ('+val.toFixed(1)+'%)';}
+      if(val>=GYM_ASYM_ALTERED){d.altered=true;weighted+=def.critical?2:1;}
+    }
+    details.push(d);
+  }
+  GYM_CMJ_ASYM.forEach(function(def){checkAsym(latestCMJ,def);});
+  GYM_CMJR_ASYM.forEach(function(def){checkAsym(latestCMJR,def);});
+
+  if(severe||weighted>=2){
+    var reasons=[];
+    if(severe)reasons.push('Asimetría muy marcada (≥'+GYM_ASYM_SEVERE+'%): '+severe);
+    var alteredList=details.filter(function(d){return d.altered;}).map(function(d){return d.label+' ('+d.val.toFixed(1)+'%)'+(d.critical?' · crítica':'');});
+    if(alteredList.length)reasons.push(alteredList.length+' variable(s) alterada(s) (≥'+GYM_ASYM_ALTERED+'%): '+alteredList.join(', '));
+    return{group:1,label:GYM_GROUPS[1].label,reasons:reasons,details:details};
+  }
+
+  // 0-1 variables alteradas → candidato a Potencia Mecánica o Reactividad,
+  // desempatado por RSI-mod (CMJ) y Rebound Contact Time (CMJR) vs historial propio del jugador.
+  var rsiHist=cmjEntries.slice(0,-1).map(function(e){return e.rsi_mod;}).filter(function(v){return v!==null&&v!==undefined;});
+  var ctHist=cmjrEntries.slice(0,-1).map(function(e){return e.contact_time;}).filter(function(v){return v!==null&&v!==undefined;});
+  var rsiZ=null,ctZ=null;
+  if(latestCMJ&&latestCMJ.rsi_mod!=null&&rsiHist.length>=GYM_MIN_FP_HISTORY){
+    rsiZ=(latestCMJ.rsi_mod-avg(rsiHist))/(std(rsiHist)||0.01);
+  }
+  if(latestCMJR&&latestCMJR.contact_time!=null&&ctHist.length>=GYM_MIN_FP_HISTORY){
+    ctZ=(latestCMJR.contact_time-avg(ctHist))/(std(ctHist)||0.01);
+  }
+  var rsiLow=rsiZ!==null&&rsiZ<=-HOPKINS_MODERATE;
+  var ctHigh=ctZ!==null&&ctZ>=HOPKINS_MODERATE;
+
+  if(rsiZ===null&&ctZ===null){
+    return{group:null,label:'Falta historial',
+      reasons:['Sin alteraciones de riesgo (descarta Grupo 1), pero falta historial propio (≥'+GYM_MIN_FP_HISTORY+' tests previos) de RSI-mod o Rebound Contact Time para decidir entre Potencia Mecánica y Reactividad'],
+      details:details,rsiZ:rsiZ,ctZ:ctZ};
+  }
+  if(rsiLow&&ctHigh){
+    return{group:3,label:GYM_GROUPS[3].label,
+      reasons:['RSI-mod bajo vs su propio historial ('+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ) + Rebound Contact Time elevado ('+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ) → limitación en el ciclo estiramiento-acortamiento (SSC)'],
+      details:details,rsiZ:rsiZ,ctZ:ctZ};
+  }
+  var reasons2=['Índice lesivo aceptable, sin patrón claro de déficit reactivo (SSC)'];
+  if(rsiZ!==null)reasons2.push('RSI-mod: '+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ vs su historial');
+  if(ctZ!==null)reasons2.push('Rebound Contact Time: '+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ vs su historial');
+  return{group:2,label:GYM_GROUPS[2].label,reasons:reasons2,details:details,rsiZ:rsiZ,ctZ:ctZ};
+}
+
+function renderGymGroups(){
+  var tab=document.getElementById('t-gimnasio');if(!tab)return;
+  var assigns=PL.map(function(p){return{p:p,a:gymGroupAssign(p.idx)};});
+  var counts={1:0,2:0,3:0,null:0};
+  assigns.forEach(function(x){counts[x.a.group]=(counts[x.a.group]||0)+1;});
+
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px">'
+    +'<div style="font-size:15px;font-weight:700">🏋️ Grupos de Gimnasio'+sciTag('heuristic','Protocolo interno de Guido Anfuso basado en CMJ/CMJ Rebound (VALD ForceDecks). Los cortes de asimetría (10%/30%) y el criterio de desempate por RSI-mod/Contact Time son heurísticos propios, no están validados en literatura publicada — el z-score individualizado sí sigue la misma convención (Hopkins et al. 2009) que ACWR y Hooper.')+'</div>'
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-bottom:16px">Clasificación por CMJ + CMJ Rebound más recientes de cada jugador</div>';
+
+  html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">'
+    +[1,2,3].map(function(g){
+      var gi=GYM_GROUPS[g];
+      return'<div class="card" style="text-align:center;border:1px solid '+gi.border+'">'
+        +'<div style="font-size:24px;margin-bottom:2px">'+gi.icon+'</div>'
+        +'<div style="font-size:28px;font-weight:900;color:'+gi.color+'">'+(counts[g]||0)+'</div>'
+        +'<div style="font-size:10px;color:var(--mut);margin-top:2px">'+gi.label+'</div>'
+        +'</div>';
+    }).join('')
+    +'</div>';
+
+  function asymRow(d){
+    if(d.val===null)return'<div style="display:flex;justify-content:space-between;font-size:10px;padding:2px 0"><span style="color:var(--mut)">'+d.label+(d.critical?' ⭐':'')+'</span><span style="color:var(--mut)">—</span></div>';
+    var col=d.severe?'var(--red)':d.altered?'var(--yel)':'var(--grn)';
+    return'<div style="display:flex;justify-content:space-between;font-size:10px;padding:2px 0"><span style="color:var(--mut)">'+d.label+(d.critical?' ⭐':'')+'</span><span style="color:'+col+';font-weight:700">'+d.raw+'</span></div>';
+  }
+
+  var sorted=assigns.slice().sort(function(a,b){
+    var oa=a.a.group===null?99:a.a.group, ob=b.a.group===null?99:b.a.group;
+    return oa-ob;
+  });
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">';
+  sorted.forEach(function(x){
+    var p=x.p,a=x.a;
+    var gi=a.group?GYM_GROUPS[a.group]:{label:a.label,icon:'❔',color:'var(--mut)'};
+    html+='<div class="card" style="position:relative;padding-left:21px;overflow:hidden">'
+      +'<div style="position:absolute;left:0;top:0;bottom:0;width:5px;background:'+gi.color+'"></div>'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+      +playerAvatar(p.idx,40)
+      +'<div style="min-width:0;flex:1">'
+      +'<div style="font-size:13px;font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+'</div>'
+      +'<div style="font-size:10px;color:var(--mut)">'+p.pos+(p.num?' · #'+p.num:'')+'</div>'
+      +'</div></div>'
+      +'<div style="display:inline-flex;align-items:center;gap:5px;background:'+gi.color+';color:#fff;border-radius:6px;padding:3px 9px;font-size:10px;font-weight:800;margin-bottom:10px">'+gi.icon+' '+gi.label.toUpperCase()+'</div>'
+      +'<div style="font-size:10px;color:var(--dim);line-height:1.6;margin-bottom:8px">'+a.reasons.map(function(r){return '• '+r;}).join('<br>')+'</div>'
+      +(a.details.length?'<div style="padding-top:8px;border-top:1px solid rgba(43,32,22,.06)">'+a.details.map(asymRow).join('')+'</div>':'')
+      +'</div>';
+  });
+  html+='</div>';
+  tab.innerHTML=html;
 }
 
 // ===== PERFIL F-V MODULE =====
@@ -9729,6 +9908,7 @@ var TABS={
   wellness:{title:'Monitor de Wellness',render:renderWellness},
   neuro:{title:'Estado Neuromuscular',render:renderNeuro},
   fp:{title:'Force Plates · VALD ForceDecks',render:renderForcePlates},
+  gimnasio:{title:'Grupos de Gimnasio',render:renderGymGroups},
   sprints:{title:'Velocidad · Sprints · Fotocélulas',render:renderSprints},
   zonas:{title:'Zonas de Velocidad · Programar Sesión',render:renderZonas},
   fv:{title:'Perfil Fuerza-Velocidad',render:renderFV},
