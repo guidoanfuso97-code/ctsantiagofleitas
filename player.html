@@ -3,34 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#B5542D">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>ATLAS · Check-in</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{min-height:100vh;background:#0f172a;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif}
-:root{--acc:#06d6a0;--pur:#8b5cf6;--yel:#f59e0b;--red:#f43f5e;--grn:#10b981;--mut:#64748b}
+html,body{min-height:100vh;background:#FBF7F1;color:#2B2016;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif}
+:root{--acc:#B5542D;--pur:#7A4F8F;--yel:#f59e0b;--red:#f43f5e;--grn:#10b981;--mut:#7D6B57}
 input,select,button{font-family:inherit;-webkit-appearance:none}
-.card{background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;margin-bottom:10px}
+.card{background:#FFFFFF;border:1px solid rgba(43,32,22,.1);border-radius:16px;padding:20px;margin-bottom:10px}
 .q-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--acc);margin-bottom:3px}
 .q-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:4px}
-.q-btn{height:52px;border-radius:10px;background:#0f172a;border:1.5px solid rgba(255,255,255,.1);color:#64748b;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,border-color .12s,color .12s}
+.q-btn{height:52px;border-radius:10px;background:#FBF7F1;border:1.5px solid rgba(43,32,22,.1);color:#7D6B57;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,border-color .12s,color .12s}
 .q-btn.sel{border-width:2px}
 .q-hints{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);padding:0 1px}
 .tog-row{display:flex;gap:8px;margin-top:10px}
-.tog{flex:1;padding:11px;border-radius:10px;background:#0f172a;border:1.5px solid rgba(255,255,255,.1);color:#64748b;font-size:13px;font-weight:700;cursor:pointer;text-align:center;transition:all .15s}
-.tog.sel{border-color:var(--acc);color:var(--acc);background:rgba(6,214,160,.07)}
+.tog{flex:1;padding:11px;border-radius:10px;background:#FBF7F1;border:1.5px solid rgba(43,32,22,.1);color:#7D6B57;font-size:13px;font-weight:700;cursor:pointer;text-align:center;transition:all .15s}
+.tog.sel{border-color:var(--acc);color:var(--acc);background:rgba(181,84,45,.08)}
 .rpe-grid{display:grid;grid-template-columns:repeat(11,1fr);gap:3px;margin-bottom:6px}
-.rpe-btn{height:48px;border-radius:8px;background:#0f172a;border:1.5px solid rgba(255,255,255,.1);color:#64748b;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.rpe-btn{height:48px;border-radius:8px;background:#FBF7F1;border:1.5px solid rgba(43,32,22,.1);color:#7D6B57;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
 .rpe-btn.sel{border-width:2px}
 .btn-main{width:100%;padding:17px;border-radius:14px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.3px;transition:opacity .15s}
 .btn-main:active{opacity:.8}
 .btn-main:disabled{opacity:.5}
 .sec-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);margin-bottom:10px;padding:0 2px}
-.p-row{width:100%;background:#1e293b;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;transition:background .15s,border-color .15s;margin-bottom:6px}
-.p-row:active{background:rgba(6,214,160,.1);border-color:rgba(6,214,160,.35)}
-.spin{width:36px;height:36px;border:3px solid rgba(255,255,255,.1);border-top-color:var(--acc);border-radius:50%;animation:sp .7s linear infinite;margin:0 auto}
+.p-row{width:100%;background:#FFFFFF;border:1px solid rgba(43,32,22,.08);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;transition:background .15s,border-color .15s;margin-bottom:6px}
+.p-row:active{background:rgba(181,84,45,.08);border-color:rgba(181,84,45,.35)}
+.spin{width:36px;height:36px;border:3px solid rgba(43,32,22,.1);border-top-color:var(--acc);border-radius:50%;animation:sp .7s linear infinite;margin:0 auto}
 @keyframes sp{to{transform:rotate(360deg)}}
 @keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .fi{animation:fi .28s ease}
@@ -67,7 +67,7 @@ var CIQ=[
 ];
 var RPED=['Reposo','Muy leve','Leve','Moderado','Algo intenso','Intenso','Intenso+','Muy intenso','Muy intenso+','Casi máximo','Máximo'];
 
-var _BG='rgba(126,142,160,.97)';
+var _BG='rgba(168,156,140,.95)';
 var BP_F=[
   ['head',       'Cabeza',        'path','d="M50,2 C59,2 64,9 64,18 C64,28 58,38 50,38 C42,38 36,28 36,18 C36,9 41,2 50,2 Z"'],
   ['neck_f',     'Cuello',        'path','d="M44,38 L56,38 L56,68 L44,68 Z"'],
@@ -127,7 +127,7 @@ async function sbUp(t,d){
   if(!r.ok)throw new Error(await r.text());
 }
 
-function bpC(lv){return lv===0?[_BG,'rgba(255,255,255,.65)']:lv===1?['rgba(22,163,74,.90)','rgba(255,255,255,.80)']:lv===2?['rgba(234,179,8,.93)','rgba(255,255,255,.80)']:['rgba(220,38,38,.95)','rgba(255,255,255,.80)'];}
+function bpC(lv){return lv===0?[_BG,'rgba(43,32,22,.5)']:lv===1?['rgba(22,163,74,.90)','rgba(255,255,255,.80)']:lv===2?['rgba(234,179,8,.93)','rgba(255,255,255,.80)']:['rgba(220,38,38,.95)','rgba(255,255,255,.80)'];}
 function bpZH(z){var c=bpC(DOLOR[z[0]]||0);return '<path id="pbz-'+z[0]+'" '+z[3]+' fill="'+c[0]+'" stroke="'+c[1]+'" stroke-width="1.2" stroke-linejoin="round" onclick="bpTap(\''+z[0]+'\')" style="cursor:pointer"/>';}
 function bpSvg(z,t){return '<div><div class="bp-title">'+t+'</div><svg viewBox="-5 -1 110 278" xmlns="http://www.w3.org/2000/svg" style="width:145px;max-width:44vw;overflow:visible">'+z.map(bpZH).join('')+'</svg></div>';}
 function bpTap(id){
@@ -136,18 +136,18 @@ function bpTap(id){
   var el=document.getElementById('pbz-'+id);
   if(el){el.setAttribute('fill',c[0]);el.setAttribute('stroke',c[1]);}
   var allZ=BP_F.concat(BP_B),zd=allZ.find(function(z){return z[0]===id;}),leg=document.getElementById('bp-leg');
-  if(leg&&zd){var lv=DOLOR[id],t=lv===0?'Sin dolor':lv===1?'Leve':lv===2?'Moderado':'Intenso',col=lv===0?'#64748b':lv===1?'#10b981':lv===2?'#f59e0b':'#f43f5e';leg.innerHTML=zd[1]+': <span style="color:'+col+';font-weight:700">'+t+'</span>';}
+  if(leg&&zd){var lv=DOLOR[id],t=lv===0?'Sin dolor':lv===1?'Leve':lv===2?'Moderado':'Intenso',col=lv===0?'#7D6B57':lv===1?'#10b981':lv===2?'#f59e0b':'#f43f5e';leg.innerHTML=zd[1]+': <span style="color:'+col+';font-weight:700">'+t+'</span>';}
 }
 
 function qBtnCol(q,n){return q.gh?(n<=3?'#f43f5e':n<=6?'#f59e0b':'#10b981'):(n<=3?'#10b981':n<=6?'#f59e0b':'#f43f5e');}
-function rpeCol(n){return n===0?'#64748b':n<=2?'#10b981':n<=4?'#22d3ee':n<=6?'#f59e0b':n<=8?'#f97316':'#f43f5e';}
+function rpeCol(n){return n===0?'#7D6B57':n<=2?'#10b981':n<=4?'#22d3ee':n<=6?'#f59e0b':n<=8?'#f97316':'#f43f5e';}
 function calcWS(){var a=ANS;if(!a.sleep||!a.energy||!a.stress||!a.doms||!a.fatigue)return null;return +((a.sleep+a.energy+(10-a.stress)+(10-a.doms)+(10-a.fatigue))/5).toFixed(1);}
 
 function avHtml(name,idx,size){
   var s=size||52;
   var url=SB+'/storage/v1/object/public/avatars/'+TEAM_ID+'/'+idx+'.jpg';
   var nm=name.split(' ');var ini=((nm[0]||'')[0]||'')+((nm[1]||'')[0]||'');
-  var cols=['#06d6a0','#8b5cf6','#f59e0b','#f43f5e','#3b82f6','#22d3ee','#a855f7','#14b8a6'];
+  var cols=['#B5542D','#7A4F8F','#f59e0b','#f43f5e','#3b82f6','#22d3ee','#7A4F8F','#14b8a6'];
   var col=cols[idx%cols.length];var fs=Math.round(s*0.38);
   return '<div style="position:relative;width:'+s+'px;height:'+s+'px;border-radius:50%;overflow:hidden;flex-shrink:0;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:800;color:rgba(0,0,0,.75)">'
     +'<span>'+ini.toUpperCase()+'</span>'
@@ -174,7 +174,7 @@ function showNameSelector(){
     var apellido=nm[0]||'';
     var nombre=nm.slice(1).join(' ');
     var url=SB+'/storage/v1/object/public/avatars/'+TEAM_ID+'/'+it.i+'.jpg';
-    var cols=['#06d6a0','#8b5cf6','#f59e0b','#f43f5e','#3b82f6','#22d3ee','#a855f7','#14b8a6'];
+    var cols=['#B5542D','#7A4F8F','#f59e0b','#f43f5e','#3b82f6','#22d3ee','#7A4F8F','#14b8a6'];
     var col=cols[it.i%cols.length];
     var ini=(apellido[0]||'').toUpperCase()+(nombre[0]||'').toUpperCase();
     var av='<div style="position:relative;width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;background:'+col+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:rgba(0,0,0,.75)">'
@@ -185,21 +185,21 @@ function showNameSelector(){
       +av
       +'<div style="min-width:0">'
       +'<div style="font-size:16px;font-weight:800;letter-spacing:.3px">'+apellido+'</div>'
-      +(nombre?'<div style="font-size:12px;color:#64748b;margin-top:1px">'+nombre+'</div>':'')
+      +(nombre?'<div style="font-size:12px;color:#7D6B57;margin-top:1px">'+nombre+'</div>':'')
       +'</div>'
-      +'<div style="margin-left:auto;font-size:11px;color:#334155;font-weight:700;background:rgba(255,255,255,.06);border-radius:6px;padding:3px 8px">#'+it.p.num+'</div>'
+      +'<div style="margin-left:auto;font-size:11px;color:#5C4F3E;font-weight:700;background:rgba(43,32,22,.07);border-radius:6px;padding:3px 8px">#'+it.p.num+'</div>'
       +'</button>';
   }).join('');
 
   document.getElementById('app').innerHTML=
     '<div style="max-width:480px;margin:0 auto;padding:0 0 32px" class="fi">'
     // Sticky header
-    +'<div style="position:sticky;top:0;z-index:10;background:#0f172a;padding:20px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)">'
+    +'<div style="position:sticky;top:0;z-index:10;background:#FBF7F1;padding:20px 16px 14px;border-bottom:1px solid rgba(43,32,22,.08)">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
-    +'<div style="font-size:20px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#06d6a0,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">ATLAS</div>'
-    +'<div style="font-size:11px;color:#64748b">'+TNAME+'</div>'
+    +'<div style="font-size:20px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#B5542D,#7A4F8F);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">ATLAS</div>'
+    +'<div style="font-size:11px;color:#7D6B57">'+TNAME+'</div>'
     +'</div>'
-    +'<div style="font-size:13px;font-weight:700;color:#94a3b8">¿Quién sos?</div>'
+    +'<div style="font-size:13px;font-weight:700;color:#5C4F3E">¿Quién sos?</div>'
     +'</div>'
     // Player list
     +'<div style="padding:12px 16px">'+rows+'</div>'
@@ -236,7 +236,7 @@ function renderForm(){
   var wqs=CIQ.map(function(q){
     var btns=[1,2,3,4,5,6,7,8,9,10].map(function(n){
       var sel=ANS[q.id]===n;var c=qBtnCol(q,n);
-      return '<button class="q-btn'+(sel?' sel':'')+'" onclick="pickQ(\''+q.id+'\','+n+')" style="background:'+(sel?c:'#0f172a')+';border:'+( sel?'2px':'1.5px')+' solid '+(sel?c:'rgba(255,255,255,.1)')+';color:'+(sel?'rgba(0,0,0,.8)':c)+'">'+n+'</button>';
+      return '<button class="q-btn'+(sel?' sel':'')+'" onclick="pickQ(\''+q.id+'\','+n+')" style="background:'+(sel?c:'#FBF7F1')+';border:'+( sel?'2px':'1.5px')+' solid '+(sel?c:'rgba(43,32,22,.1)')+';color:'+(sel?'rgba(0,0,0,.8)':c)+'">'+n+'</button>';
     }).join('');
     return '<div class="card fi"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:26px">'+q.em+'</span><div><div class="q-label">'+q.lbl+'</div><div style="font-size:14px;font-weight:700">'+q.txt+'</div></div></div><div class="q-grid">'+btns+'</div><div class="q-hints"><span>'+q.lo+'</span><span>'+q.hi+'</span></div></div>';
   }).join('');
@@ -252,40 +252,40 @@ function renderForm(){
   if(TRAINED===true){
     var rpeBtns=[0,1,2,3,4,5,6,7,8,9,10].map(function(n){
       var sel=RPE_VAL===n;var c=rpeCol(n);
-      return '<button class="rpe-btn'+(sel?' sel':'')+'" onclick="pickRPE('+n+')" style="background:'+(sel?c:'#0f172a')+';border:'+( sel?'2px':'1.5px')+' solid '+(sel?c:'rgba(255,255,255,.1)')+';color:'+(sel?'rgba(0,0,0,.8)':c)+'">'+n+'</button>';
+      return '<button class="rpe-btn'+(sel?' sel':'')+'" onclick="pickRPE('+n+')" style="background:'+(sel?c:'#FBF7F1')+';border:'+( sel?'2px':'1.5px')+' solid '+(sel?c:'rgba(43,32,22,.1)')+';color:'+(sel?'rgba(0,0,0,.8)':c)+'">'+n+'</button>';
     }).join('');
     rpeContent='<div style="margin-top:14px">'
       +'<div style="font-size:13px;font-weight:700;margin-bottom:4px">Esfuerzo percibido (CR-10)</div>'
       +'<div class="rpe-grid">'+rpeBtns+'</div>'
-      +'<div style="text-align:center;font-size:13px;color:'+(RPE_VAL!==null?rpeCol(RPE_VAL):'#64748b')+';font-weight:700;margin-bottom:12px">'+(RPE_VAL!==null?RPED[RPE_VAL]:'—')+'</div>'
-      +'<div style="display:flex;align-items:center;gap:10px"><label style="font-size:12px;color:#64748b;white-space:nowrap">Duración (min)</label>'
-      +'<input type="number" value="'+RPE_DUR+'" min="10" max="240" style="flex:1;background:#0f172a;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 12px;color:#e2e8f0;font-size:15px;font-weight:700" oninput="RPE_DUR=parseInt(this.value)||90">'
+      +'<div style="text-align:center;font-size:13px;color:'+(RPE_VAL!==null?rpeCol(RPE_VAL):'#7D6B57')+';font-weight:700;margin-bottom:12px">'+(RPE_VAL!==null?RPED[RPE_VAL]:'—')+'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px"><label style="font-size:12px;color:#7D6B57;white-space:nowrap">Duración (min)</label>'
+      +'<input type="number" value="'+RPE_DUR+'" min="10" max="240" style="flex:1;background:#FBF7F1;border:1px solid rgba(43,32,22,.1);border-radius:8px;padding:9px 12px;color:#2B2016;font-size:15px;font-weight:700" oninput="RPE_DUR=parseInt(this.value)||90">'
       +'</div></div>';
   }
 
   var doneBanner=ALREADY_DONE?
-    '<div style="background:rgba(6,214,160,.07);border:1px solid rgba(6,214,160,.2);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:14px">'
-    +'<span style="font-size:18px">✅</span><div><div style="font-size:13px;font-weight:700;color:var(--acc)">Ya completaste el check-in de hoy</div><div style="font-size:11px;color:#64748b;margin-top:1px">Podés actualizarlo si querés</div></div></div>':'';
+    '<div style="background:rgba(181,84,45,.07);border:1px solid rgba(181,84,45,.2);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:14px">'
+    +'<span style="font-size:18px">✅</span><div><div style="font-size:13px;font-weight:700;color:var(--acc)">Ya completaste el check-in de hoy</div><div style="font-size:11px;color:#7D6B57;margin-top:1px">Podés actualizarlo si querés</div></div></div>':'';
 
   document.getElementById('app').innerHTML=
     '<div style="max-width:480px;margin:0 auto;padding:20px 16px;padding-bottom:calc(36px + env(safe-area-inset-bottom))">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">'
-    +'<div style="font-size:22px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#06d6a0,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">ATLAS</div>'
-    +'<div style="font-size:11px;color:#64748b">'+TNAME+'</div>'
+    +'<div style="font-size:22px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#B5542D,#7A4F8F);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">ATLAS</div>'
+    +'<div style="font-size:11px;color:#7D6B57">'+TNAME+'</div>'
     +'</div>'
-    +'<div style="display:flex;align-items:center;gap:12px;background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 16px;margin-bottom:18px">'
+    +'<div style="display:flex;align-items:center;gap:12px;background:#FFFFFF;border:1px solid rgba(43,32,22,.1);border-radius:14px;padding:14px 16px;margin-bottom:18px">'
     +avHtml(PLAYER.name,PLAYER_IDX,50)
     +'<div><div style="font-size:16px;font-weight:800">'+PLAYER.name+'</div>'
-    +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+PLAYER.pos+' · #'+PLAYER.num+' · '+fecha+'</div></div></div>'
+    +'<div style="font-size:12px;color:#7D6B57;margin-top:2px">'+PLAYER.pos+' · #'+PLAYER.num+' · '+fecha+'</div></div></div>'
     +doneBanner
     +'<div class="sec-title">Bienestar del día</div>'
     +wqs
     +'<div class="card"><div style="font-size:15px;font-weight:700;margin-bottom:2px">🗺️ Mapa de dolor</div>'
-    +'<div style="font-size:11px;color:#64748b;margin-bottom:0">¿Tenés algún dolor específico hoy?</div>'
+    +'<div style="font-size:11px;color:#7D6B57;margin-bottom:0">¿Tenés algún dolor específico hoy?</div>'
     +'<div class="tog-row"><button class="tog'+(SHOW_MAP?' sel':'')+'" onclick="setMap(true)">Sí</button><button class="tog'+(!SHOW_MAP?' sel':'')+'" onclick="setMap(false)">No</button></div>'
     +'<div id="map-wrap">'+mapContent+'</div></div>'
     +'<div class="card"><div style="font-size:15px;font-weight:700;margin-bottom:2px">📊 RPE del entrenamiento</div>'
-    +'<div style="font-size:11px;color:#64748b;margin-bottom:10px">¿Entrenaron hoy?</div>'
+    +'<div style="font-size:11px;color:#7D6B57;margin-bottom:10px">¿Entrenaron hoy?</div>'
     +'<div class="tog-row"><button class="tog'+(TRAINED===true?' sel':'')+'" onclick="setTrained(true)">Sí</button><button class="tog'+(TRAINED===false?' sel':'')+'" onclick="setTrained(false)">No entrenamos</button></div>'
     +rpeContent+'</div>'
     +'<button class="btn-main" id="sub-btn" onclick="submitCheckin()">Enviar check-in ✓</button>'
@@ -321,16 +321,16 @@ function renderDone(){
   var ws=calcWS();var wc=ws>=7?'#10b981':ws>=5?'#f59e0b':'#f43f5e';
   var fn=PLAYER.name.split(' ')[0];
   var boxes=CIQ.map(function(q){
-    var v=ANS[q.id];var c=v?(q.gh?(v>=7?'#10b981':v>=4?'#f59e0b':'#f43f5e'):(v<=3?'#10b981':v<=6?'#f59e0b':'#f43f5e')):'#64748b';
-    return '<div style="background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 8px;text-align:center;min-width:0"><div style="font-size:20px;font-weight:900;color:'+c+'">'+(v||'—')+'</div><div style="font-size:16px;margin-top:2px">'+q.em+'</div></div>';
+    var v=ANS[q.id];var c=v?(q.gh?(v>=7?'#10b981':v>=4?'#f59e0b':'#f43f5e'):(v<=3?'#10b981':v<=6?'#f59e0b':'#f43f5e')):'#7D6B57';
+    return '<div style="background:#FFFFFF;border:1px solid rgba(43,32,22,.1);border-radius:10px;padding:10px 8px;text-align:center;min-width:0"><div style="font-size:20px;font-weight:900;color:'+c+'">'+(v||'—')+'</div><div style="font-size:16px;margin-top:2px">'+q.em+'</div></div>';
   }).join('');
-  var rpeBox=TRAINED===true&&RPE_VAL!==null?'<div style="background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:16px;text-align:center;margin-top:12px"><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">RPE · sRPE</div><div style="font-size:28px;font-weight:900;color:'+rpeCol(RPE_VAL)+'">'+RPE_VAL+' <span style="font-size:13px;color:#64748b">/ '+Math.round(RPE_VAL*RPE_DUR)+' AU</span></div><div style="font-size:11px;color:#64748b;margin-top:2px">'+RPED[RPE_VAL]+'</div></div>':'';
+  var rpeBox=TRAINED===true&&RPE_VAL!==null?'<div style="background:#FFFFFF;border:1px solid rgba(43,32,22,.1);border-radius:12px;padding:16px;text-align:center;margin-top:12px"><div style="font-size:10px;color:#7D6B57;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">RPE · sRPE</div><div style="font-size:28px;font-weight:900;color:'+rpeCol(RPE_VAL)+'">'+RPE_VAL+' <span style="font-size:13px;color:#7D6B57">/ '+Math.round(RPE_VAL*RPE_DUR)+' AU</span></div><div style="font-size:11px;color:#7D6B57;margin-top:2px">'+RPED[RPE_VAL]+'</div></div>':'';
   document.getElementById('app').innerHTML=
     '<div style="max-width:480px;margin:0 auto;padding:40px 20px;text-align:center;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center">'
     +'<div style="font-size:64px;margin-bottom:14px">🙌</div>'
     +'<div style="font-size:24px;font-weight:900;margin-bottom:6px">¡Listo, '+fn+'!</div>'
-    +'<div style="font-size:13px;color:#64748b;margin-bottom:28px">Check-in registrado correctamente</div>'
-    +(ws!==null?'<div style="background:rgba(6,214,160,.07);border:1px solid rgba(6,214,160,.2);border-radius:14px;padding:20px;width:100%;margin-bottom:14px"><div style="font-size:10px;color:#06d6a0;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wellness Score</div><div style="font-size:48px;font-weight:900;color:'+wc+'">'+ws+'</div><div style="font-size:10px;color:#64748b;margin-top:3px">'+(ws>=7?'Excelente':ws>=5?'Bien':'A trabajar')+'</div></div>':'')
+    +'<div style="font-size:13px;color:#7D6B57;margin-bottom:28px">Check-in registrado correctamente</div>'
+    +(ws!==null?'<div style="background:rgba(181,84,45,.07);border:1px solid rgba(181,84,45,.2);border-radius:14px;padding:20px;width:100%;margin-bottom:14px"><div style="font-size:10px;color:#B5542D;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wellness Score</div><div style="font-size:48px;font-weight:900;color:'+wc+'">'+ws+'</div><div style="font-size:10px;color:#7D6B57;margin-top:3px">'+(ws>=7?'Excelente':ws>=5?'Bien':'A trabajar')+'</div></div>':'')
     +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:100%;margin-bottom:0">'+boxes+'</div>'
     +rpeBox
     +'</div>';

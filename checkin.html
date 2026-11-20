@@ -3,25 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#030b14">
+<meta name="theme-color" content="#B5542D">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>ATLAS · Check-in</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-:root{--acc:#06d6a0;--pur:#a855f7;--red:#f43f5e;--yel:#f59e0b;--grn:#10b981;--bg:#030b14;--c:#0d1b2a;--b:rgba(255,255,255,.08);--txt:#e2e8f0;--mut:#475569}
+:root{--acc:#B5542D;--pur:#7A4F8F;--red:#f43f5e;--yel:#f59e0b;--grn:#10b981;--bg:#FBF7F1;--c:#FFFFFF;--b:rgba(43,32,22,.1);--txt:#2B2016;--mut:#7D6B57}
 html,body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
 #root{max-width:480px;margin:0 auto;padding:16px;min-height:100vh}
 .hdr{display:flex;flex-direction:column;align-items:center;padding:20px 0 12px;text-align:center}
-.logo{width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,var(--acc),var(--pur));display:flex;align-items:center;justify-content:center;margin-bottom:10px;box-shadow:0 8px 24px rgba(6,214,160,.25)}
-.logo span{font-size:26px;font-weight:900;color:#000;letter-spacing:2px}
+.logo{width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,var(--acc),var(--pur));display:flex;align-items:center;justify-content:center;margin-bottom:10px;box-shadow:0 8px 24px rgba(181,84,45,.25)}
+.logo span{font-size:26px;font-weight:900;color:#fff;letter-spacing:2px}
 .brand{font-size:22px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .sub{font-size:10px;color:var(--mut);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
-.date-badge{display:inline-block;background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);border-radius:20px;padding:4px 14px;font-size:11px;color:var(--acc);font-weight:600;margin-top:8px}
+.date-badge{display:inline-block;background:rgba(181,84,45,.1);border:1px solid rgba(181,84,45,.2);border-radius:20px;padding:4px 14px;font-size:11px;color:var(--acc);font-weight:600;margin-top:8px}
 .pbtn{display:flex;align-items:center;gap:12px;width:100%;background:var(--c);border:1.5px solid var(--b);border-radius:14px;padding:14px;margin-bottom:8px;cursor:pointer;text-align:left;color:var(--txt);transition:border-color .15s,background .15s}
 .pbtn:active{opacity:.75}
 .pbtn.done{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.06)}
-.num{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:var(--acc);flex-shrink:0}
+.num{width:38px;height:38px;border-radius:10px;background:rgba(43,32,22,.07);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:var(--acc);flex-shrink:0}
 .pname{font-size:15px;font-weight:700;line-height:1.2}
 .ppos{font-size:11px;color:var(--mut);margin-top:1px}
 .badge{font-size:10px;background:rgba(16,185,129,.15);color:var(--grn);border-radius:6px;padding:3px 9px;font-weight:700;flex-shrink:0;margin-left:auto}
@@ -32,12 +32,12 @@ html,body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkM
 .q-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--acc);margin-bottom:5px}
 .q-text{font-size:17px;font-weight:800;line-height:1.3}
 .grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:16px 0 6px}
-.nb{height:68px;border-radius:12px;font-size:20px;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;border:1.5px solid rgba(255,255,255,.1);background:var(--bg);transition:.12s;-webkit-appearance:none}
+.nb{height:68px;border-radius:12px;font-size:20px;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;border:1.5px solid rgba(43,32,22,.1);background:var(--bg);transition:.12s;-webkit-appearance:none}
 .nb:active{transform:scale(.96)}
 .nb.sel{transform:scale(1.05)}
 .lo-hi{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);padding:0 2px}
 .btn-back{background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer}
-.btn-main{display:block;width:100%;padding:16px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#000;border:none;font-size:16px;font-weight:800;cursor:pointer;margin-top:10px}
+.btn-main{display:block;width:100%;padding:16px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:16px;font-weight:800;cursor:pointer;margin-top:10px}
 .btn-main:active{opacity:.85}
 .count-bar{font-size:13px;color:var(--mut);text-align:center;margin-bottom:14px}
 .count-bar b{color:var(--acc)}
@@ -69,7 +69,7 @@ var CIQ=[
 ];
 
 // ── Body map data ─────────────────────────────────────────────────────────────
-var _BG='rgba(100,116,139,.95)';
+var _BG='rgba(168,156,140,.95)';
 var BP_F=[
   ['head',       'Cabeza',        'd="M50,3 C61,3 68,10 68,20 C68,31 60,38 50,38 C40,38 32,31 32,20 C32,10 39,3 50,3 Z"'],
   ['neck_f',     'Cuello',        'd="M44,38 C44,44 46,52 50,56 C54,52 56,44 56,38 C54,40 51,41 50,41 C49,41 46,40 44,38 Z"'],
@@ -119,52 +119,52 @@ var BP_B=[
   ['r_heel',     'Talón Der',    'd="M82,264 C74,268 60,269 54,266 L56,277 C63,279 78,278 85,274 Z"']
 ];
 var BP_DETAIL_F=
-  '<path d="M50,56 L50,116" stroke="rgba(255,255,255,.32)" stroke-width=".9" fill="none"/>'
-  +'<path d="M38,57 C43,54 48,55 50,56" stroke="rgba(255,255,255,.3)" stroke-width=".85" fill="none"/>'
-  +'<path d="M62,57 C57,54 52,55 50,56" stroke="rgba(255,255,255,.3)" stroke-width=".85" fill="none"/>'
-  +'<path d="M22,99 C31,110 43,116 50,116" stroke="rgba(255,255,255,.28)" stroke-width=".9" fill="none"/>'
-  +'<path d="M78,99 C69,110 57,116 50,116" stroke="rgba(255,255,255,.28)" stroke-width=".9" fill="none"/>'
-  +'<path d="M50,116 L50,141" stroke="rgba(255,255,255,.24)" stroke-width=".8" fill="none"/>'
-  +'<path d="M33,123 Q50,127 67,123" stroke="rgba(255,255,255,.25)" stroke-width=".75" fill="none"/>'
-  +'<path d="M32,131 Q50,135 68,131" stroke="rgba(255,255,255,.25)" stroke-width=".75" fill="none"/>'
-  +'<path d="M30,139 Q50,143 70,139" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M30,120 C27,129 27,135 27,141" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M70,120 C73,129 73,135 73,141" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M34,164 C32,183 31,200 33,213" stroke="rgba(255,255,255,.19)" stroke-width=".7" fill="none"/>'
-  +'<path d="M66,164 C68,183 69,200 67,213" stroke="rgba(255,255,255,.19)" stroke-width=".7" fill="none"/>'
-  +'<path d="M33,202 C30,210 33,216 38,215" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
-  +'<path d="M67,202 C70,210 67,216 62,215" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
-  +'<ellipse cx="30" cy="223" rx="8" ry="5" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
-  +'<ellipse cx="70" cy="223" rx="8" ry="5" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
-  +'<path d="M29,231 L28,266" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
-  +'<path d="M71,231 L72,266" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
-  +'<path d="M13,99 C12,116 12,132 13,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>'
-  +'<path d="M87,99 C88,116 88,132 87,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>';
+  '<path d="M50,56 L50,116" stroke="rgba(43,32,22,.32)" stroke-width=".9" fill="none"/>'
+  +'<path d="M38,57 C43,54 48,55 50,56" stroke="rgba(43,32,22,.3)" stroke-width=".85" fill="none"/>'
+  +'<path d="M62,57 C57,54 52,55 50,56" stroke="rgba(43,32,22,.3)" stroke-width=".85" fill="none"/>'
+  +'<path d="M22,99 C31,110 43,116 50,116" stroke="rgba(43,32,22,.28)" stroke-width=".9" fill="none"/>'
+  +'<path d="M78,99 C69,110 57,116 50,116" stroke="rgba(43,32,22,.28)" stroke-width=".9" fill="none"/>'
+  +'<path d="M50,116 L50,141" stroke="rgba(43,32,22,.24)" stroke-width=".8" fill="none"/>'
+  +'<path d="M33,123 Q50,127 67,123" stroke="rgba(43,32,22,.25)" stroke-width=".75" fill="none"/>'
+  +'<path d="M32,131 Q50,135 68,131" stroke="rgba(43,32,22,.25)" stroke-width=".75" fill="none"/>'
+  +'<path d="M30,139 Q50,143 70,139" stroke="rgba(43,32,22,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M30,120 C27,129 27,135 27,141" stroke="rgba(43,32,22,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M70,120 C73,129 73,135 73,141" stroke="rgba(43,32,22,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M34,164 C32,183 31,200 33,213" stroke="rgba(43,32,22,.19)" stroke-width=".7" fill="none"/>'
+  +'<path d="M66,164 C68,183 69,200 67,213" stroke="rgba(43,32,22,.19)" stroke-width=".7" fill="none"/>'
+  +'<path d="M33,202 C30,210 33,216 38,215" stroke="rgba(43,32,22,.27)" stroke-width=".8" fill="none"/>'
+  +'<path d="M67,202 C70,210 67,216 62,215" stroke="rgba(43,32,22,.27)" stroke-width=".8" fill="none"/>'
+  +'<ellipse cx="30" cy="223" rx="8" ry="5" fill="rgba(43,32,22,.1)" stroke="rgba(43,32,22,.32)" stroke-width=".8"/>'
+  +'<ellipse cx="70" cy="223" rx="8" ry="5" fill="rgba(43,32,22,.1)" stroke="rgba(43,32,22,.32)" stroke-width=".8"/>'
+  +'<path d="M29,231 L28,266" stroke="rgba(43,32,22,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M71,231 L72,266" stroke="rgba(43,32,22,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M13,99 C12,116 12,132 13,148" stroke="rgba(43,32,22,.18)" stroke-width=".7" fill="none"/>'
+  +'<path d="M87,99 C88,116 88,132 87,148" stroke="rgba(43,32,22,.18)" stroke-width=".7" fill="none"/>';
 var BP_DETAIL_B=
-  '<path d="M50,56 L50,141" stroke="rgba(255,255,255,.3)" stroke-width=".9" fill="none"/>'
-  +'<path d="M50,58 L25,83 L50,116 L75,83 Z" stroke="rgba(255,255,255,.27)" stroke-width=".8" fill="none"/>'
-  +'<path d="M27,91 C34,98 44,102 50,101" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M73,91 C66,98 56,102 50,101" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M24,85 C21,97 23,109 25,116" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
-  +'<path d="M76,85 C79,97 77,109 75,116" stroke="rgba(255,255,255,.21)" stroke-width=".75" fill="none"/>'
-  +'<path d="M46,116 L45,141" stroke="rgba(255,255,255,.23)" stroke-width=".8" fill="none"/>'
-  +'<path d="M54,116 L55,141" stroke="rgba(255,255,255,.23)" stroke-width=".8" fill="none"/>'
-  +'<path d="M50,144 L50,169" stroke="rgba(255,255,255,.32)" stroke-width=".9" fill="none"/>'
-  +'<path d="M27,155 C33,170 45,174 50,169" stroke="rgba(255,255,255,.29)" stroke-width=".85" fill="none"/>'
-  +'<path d="M73,155 C67,170 55,174 50,169" stroke="rgba(255,255,255,.29)" stroke-width=".85" fill="none"/>'
-  +'<path d="M34,170 C34,186 34,202 35,213" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M66,170 C66,186 66,202 65,213" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<ellipse cx="30" cy="222" rx="8" ry="5" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.28)" stroke-width=".8"/>'
-  +'<ellipse cx="70" cy="222" rx="8" ry="5" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.28)" stroke-width=".8"/>'
-  +'<path d="M31,234 C29,249 30,260 32,266" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M69,234 C71,249 70,260 68,266" stroke="rgba(255,255,255,.2)" stroke-width=".7" fill="none"/>'
-  +'<path d="M28,260 L28,269" stroke="rgba(255,255,255,.38)" stroke-width="1.2" fill="none"/>'
-  +'<path d="M72,260 L72,269" stroke="rgba(255,255,255,.38)" stroke-width="1.2" fill="none"/>'
-  +'<path d="M13,99 C12,116 12,132 13,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>'
-  +'<path d="M87,99 C88,116 88,132 87,148" stroke="rgba(255,255,255,.18)" stroke-width=".7" fill="none"/>';
+  '<path d="M50,56 L50,141" stroke="rgba(43,32,22,.3)" stroke-width=".9" fill="none"/>'
+  +'<path d="M50,58 L25,83 L50,116 L75,83 Z" stroke="rgba(43,32,22,.27)" stroke-width=".8" fill="none"/>'
+  +'<path d="M27,91 C34,98 44,102 50,101" stroke="rgba(43,32,22,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M73,91 C66,98 56,102 50,101" stroke="rgba(43,32,22,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M24,85 C21,97 23,109 25,116" stroke="rgba(43,32,22,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M76,85 C79,97 77,109 75,116" stroke="rgba(43,32,22,.21)" stroke-width=".75" fill="none"/>'
+  +'<path d="M46,116 L45,141" stroke="rgba(43,32,22,.23)" stroke-width=".8" fill="none"/>'
+  +'<path d="M54,116 L55,141" stroke="rgba(43,32,22,.23)" stroke-width=".8" fill="none"/>'
+  +'<path d="M50,144 L50,169" stroke="rgba(43,32,22,.32)" stroke-width=".9" fill="none"/>'
+  +'<path d="M27,155 C33,170 45,174 50,169" stroke="rgba(43,32,22,.29)" stroke-width=".85" fill="none"/>'
+  +'<path d="M73,155 C67,170 55,174 50,169" stroke="rgba(43,32,22,.29)" stroke-width=".85" fill="none"/>'
+  +'<path d="M34,170 C34,186 34,202 35,213" stroke="rgba(43,32,22,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M66,170 C66,186 66,202 65,213" stroke="rgba(43,32,22,.2)" stroke-width=".7" fill="none"/>'
+  +'<ellipse cx="30" cy="222" rx="8" ry="5" fill="rgba(43,32,22,.08)" stroke="rgba(43,32,22,.28)" stroke-width=".8"/>'
+  +'<ellipse cx="70" cy="222" rx="8" ry="5" fill="rgba(43,32,22,.08)" stroke="rgba(43,32,22,.28)" stroke-width=".8"/>'
+  +'<path d="M31,234 C29,249 30,260 32,266" stroke="rgba(43,32,22,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M69,234 C71,249 70,260 68,266" stroke="rgba(43,32,22,.2)" stroke-width=".7" fill="none"/>'
+  +'<path d="M28,260 L28,269" stroke="rgba(43,32,22,.38)" stroke-width="1.2" fill="none"/>'
+  +'<path d="M72,260 L72,269" stroke="rgba(43,32,22,.38)" stroke-width="1.2" fill="none"/>'
+  +'<path d="M13,99 C12,116 12,132 13,148" stroke="rgba(43,32,22,.18)" stroke-width=".7" fill="none"/>'
+  +'<path d="M87,99 C88,116 88,132 87,148" stroke="rgba(43,32,22,.18)" stroke-width=".7" fill="none"/>';
 
 function bpC(lv){
-  return lv===0?[_BG,'rgba(255,255,255,.55)']:
+  return lv===0?[_BG,'rgba(43,32,22,.5)']:
          lv===1?['rgba(22,163,74,.88)','rgba(255,255,255,.75)']:
          lv===2?['rgba(234,179,8,.92)','rgba(255,255,255,.75)']:
                 ['rgba(220,38,38,.94)','rgba(255,255,255,.75)'];
@@ -273,7 +273,7 @@ function renderQ(){
     var c=q.gh?(n<=3?'var(--red)':n<=6?'var(--yel)':'var(--grn)'):(n<=3?'var(--grn)':n<=6?'var(--yel)':'var(--red)');
     var bg=sel?c:'var(--bg)';
     var fc=sel?'rgba(0,0,0,.8)':c;
-    var bdr=sel?'2px solid '+c:'1.5px solid rgba(255,255,255,.1)';
+    var bdr=sel?'2px solid '+c:'1.5px solid rgba(43,32,22,.1)';
     return '<button class="nb'+(sel?' sel':'')+'" onclick="pick('+n+')" style="background:'+bg+';color:'+fc+';border:'+bdr+'">'+n+'</button>';
   }).join('');
   var back=S.qIdx>0?'S.qIdx--;renderQ()':'renderPlayers()';
@@ -372,7 +372,7 @@ async function save(){
       +'<div style="font-size:60px;margin-bottom:12px">🙌</div>'
       +'<div style="font-size:22px;font-weight:800;margin-bottom:4px">¡Listo, '+fn+'!</div>'
       +'<div style="font-size:12px;color:var(--mut);margin-bottom:20px">Check-in registrado · '+fmtDate(DATE)+'</div>'
-      +'<div style="background:rgba(6,214,160,.07);border:1px solid rgba(6,214,160,.2);border-radius:14px;padding:18px;margin-bottom:16px">'
+      +'<div style="background:rgba(181,84,45,.07);border:1px solid rgba(181,84,45,.2);border-radius:14px;padding:18px;margin-bottom:16px">'
         +'<div style="font-size:10px;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wellness Score</div>'
         +'<div style="font-size:68px;font-weight:900;color:'+wco+'">'+ws+'</div>'
         +'<div style="font-size:11px;color:var(--mut);margin-top:4px">'+(ws>=7?'Óptimo 🟢':ws>=5?'Moderado 🟡':'Bajo 🔴')+'</div>'
