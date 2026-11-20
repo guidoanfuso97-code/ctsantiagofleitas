@@ -2955,6 +2955,11 @@ async function loadCISub(){
   }catch(e){}
   // Merge players saved this session (covers offline saves not yet synced)
   PL.forEach(function(p,i){if(p.realWellness&&CIST.submitted.indexOf(i)<0)CIST.submitted.push(i);});
+  CIST.recoverySubmitted=[];
+  try{
+    var rrows=await sbGet('recovery','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY+'&select=player_idx');
+    rrows.forEach(function(r){CIST.recoverySubmitted.push(r.player_idx);});
+  }catch(e){}
 }
 function renderCIPlayers(){
   var pct=Math.round(CIST.submitted.length/PL.length*100);
@@ -2982,10 +2987,11 @@ function renderCIPlayers(){
   $('t-checkin').innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
     +'<div><div style="font-size:14px;font-weight:700">Check-in · '+(TEAM?TEAM.name:'—')+'</div>'
-    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">'+CIST.submitted.length+' / '+PL.length+' completados</div></div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">💚 '+CIST.submitted.length+'/'+PL.length+' wellness &nbsp;·&nbsp; 🔋 '+(CIST.recoverySubmitted?CIST.recoverySubmitted.length:0)+'/'+PL.length+' recovery</div></div>'
     +'<div style="display:flex;gap:8px;align-items:center">'
     +reminderBtn
-    +'<button onclick="openQRModal()" style="background:rgba(181,84,45,.1);border:1px solid rgba(181,84,45,.25);color:var(--acc);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer">📱 QR</button>'
+    +'<button onclick="openQRModal()" style="background:rgba(181,84,45,.1);border:1px solid rgba(181,84,45,.25);color:var(--acc);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer">📱 QR Check-in</button>'
+    +'<button onclick="openQRModal(\'recovery\')" style="background:rgba(122,79,143,.1);border:1px solid rgba(122,79,143,.25);color:var(--pur);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer">📱 QR Recovery</button>'
     +'<div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:6px 14px;font-size:14px;font-weight:800;color:var(--grn)">'+pct+'%</div>'
     +'</div>'
     +'</div><div class="sg">'+cards+'</div>';
@@ -2993,9 +2999,12 @@ function renderCIPlayers(){
 
 // ── QR Check-in modal ────────────────────────────────────────────────────
 var _qrTick=null;
-function openQRModal(){
+function openQRModal(mode){
   if(!TEAM)return;
-  var url='https://guidoanfuso97-code.github.io/ctsantiagofleitas/checkin.html?t='+TEAM.id+'&d='+TODAY;
+  window._qrMode=mode==='recovery'?'recovery':'checkin';
+  var page=window._qrMode==='recovery'?'recovery.html':'checkin.html';
+  var title=window._qrMode==='recovery'?'📱 QR Recovery Score':'📱 QR Check-in';
+  var url='https://guidoanfuso97-code.github.io/ctsantiagofleitas/'+page+'?t='+TEAM.id+'&d='+TODAY;
   var m=document.createElement('div');
   m.id='qr-modal';
   m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:16px';
@@ -3003,7 +3012,7 @@ function openQRModal(){
   m.innerHTML=
     '<div style="background:#FFFFFF;border:1px solid rgba(43,32,22,.1);border-radius:20px;padding:22px;max-width:340px;width:100%;text-align:center">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
-    +'<div style="font-size:14px;font-weight:800">📱 QR Check-in</div>'
+    +'<div style="font-size:14px;font-weight:800">'+title+'</div>'
     +'<button onclick="closeQRModal()" style="background:rgba(43,32,22,.08);border:none;color:var(--txt);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>'
     +'</div>'
     +'<div style="font-size:11px;color:var(--mut);margin-bottom:14px">Los jugadores escanean este QR con la cámara del celular</div>'
@@ -3040,13 +3049,14 @@ function _qrCopy(){
 }
 async function _qrRefresh(){
   try{
-    var rows=await sbGet('wellness','team_id=eq.'+TEAM.id+'&date=eq.'+TODAY+'&select=player_idx');
+    var table=window._qrMode==='recovery'?'recovery':'wellness';
+    var rows=await sbGet(table,'team_id=eq.'+TEAM.id+'&date=eq.'+TODAY+'&select=player_idx');
     var n=(rows||[]).length;
     var done=(rows||[]).map(function(r){return r.player_idx;});
-    // Update CIST so local list reflects remote state
-    CIST.submitted=done;
+    // Update CIST so local list reflects remote state (solo aplica al check-in de wellness)
+    if(window._qrMode!=='recovery')CIST.submitted=done;
     var el=document.getElementById('qr-count');
-    if(el)el.textContent='✅ '+n+' de '+PL.length+' jugadores completaron el check-in';
+    if(el)el.textContent='✅ '+n+' de '+PL.length+' jugadores completaron '+(window._qrMode==='recovery'?'el Recovery Score':'el check-in');
     var whoEl=document.getElementById('qr-who');
     if(whoEl){
       var pending=PL.filter(function(p,i){return done.indexOf(i)<0;}).map(function(p){return p.name.split(' ')[0];});

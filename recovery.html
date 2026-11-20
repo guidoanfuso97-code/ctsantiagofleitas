@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#030b14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ATLAS · Recovery Score</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--acc:#06d6a0;--pur:#a855f7;--red:#f43f5e;--yel:#f59e0b;--grn:#10b981;--bg:#030b14;--c:#0d1b2a;--b:rgba(255,255,255,.08);--txt:#e2e8f0;--mut:#475569}
+html,body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+#root{max-width:480px;margin:0 auto;padding:16px;min-height:100vh}
+.hdr{display:flex;flex-direction:column;align-items:center;padding:20px 0 12px;text-align:center}
+.logo{width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,var(--acc),var(--pur));display:flex;align-items:center;justify-content:center;margin-bottom:10px;box-shadow:0 8px 24px rgba(6,214,160,.25)}
+.logo span{font-size:26px;font-weight:900;color:#000;letter-spacing:2px}
+.brand{font-size:22px;font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,var(--acc),var(--pur));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{font-size:10px;color:var(--mut);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+.date-badge{display:inline-block;background:rgba(6,214,160,.1);border:1px solid rgba(6,214,160,.2);border-radius:20px;padding:4px 14px;font-size:11px;color:var(--acc);font-weight:600;margin-top:8px}
+.pbtn{display:flex;align-items:center;gap:12px;width:100%;background:var(--c);border:1.5px solid var(--b);border-radius:14px;padding:14px;margin-bottom:8px;cursor:pointer;text-align:left;color:var(--txt);transition:border-color .15s,background .15s}
+.pbtn:active{opacity:.75}
+.pbtn.done{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.06)}
+.num{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:var(--acc);flex-shrink:0}
+.pname{font-size:15px;font-weight:700;line-height:1.2}
+.ppos{font-size:11px;color:var(--mut);margin-top:1px}
+.badge{font-size:10px;background:rgba(16,185,129,.15);color:var(--grn);border-radius:6px;padding:3px 9px;font-weight:700;flex-shrink:0;margin-left:auto}
+.count-bar{font-size:13px;color:var(--mut);text-align:center;margin-bottom:14px}
+.count-bar b{color:var(--acc)}
+.btn-back{background:var(--c);border:1px solid var(--b);color:var(--mut);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer}
+.btn-main{display:block;width:100%;padding:16px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#000;border:none;font-size:16px;font-weight:800;cursor:pointer;margin-top:10px}
+.btn-main:active{opacity:.85}
+.err-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;gap:12px}
+.score-card{background:var(--c);border:1px solid var(--b);border-radius:16px;padding:18px;text-align:center;margin-bottom:14px;position:sticky;top:8px;z-index:5}
+.score-ctx{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.score-val{font-size:40px;font-weight:900;line-height:1}
+.score-tgt{font-size:11px;color:var(--mut);margin-top:3px}
+.score-prog{height:7px;background:var(--b);border-radius:4px;margin-top:10px;overflow:hidden}
+.score-fill{height:100%;border-radius:4px;transition:width .3s}
+.rec-item{display:flex;align-items:center;gap:12px;width:100%;background:var(--c);border:1.5px solid var(--b);border-radius:14px;padding:13px;margin-bottom:8px;cursor:pointer;text-align:left;color:var(--txt);transition:.15s}
+.rec-item.on{border-color:rgba(16,185,129,.45);background:rgba(16,185,129,.08)}
+.rec-check{width:26px;height:26px;border-radius:50%;border:2px solid var(--b);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;transition:.15s}
+.rec-item.on .rec-check{background:var(--grn);border-color:var(--grn);color:#000}
+.rec-emoji{font-size:22px;flex-shrink:0}
+.rec-info{flex:1;min-width:0}
+.rec-label{font-size:13.5px;font-weight:700;line-height:1.25}
+.rec-desc{font-size:10.5px;color:var(--mut);margin-top:2px;line-height:1.35}
+.rec-pts{font-size:13px;font-weight:800;color:var(--acc);flex-shrink:0}
+.rec-item.on .rec-pts{color:var(--grn)}
+</style>
+</head>
+<body>
+<div id="root"><div class="err-wrap"><div style="font-size:32px">⏳</div><div style="color:var(--mut);font-size:14px">Cargando plantel...</div></div></div>
+<script>
+var SB='https://gbgvcipaeipanfciwylg.supabase.co';
+var KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZ3ZjaXBhZWlwYW5mY2l3eWxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NjMzMzgsImV4cCI6MjA5NjIzOTMzOH0.taAZnfsb8YX50DoPVuk1az8YppWZVD_WAiW8oh9kXT8';
+
+var P=new URLSearchParams(location.search);
+var TID=P.get('t');
+var DATE=P.get('d')||(function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+
+var S={teamName:'',players:[],done:new Set(),idx:null,ans:{},sessionType:null,target:null};
+
+var RECOVERY_ITEMS=[
+  {id:'sleep',          emoji:'😴',label:'Sueño de calidad',      desc:'Dormir 7-9h seguidas y profundo, acostarte antes de medianoche',pts:30},
+  {id:'nutrition',      emoji:'🥤',label:'Nutrición e hidratación',desc:'30-40g de proteína + bebida deportiva + 2L de agua, entre 30-60min post esfuerzo',pts:30},
+  {id:'pool',           emoji:'🏊',label:'Sesión de pileta',       desc:'Nados suaves y estiramientos',pts:20},
+  {id:'active_recovery',emoji:'🚴',label:'Recuperación activa',    desc:'20min o más de bici, rolo y/o estiramientos (uno o varios)',pts:20},
+  {id:'physio',         emoji:'💆',label:'Fisioterapia',           desc:'Masajes o botas de compresión',pts:20},
+  {id:'contrast',       emoji:'🌡️',label:'Baños de contraste',     desc:'3 a 4 series de 3min frío + 3min calor',pts:20},
+  {id:'social',         emoji:'👨‍👩‍👧',label:'Socializar',            desc:'60min o más con familia, pareja o amigos — sin pantallas ni celular',pts:15},
+  {id:'compression',    emoji:'🦵',label:'Medias de compresión',   desc:'6 a 8 horas continuas',pts:15},
+  {id:'relax',          emoji:'🧘',label:'Técnicas de relajación', desc:'15min o más de meditación/relajación en un lugar tranquilo',pts:15},
+  {id:'no_alcohol',     emoji:'🚫',label:'Evitar alcohol',         desc:'Sin alcohol 48h post esfuerzo — sobre todo los días de partido',pts:15}
+];
+var RECOVERY_MAX=RECOVERY_ITEMS.reduce(function(s,i){return s+i.pts;},0);
+
+function hdrs(){return{'apikey':KEY,'Authorization':'Bearer '+KEY,'Content-Type':'application/json'};}
+function R(html){document.getElementById('root').innerHTML=html;}
+
+function fmtDate(d){
+  var dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  var meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var o=new Date(d+'T12:00:00');
+  return dias[o.getDay()]+' '+o.getDate()+' '+meses[o.getMonth()];
+}
+function hdrHtml(){
+  return '<div class="hdr">'
+    +'<div class="logo"><span>A</span></div>'
+    +'<div class="brand">ATLAS</div>'
+    +'<div class="sub">Recovery Score · '+S.teamName+'</div>'
+    +'<div class="date-badge">'+fmtDate(DATE)+'</div>'
+    +'</div>';
+}
+
+async function init(){
+  if(!TID){
+    R('<div class="err-wrap"><div style="font-size:40px">❌</div>'
+      +'<div style="font-size:16px;font-weight:700">QR inválido</div>'
+      +'<div style="font-size:13px;color:var(--mut)">Pedile al cuerpo técnico el código actualizado</div></div>');
+    return;
+  }
+  try{
+    var r=await fetch(SB+'/rest/v1/teams?id=eq.'+TID+'&select=name,players',{headers:hdrs()});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    var data=await r.json();
+    if(!data.length){R('<div class="err-wrap"><div style="font-size:40px">❌</div><div>Equipo no encontrado</div></div>');return;}
+    S.teamName=data[0].name;
+    S.players=(data[0].players||[]);
+
+    // ¿Hoy hubo partido o solo entreno? define el objetivo (100 vs 60)
+    var mr=await fetch(SB+'/rest/v1/partidos?team_id=eq.'+TID+'&fecha=eq.'+DATE+'&select=id',{headers:hdrs()});
+    var md=mr.ok?await mr.json():[];
+    if(md&&md.length){S.sessionType='partido';S.target=100;}
+    else{
+      var sr=await fetch(SB+'/rest/v1/sessions?team_id=eq.'+TID+'&date=eq.'+DATE+'&select=id',{headers:hdrs()});
+      var sd=sr.ok?await sr.json():[];
+      if(sd&&sd.length){S.sessionType='entreno';S.target=60;}
+      else{S.sessionType='descanso';S.target=null;}
+    }
+
+    var rr=await fetch(SB+'/rest/v1/recovery?team_id=eq.'+TID+'&date=eq.'+DATE+'&select=player_idx',{headers:hdrs()});
+    var rd=rr.ok?await rr.json():[];
+    S.done=new Set((rd||[]).map(function(x){return x.player_idx;}));
+    renderPlayers();
+  }catch(e){
+    R('<div class="err-wrap"><div style="font-size:40px">📡</div>'
+      +'<div style="font-size:16px;font-weight:700">Sin conexión</div>'
+      +'<div style="font-size:13px;color:var(--mut);margin-bottom:12px">Verificá tu internet e intentá de nuevo</div>'
+      +'<button class="btn-main" style="width:auto;padding:12px 28px" onclick="init()">Reintentar</button></div>');
+  }
+}
+
+function renderPlayers(){
+  var ctxLabel=S.sessionType==='partido'?'🏆 Hoy jugaron — objetivo 100 pts':S.sessionType==='entreno'?'🏃 Hoy entrenaron — objetivo 60 pts':'😴 Día sin sesión — sin objetivo fijo, registrá igual si querés';
+  var rows=S.players.map(function(p,i){
+    var d=S.done.has(i);
+    return '<button class="pbtn'+(d?' done':'')+'" onclick="selectPlayer('+i+')">'
+      +'<div class="num">'+(p.num||i+1)+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div class="pname">'+p.name+'</div>'
+        +'<div class="ppos">'+p.pos+'</div>'
+      +'</div>'
+      +(d?'<div class="badge">✓ Listo</div>':'')
+      +'</button>';
+  }).join('');
+  R(hdrHtml()
+    +'<div class="count-bar">'+ctxLabel+'</div>'
+    +'<div class="count-bar"><b>'+S.done.size+'</b> de <b>'+S.players.length+'</b> completaron hoy</div>'
+    +rows);
+}
+
+function selectPlayer(i){
+  S.idx=i;S.ans={};
+  renderChecklist();
+}
+
+function currentScore(){
+  return RECOVERY_ITEMS.reduce(function(s,it){return s+(S.ans[it.id]?it.pts:0);},0);
+}
+
+function toggleRec(id){
+  S.ans[id]=!S.ans[id];
+  renderChecklist();
+}
+
+function renderChecklist(){
+  var score=currentScore();
+  var tgt=S.target;
+  var pct=tgt?Math.min(100,Math.round(score/tgt*100)):Math.min(100,Math.round(score/RECOVERY_MAX*100));
+  var col=pct>=100?'var(--grn)':pct>=50?'var(--yel)':'var(--red)';
+  var items=RECOVERY_ITEMS.map(function(it){
+    var on=!!S.ans[it.id];
+    return '<div class="rec-item'+(on?' on':'')+'" onclick="toggleRec(\''+it.id+'\')">'
+      +'<div class="rec-check">'+(on?'✓':'')+'</div>'
+      +'<div class="rec-emoji">'+it.emoji+'</div>'
+      +'<div class="rec-info"><div class="rec-label">'+it.label+'</div><div class="rec-desc">'+it.desc+'</div></div>'
+      +'<div class="rec-pts">+'+it.pts+'</div>'
+      +'</div>';
+  }).join('');
+  R('<div style="padding-top:8px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+      +'<button class="btn-back" onclick="renderPlayers()">← Volver</button>'
+      +'<span style="font-size:12px;color:var(--mut)">'+S.players[S.idx].name.split(' ')[0]+'</span>'
+    +'</div>'
+    +'<div class="score-card">'
+      +'<div class="score-ctx">'+(S.sessionType==='partido'?'Post-partido':S.sessionType==='entreno'?'Post-entreno':'Día libre')+'</div>'
+      +'<div class="score-val" style="color:'+col+'">'+score+'</div>'
+      +'<div class="score-tgt">'+(tgt?'de '+tgt+' puntos objetivo':'de '+RECOVERY_MAX+' puntos posibles')+'</div>'
+      +'<div class="score-prog"><div class="score-fill" style="width:'+pct+'%;background:'+col+'"></div></div>'
+    +'</div>'
+    +items
+    +'<button class="btn-main" onclick="saveRecovery()">Guardar →</button>'
+    +'</div>');
+}
+
+async function saveRecovery(){
+  var score=currentScore();
+  R('<div class="err-wrap"><div style="font-size:36px">⏳</div><div style="color:var(--mut)">Guardando...</div></div>');
+  try{
+    var body={team_id:TID,player_idx:S.idx,date:DATE,score:score,target:S.target,session_type:S.sessionType};
+    RECOVERY_ITEMS.forEach(function(it){body[it.id]=!!S.ans[it.id];});
+    var r=await fetch(SB+'/rest/v1/recovery',{
+      method:'POST',
+      headers:Object.assign({},hdrs(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
+      body:JSON.stringify(body)
+    });
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    S.done.add(S.idx);
+    var fn=S.players[S.idx].name.split(' ')[0];
+    var tgt=S.target;
+    var pct=tgt?Math.round(score/tgt*100):Math.round(score/RECOVERY_MAX*100);
+    var col=pct>=100?'var(--grn)':pct>=50?'var(--yel)':'var(--red)';
+    var msg=pct>=100?'¡Objetivo cumplido! 💪':pct>=50?'Vas por buen camino':'Por debajo del objetivo';
+    R('<div style="padding:16px;text-align:center">'
+      +'<div style="font-size:60px;margin-bottom:12px">'+(pct>=100?'🏆':'🙌')+'</div>'
+      +'<div style="font-size:22px;font-weight:800;margin-bottom:4px">¡Listo, '+fn+'!</div>'
+      +'<div style="font-size:12px;color:var(--mut);margin-bottom:20px">Recovery Score registrado · '+fmtDate(DATE)+'</div>'
+      +'<div style="background:rgba(6,214,160,.07);border:1px solid rgba(6,214,160,.2);border-radius:14px;padding:18px;margin-bottom:20px">'
+        +'<div style="font-size:10px;color:var(--acc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Recovery Score</div>'
+        +'<div style="font-size:68px;font-weight:900;color:'+col+'">'+score+'</div>'
+        +'<div style="font-size:11px;color:var(--mut);margin-top:4px">'+(tgt?'de '+tgt+' objetivo':'de '+RECOVERY_MAX+' posibles')+' · '+msg+'</div>'
+      +'</div>'
+      +'<button class="btn-main" onclick="renderPlayers()">Siguiente jugador →</button>'
+      +'</div>');
+  }catch(e){
+    R('<div class="err-wrap">'
+      +'<div style="font-size:40px">❌</div>'
+      +'<div style="font-size:16px;font-weight:700">Error al guardar</div>'
+      +'<div style="font-size:13px;color:var(--mut);margin-bottom:16px">Verificá tu conexión</div>'
+      +'<button class="btn-main" style="width:auto;padding:12px 28px" onclick="saveRecovery()">Reintentar</button>'
+      +'<button style="background:none;border:none;color:var(--mut);font-size:13px;margin-top:10px;cursor:pointer" onclick="renderPlayers()">Volver al listado</button>'
+      +'</div>');
+  }
+}
+
+init();
+</script>
+</body>
+</html>
