@@ -702,7 +702,8 @@ async function syncOfflineQueue(){
     try{
       var r;
       if(item.method==='insert'||item.method==='upsert'){
-        r=await fetch(SUPABASE_URL+'/rest/v1/'+item.table,{method:'POST',
+        var qUrl=SUPABASE_URL+'/rest/v1/'+item.table+(item.method==='upsert'&&item.conflict?'?on_conflict='+item.conflict:'');
+        r=await fetch(qUrl,{method:'POST',
           headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
           body:JSON.stringify(item.data)});
       } else if(item.method==='insertReturn'){
@@ -844,7 +845,7 @@ async function sbUpsert(table, data, conflict){
       body:JSON.stringify(data)});
     if(r.ok)return true;
   }catch(e){}
-  await idbEnqueue({method:'upsert',table:table,data:data,ts:new Date().toISOString()});
+  await idbEnqueue({method:'upsert',table:table,data:data,conflict:conflict,ts:new Date().toISOString()});
   OFFLINE_PENDING++;updateOfflineUI();
   return true;
 }
@@ -2751,7 +2752,7 @@ async function autoSaveRPE(pi){
   var row={team_id:TEAM.id,player_idx:pi,date:TODAY,
     rpe_value:RPEST.res[pi],duration:RPEST.dur,srpe:RPEST.res[pi]*RPEST.dur,
     session_type:RPEST.type||'training'};
-  await sbUpsert('rpe',row);
+  await sbUpsert('rpe',row,'team_id,player_idx,date');
   loadRealRPE().then(updateTopStats);
 }
 async function saveRPEList(){
@@ -2761,7 +2762,7 @@ async function saveRPEList(){
       rpe_value:RPEST.res[i],duration:RPEST.dur,srpe:RPEST.res[i]*RPEST.dur});
   }
   var isOffline=!navigator.onLine;
-  if(rows.length)await sbUpsert('rpe',rows);
+  if(rows.length)await sbUpsert('rpe',rows,'team_id,player_idx,date');
   await loadRealRPE();updateTopStats();
   if(isOffline)showBanner('💾 RPE guardado offline · se sincronizará al recuperar WiFi','var(--yel)',4000);
   renderRPESummary();
@@ -3123,8 +3124,8 @@ async function ciSave(){
   var a=CIST.ans,ws=calcWS(a),wco=ws>=7?'var(--grn)':ws>=5?'var(--yel)':'var(--red)';
   var results=await Promise.all([
     sbUpsert('wellness',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,
-      sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue}),
-    sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}})
+      sleep:a.sleep,energy:a.energy,stress:a.stress,doms:a.doms,fatigue:a.fatigue},'team_id,player_idx,date'),
+    sbUpsert('dolor',{team_id:TEAM.id,player_idx:CIST.player,date:TODAY,zones:CIST.dolor||{}},'team_id,player_idx,date')
   ]);
   // Update player state locally — works online and offline
   PL[CIST.player].tw=a;PL[CIST.player].wscore=ws;PL[CIST.player].realWellness=true;
@@ -7468,7 +7469,7 @@ async function saveEvalEntry(playerIdx,evalType){
     value:entry.value||null,
     peso:entry.peso||null,talla:entry.talla||null,
     pliegues:entry.pliegues||null,imc:entry.imc||null};
-  var ok=await sbUpsert('evaluaciones',row);
+  var ok=await sbUpsert('evaluaciones',row,'team_id,player_idx,eval_type,date');
 
   if(!ok){
     if(btn){btn.disabled=false;btn.textContent='Guardar';}
@@ -11056,7 +11057,7 @@ async function confirmAddUser(){
   var role=(document.getElementById('new-user-role')||{}).value||'readonly';
   if(!email||!email.includes('@')){showBanner('⚠️ Email inválido','var(--red)',2000);return;}
   try{
-    await sbUpsert('user_roles',{email:email.toLowerCase(),role:role},{conflict:'email'});
+    await sbUpsert('user_roles',{email:email.toLowerCase(),role:role},'email');
     closeModal();showBanner('✅ Usuario agregado','var(--grn)',2000);
     await loadUsuariosList();
   }catch(e){showBanner('⚠️ Error al guardar','var(--red)',2000);}
