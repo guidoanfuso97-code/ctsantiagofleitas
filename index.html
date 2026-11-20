@@ -5469,6 +5469,11 @@ async function confirmFPImport(rows){
 // ══════════════════════════════════════════════════
 var GYM_ASYM_ALTERED=15, GYM_ASYM_SEVERE=30, GYM_MIN_FP_HISTORY=3;
 var GYM_CONTACT_TIME_HIGH=250, GYM_RSI_MOD_LOW=0.60;
+// Cortes fijos del eje Fuerte/Débil (Perfil F-V) — calibrados con el promedio real
+// del plantel de Guido (promedio - 0.6 DE, mismo criterio Hopkins de siempre).
+// Funcionan desde el primer test; el z-score vs historial propio los refina a
+// medida que cada jugador acumula tests.
+var FV_IMTP_PF_LOW=28.5, FV_NORDIC_LOW=4.25, FV_ISO30_LOW=3.94;
 var GYM_CMJ_ASYM=[
   {key:'concentric_impulse_asym',label:'Concentric Impulse',critical:false},
   {key:'eccentric_braking_asym', label:'Eccentric Braking Impulse',critical:false},
@@ -5580,17 +5585,27 @@ function fvQuadrantAssign(playerIdx){
   var cmjEntries=fpEntries(playerIdx,'cmj');
   var cmjrEntries=fpEntries(playerIdx,'cmj_rebound');
 
+  function latestVal(entries,getVal){
+    if(!entries.length)return null;
+    return getVal(entries[entries.length-1]);
+  }
   var weakReasons=[];
+  var pfVal=latestVal(imtpEntries,function(e){return e.peak_force;});
   var pfZ=zScoreLatest(imtpEntries,function(e){return e.peak_force;});
-  if(pfZ!==null&&pfZ<=-HOPKINS_MODERATE)weakReasons.push('IMTP Peak Force bajo ('+(pfZ>0?'+':'')+pfZ.toFixed(2)+'σ vs su historial)');
+  if(pfVal!=null&&pfVal<FV_IMTP_PF_LOW)weakReasons.push('IMTP Peak Force bajo (<'+FV_IMTP_PF_LOW+' N/kg vs promedio del plantel: '+pfVal.toFixed(1)+')');
+  else if(pfZ!==null&&pfZ<=-HOPKINS_MODERATE)weakReasons.push('IMTP Peak Force bajo ('+(pfZ>0?'+':'')+pfZ.toFixed(2)+'σ vs su historial)');
   var f100Z=zScoreLatest(imtpEntries,function(e){return e.force_100;});
   if(f100Z!==null&&f100Z<=-HOPKINS_MODERATE)weakReasons.push('IMTP Force-100ms bajo ('+(f100Z>0?'+':'')+f100Z.toFixed(2)+'σ vs su historial)');
+  var nordicVal=latestVal(nordicEntries,hamstringForceKg);
   var nordicZ=zScoreLatest(nordicEntries,hamstringForceKg);
-  if(nordicZ!==null&&nordicZ<=-HOPKINS_MODERATE)weakReasons.push('Nordic Force/kg bajo ('+(nordicZ>0?'+':'')+nordicZ.toFixed(2)+'σ vs su historial)');
+  if(nordicVal!=null&&nordicVal<FV_NORDIC_LOW)weakReasons.push('Nordic Force/kg bajo (<'+FV_NORDIC_LOW+' N/kg vs promedio del plantel: '+nordicVal.toFixed(2)+')');
+  else if(nordicZ!==null&&nordicZ<=-HOPKINS_MODERATE)weakReasons.push('Nordic Force/kg bajo ('+(nordicZ>0?'+':'')+nordicZ.toFixed(2)+'σ vs su historial)');
+  var iso30Val=latestVal(iso30Entries,hamstringForceKg);
   var iso30Z=zScoreLatest(iso30Entries,hamstringForceKg);
-  if(iso30Z!==null&&iso30Z<=-HOPKINS_MODERATE)weakReasons.push('ISO 30 Force/kg bajo ('+(iso30Z>0?'+':'')+iso30Z.toFixed(2)+'σ vs su historial)');
+  if(iso30Val!=null&&iso30Val<FV_ISO30_LOW)weakReasons.push('ISO 30 Force/kg bajo (<'+FV_ISO30_LOW+' N/kg vs promedio del plantel: '+iso30Val.toFixed(2)+')');
+  else if(iso30Z!==null&&iso30Z<=-HOPKINS_MODERATE)weakReasons.push('ISO 30 Force/kg bajo ('+(iso30Z>0?'+':'')+iso30Z.toFixed(2)+'σ vs su historial)');
 
-  var hasForceData=pfZ!==null||f100Z!==null||nordicZ!==null||iso30Z!==null||imtpEntries.length>0||nordicEntries.length>0||iso30Entries.length>0;
+  var hasForceData=pfVal!=null||f100Z!==null||nordicVal!=null||iso30Val!=null||imtpEntries.length>0||nordicEntries.length>0||iso30Entries.length>0;
   var isWeak=weakReasons.length>0;
   var react=reactivityCheck(cmjEntries,cmjrEntries);
 
