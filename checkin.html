@@ -340,7 +340,7 @@ async function save(){
 
   try{
     // Guardar wellness
-    var r=await fetch(SB+'/rest/v1/wellness',{
+    var r=await fetch(SB+'/rest/v1/wellness?on_conflict=team_id,player_idx,date',{
       method:'POST',
       headers:Object.assign({},hdrs(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
       body:JSON.stringify({team_id:TID,player_idx:S.idx,date:DATE,
@@ -350,7 +350,7 @@ async function save(){
 
     // Guardar mapa de dolor si tiene zonas marcadas
     if(S.dolor&&Object.keys(S.dolor).length>0){
-      await fetch(SB+'/rest/v1/dolor',{
+      await fetch(SB+'/rest/v1/dolor?on_conflict=team_id,player_idx,date',{
         method:'POST',
         headers:Object.assign({},hdrs(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
         body:JSON.stringify({team_id:TID,player_idx:S.idx,date:DATE,zones:S.dolor})
