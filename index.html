@@ -766,7 +766,7 @@ var OFFLINE_TABLE_KEYS={
   wellness:['team_id','player_idx','date'],
   dolor:['team_id','player_idx','date'],
   evaluaciones:['team_id','player_idx','date','eval_type'],
-  force_plates:['team_id','player_idx','date','eval_type'],
+  force_plates:['id'],
   microciclo:['team_id','player_idx','date'],
   player_vmax:['team_id','player_idx'],
   campo:['team_id','date'],
@@ -7588,7 +7588,7 @@ async function injectPretemporadaData(){
       });
     });
   });
-  if(rows.length)await sbInsert('evaluaciones',rows);
+  if(rows.length)await sbUpsert('evaluaciones',rows,'team_id,player_idx,eval_type,date');
   try{localStorage.setItem('atlas_preloaded_v1','1');}catch(e){}
 }
 
