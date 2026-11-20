@@ -5077,6 +5077,32 @@ async function loadForcePlates(){
   try{FP_DATA=await sbGet('force_plates','team_id=eq.'+TEAM.id+'&date=gte.'+fpSeason+'&order=date.asc');}
   catch(e){FP_DATA=[];}
 }
+var HAMSTRING_DATA=[];
+async function loadHamstringTests(){
+  var hSeason=(TEAM.season||new Date().getFullYear())+'-01-01';
+  try{HAMSTRING_DATA=await sbGet('hamstring_tests','team_id=eq.'+TEAM.id+'&date=gte.'+hSeason+'&order=date.asc');}
+  catch(e){HAMSTRING_DATA=[];}
+}
+function hamstringEntries(playerIdx,testType){
+  return HAMSTRING_DATA.filter(function(r){return r.player_idx===playerIdx&&r.test_type===testType;})
+    .sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+}
+function hamstringForceKg(e){
+  if(!e)return null;
+  var l=e.l_force_kg,r=e.r_force_kg;
+  if(l==null&&r==null)return null;
+  if(l==null)return r;if(r==null)return l;
+  return(l+r)/2;
+}
+function zScoreLatest(entries,getVal){
+  if(!entries.length)return null;
+  var latest=entries[entries.length-1];
+  var val=getVal(latest);
+  if(val==null)return null;
+  var hist=entries.slice(0,-1).map(getVal).filter(function(v){return v!=null;});
+  if(hist.length<GYM_MIN_FP_HISTORY)return null;
+  return(val-avg(hist))/(std(hist)||0.01);
+}
 
 function fpEntries(playerIdx,testType){
   return FP_DATA.filter(function(r){return r.player_idx===playerIdx&&r.test_type===testType;})
@@ -5463,6 +5489,41 @@ function parseAsymPct(s){
   var m=String(s).match(/-?[\d.]+/);
   return m?Math.abs(parseFloat(m[0])):null;
 }
+// Lento/Rápido (déficit reactivo SSC) — RSI-mod (CMJ) + Rebound Contact Time (CMJ
+// Rebound). Compartido entre Grupos de Gimnasio y el cuadrante de Perfil F-V.
+// Criterio principal: corte fijo (Contact Time>250ms + RSI-mod<0.60) — funciona
+// desde el primer test, sin necesitar historial. El z-score vs su propio
+// historial es un criterio EXTRA para detectar caída real aunque no cruce
+// el corte fijo (ej. RSI-mod que bajó mucho pero sigue >0.60).
+function reactivityCheck(cmjEntries,cmjrEntries){
+  var latestCMJ=cmjEntries.length?cmjEntries[cmjEntries.length-1]:null;
+  var latestCMJR=cmjrEntries.length?cmjrEntries[cmjrEntries.length-1]:null;
+  var rsiMod=latestCMJ?latestCMJ.rsi_mod:null, contactT=latestCMJR?latestCMJR.contact_time:null;
+  var hasData=rsiMod!=null||contactT!=null;
+  var rsiAbsLow=rsiMod!=null&&rsiMod<GYM_RSI_MOD_LOW;
+  var ctAbsHigh=contactT!=null&&contactT>GYM_CONTACT_TIME_HIGH;
+
+  if(rsiAbsLow&&ctAbsHigh){
+    return{lento:true,hasData:true,rsiMod:rsiMod,contactT:contactT,
+      reasons:['RSI-mod bajo (<'+GYM_RSI_MOD_LOW+': '+rsiMod.toFixed(2)+') + Rebound Contact Time elevado (>'+GYM_CONTACT_TIME_HIGH+'ms: '+contactT+'ms) → limitación en el ciclo estiramiento-acortamiento (SSC)']};
+  }
+
+  var rsiHist=cmjEntries.slice(0,-1).map(function(e){return e.rsi_mod;}).filter(function(v){return v!==null&&v!==undefined;});
+  var ctHist=cmjrEntries.slice(0,-1).map(function(e){return e.contact_time;}).filter(function(v){return v!==null&&v!==undefined;});
+  var rsiZ=null,ctZ=null;
+  if(rsiMod!=null&&rsiHist.length>=GYM_MIN_FP_HISTORY)rsiZ=(rsiMod-avg(rsiHist))/(std(rsiHist)||0.01);
+  if(contactT!=null&&ctHist.length>=GYM_MIN_FP_HISTORY)ctZ=(contactT-avg(ctHist))/(std(ctHist)||0.01);
+  var rsiLowZ=rsiZ!==null&&rsiZ<=-HOPKINS_MODERATE, ctHighZ=ctZ!==null&&ctZ>=HOPKINS_MODERATE;
+
+  if(rsiLowZ&&ctHighZ){
+    return{lento:true,hasData:true,rsiMod:rsiMod,contactT:contactT,rsiZ:rsiZ,ctZ:ctZ,
+      reasons:['No cruza el corte fijo, pero cayó fuerte vs su propio historial: RSI-mod ('+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ) + Rebound Contact Time ('+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ) → limitación en el ciclo estiramiento-acortamiento (SSC)']};
+  }
+  var reasons2=hasData?['Índice lesivo aceptable, sin patrón claro de déficit reactivo (SSC)']:['Sin tests de RSI-mod/Rebound Contact Time cargados'];
+  if(rsiMod!=null)reasons2.push('RSI-mod: '+rsiMod.toFixed(2)+(rsiZ!==null?' ('+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ vs su historial)':''));
+  if(contactT!=null)reasons2.push('Rebound Contact Time: '+contactT+'ms'+(ctZ!==null?' ('+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ vs su historial)':''));
+  return{lento:false,hasData:hasData,rsiMod:rsiMod,contactT:contactT,rsiZ:rsiZ,ctZ:ctZ,reasons:reasons2};
+}
 function gymGroupAssign(playerIdx){
   var cmjEntries=fpEntries(playerIdx,'cmj');
   var cmjrEntries=fpEntries(playerIdx,'cmj_rebound');
@@ -5495,36 +5556,193 @@ function gymGroupAssign(playerIdx){
   }
 
   // 0-1 variables alteradas → candidato a Potencia Mecánica o Reactividad.
-  // Criterio principal: corte fijo (Contact Time>250ms + RSI-mod<0.60) — funciona
-  // desde el primer test, sin necesitar historial. El z-score vs su propio
-  // historial es un criterio EXTRA para detectar caída real aunque no cruce
-  // el corte fijo (ej. RSI-mod que bajó mucho pero sigue >0.60).
-  var rsiMod=latestCMJ?latestCMJ.rsi_mod:null, contactT=latestCMJR?latestCMJR.contact_time:null;
-  var rsiAbsLow=rsiMod!=null&&rsiMod<GYM_RSI_MOD_LOW;
-  var ctAbsHigh=contactT!=null&&contactT>GYM_CONTACT_TIME_HIGH;
+  var react=reactivityCheck(cmjEntries,cmjrEntries);
+  return{group:react.lento?3:2,label:GYM_GROUPS[react.lento?3:2].label,reasons:react.reasons,
+    details:details,rsiMod:react.rsiMod,contactT:react.contactT,rsiZ:react.rsiZ,ctZ:react.ctZ};
+}
 
-  if(rsiAbsLow&&ctAbsHigh){
-    return{group:3,label:GYM_GROUPS[3].label,
-      reasons:['RSI-mod bajo (<'+GYM_RSI_MOD_LOW+': '+rsiMod.toFixed(2)+') + Rebound Contact Time elevado (>'+GYM_CONTACT_TIME_HIGH+'ms: '+contactT+'ms) → limitación en el ciclo estiramiento-acortamiento (SSC)'],
-      details:details,rsiMod:rsiMod,contactT:contactT};
+var FV_QUAD={
+  fs:{label:'Fuerte · Rápido', icon:'🟢',color:'var(--grn)',border:'rgba(16,185,129,.35)'},
+  fl:{label:'Fuerte · Lento',  icon:'🟡',color:'var(--yel)',border:'rgba(245,158,11,.35)'},
+  ds:{label:'Débil · Rápido',  icon:'🟠',color:'var(--yel)',border:'rgba(245,158,11,.35)'},
+  dl:{label:'Débil · Lento (crítico)',icon:'🔴',color:'var(--red)',border:'rgba(244,63,94,.35)'}
+};
+// Cuarto cuadrante de Perfil F-V — heurístico interno de Guido Anfuso.
+// Fuerza: IMTP (Peak Force, Force-100ms) + Isquiotibiales (Nordic, ISO 30),
+// cada métrica contra su propio historial (mismo criterio Hopkins de siempre).
+// Si CUALQUIERA sale baja → Débil (lógica OR, no promedio — un déficit puntual
+// de isquios no se diluye aunque el IMTP general esté bien).
+// Lento/Rápido: reutiliza exactamente la misma lógica que Grupos de Gimnasio.
+function fvQuadrantAssign(playerIdx){
+  var imtpEntries=fpEntries(playerIdx,'imtp');
+  var nordicEntries=hamstringEntries(playerIdx,'nordic');
+  var iso30Entries=hamstringEntries(playerIdx,'iso30');
+  var cmjEntries=fpEntries(playerIdx,'cmj');
+  var cmjrEntries=fpEntries(playerIdx,'cmj_rebound');
+
+  var weakReasons=[];
+  var pfZ=zScoreLatest(imtpEntries,function(e){return e.peak_force;});
+  if(pfZ!==null&&pfZ<=-HOPKINS_MODERATE)weakReasons.push('IMTP Peak Force bajo ('+(pfZ>0?'+':'')+pfZ.toFixed(2)+'σ vs su historial)');
+  var f100Z=zScoreLatest(imtpEntries,function(e){return e.force_100;});
+  if(f100Z!==null&&f100Z<=-HOPKINS_MODERATE)weakReasons.push('IMTP Force-100ms bajo ('+(f100Z>0?'+':'')+f100Z.toFixed(2)+'σ vs su historial)');
+  var nordicZ=zScoreLatest(nordicEntries,hamstringForceKg);
+  if(nordicZ!==null&&nordicZ<=-HOPKINS_MODERATE)weakReasons.push('Nordic Force/kg bajo ('+(nordicZ>0?'+':'')+nordicZ.toFixed(2)+'σ vs su historial)');
+  var iso30Z=zScoreLatest(iso30Entries,hamstringForceKg);
+  if(iso30Z!==null&&iso30Z<=-HOPKINS_MODERATE)weakReasons.push('ISO 30 Force/kg bajo ('+(iso30Z>0?'+':'')+iso30Z.toFixed(2)+'σ vs su historial)');
+
+  var hasForceData=pfZ!==null||f100Z!==null||nordicZ!==null||iso30Z!==null||imtpEntries.length>0||nordicEntries.length>0||iso30Entries.length>0;
+  var isWeak=weakReasons.length>0;
+  var react=reactivityCheck(cmjEntries,cmjrEntries);
+
+  if(!hasForceData&&!react.hasData){
+    return{quad:null,label:'Sin datos',reasons:['Sin tests de IMTP, Isquiotibiales, CMJ ni CMJ Rebound cargados']};
+  }
+  var quadKey=(isWeak?'d':'f')+(react.lento?'l':'s');
+  var reasons=weakReasons.slice();
+  if(!weakReasons.length)reasons.push(hasForceData?'Sin déficit de fuerza detectado':'Sin tests de fuerza (IMTP/Isquiotibiales) cargados');
+  reasons=reasons.concat(react.reasons);
+  var q=FV_QUAD[quadKey];
+  return{quad:quadKey,label:q.label,icon:q.icon,color:q.color,border:q.border,reasons:reasons};
+}
+
+// ══════════════════════════════════════════════════
+//  ISQUIOTIBIALES · NordBord (Nordic / ISO 30) — import CSV
+// ══════════════════════════════════════════════════
+function openHamstringImport(){
+  var ex=document.getElementById('hs-import-modal');if(ex)ex.parentNode.removeChild(ex);
+  var modal=document.createElement('div');
+  modal.id='hs-import-modal';modal.className='modal on';
+  modal.onclick=function(e){if(e.target===modal)modal.parentNode.removeChild(modal);};
+  modal.innerHTML='<div class="mbox" style="max-width:600px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div><div style="font-size:16px;font-weight:800">📥 Importar CSV · NordBord</div>'
+    +'<div style="font-size:10px;color:var(--mut);margin-top:2px">Export estándar · Nordic, ISO 30</div></div>'
+    +'<button onclick="this.closest(\'.modal\').parentNode.removeChild(this.closest(\'.modal\'))" style="background:var(--c);border:1px solid var(--b);color:var(--txt);border-radius:8px;padding:6px 12px;cursor:pointer">✕</button>'
+    +'</div>'
+    +'<div style="background:rgba(181,84,45,.05);border:1px solid rgba(181,84,45,.15);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:11px;color:var(--dim);line-height:1.7">'
+    +'<strong style="color:var(--acc)">Cómo exportar de NordBord:</strong><br>'
+    +'Seleccionar tests → Export → Export as CSV<br>'
+    +'Se importan los tests "Nordic" e "ISO 30" — el resto se ignora.'
+    +'</div>'
+    +'<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--mut);margin-bottom:6px">Jugador (si el CSV no tiene columna Name, se asigna a este jugador)</div>'
+    +'<select id="hs-import-player" style="width:100%;background:var(--bg2);border:1px solid var(--b);border-radius:8px;padding:9px 10px;color:var(--txt);font-size:12px;outline:none">'
+    +PL.map(function(pl,i){return'<option value="'+i+'">'+pl.name+'</option>';}).join('')
+    +'</select></div>'
+    +'<label style="display:block;border:2px dashed rgba(181,84,45,.3);border-radius:12px;padding:36px;text-align:center;cursor:pointer;background:rgba(181,84,45,.03);transition:.2s" id="hs-dz">'
+    +'<div style="font-size:32px;margin-bottom:8px">📄</div>'
+    +'<div style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:4px">Subir archivo CSV</div>'
+    +'<div style="font-size:10px;color:var(--mut)">Click o arrastrá el archivo aquí</div>'
+    +'<input type="file" accept=".csv" style="display:none" onchange="handleHamstringCSV(this.files[0])">'
+    +'</label>'
+    +'<div id="hs-import-preview" style="margin-top:12px"></div>'
+    +'</div>';
+  document.body.appendChild(modal);
+  var dz=document.getElementById('hs-dz');
+  if(dz){
+    dz.addEventListener('dragover',function(e){e.preventDefault();dz.style.borderColor='var(--acc)';dz.style.background='rgba(181,84,45,.08)';});
+    dz.addEventListener('dragleave',function(){dz.style.borderColor='rgba(181,84,45,.3)';dz.style.background='rgba(181,84,45,.03)';});
+    dz.addEventListener('drop',function(e){e.preventDefault();dz.style.borderColor='rgba(181,84,45,.3)';if(e.dataTransfer.files[0])handleHamstringCSV(e.dataTransfer.files[0]);});
+  }
+}
+function handleHamstringCSV(file){
+  if(!file)return;
+  var r=new FileReader();r.onload=function(e){parseNordBordCSV(e.target.result);};r.readAsText(file);
+}
+function parseNordBordCSV(text){
+  var preview=document.getElementById('hs-import-preview');if(!preview)return;
+  var lines=text.trim().split('\n').map(function(l){return l.trim();}).filter(function(l){return l;});
+  if(lines.length<2){preview.innerHTML='<div style="color:var(--red);font-size:12px;padding:10px">⚠ Archivo vacío o inválido</div>';return;}
+  var hLine=lines[0].replace(/^﻿/,'');
+  var sep=hLine.indexOf(';')>hLine.indexOf(',')?';':',';
+  var hdrs=hLine.split(sep).map(function(h){return h.replace(/^"|"$/g,'').trim();});
+  function fc(cands){for(var i=0;i<cands.length;i++){var x=hdrs.findIndex(function(h){return h.toLowerCase().includes(cands[i].toLowerCase());});if(x!==-1)return x;}return -1;}
+  var cAth=fc(['name']);
+  var cDat=fc(['date utc','date']);
+  var cTyp=fc(['test']);
+  var cLKg=fc(['l max force per kg']);
+  var cRKg=fc(['r max force per kg']);
+  var cLF=fc(['l max force (n)','l max force']);
+  var cRF=fc(['r max force (n)','r max force']);
+  var cImb=fc(['max imbalance']);
+
+  function mapType(raw){
+    if(!raw)return null;var r=raw.toLowerCase().trim();
+    if(r==='nordic')return'nordic';
+    if(r==='iso 30'||r==='iso30')return'iso30';
+    return null;
+  }
+  function parseDate(s){
+    s=(s||'').trim();
+    if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+    var p=s.split(/[\/-]/);
+    if(p.length===3){
+      if(p[2].length===4)return p[2]+'-'+(p[1].length<2?'0':'')+p[1]+'-'+(p[0].length<2?'0':'')+p[0];
+      if(p[0].length===4)return p[0]+'-'+(p[1].length<2?'0':'')+p[1]+'-'+(p[2].length<2?'0':'')+p[2];
+    }
+    return null;
   }
 
-  var rsiHist=cmjEntries.slice(0,-1).map(function(e){return e.rsi_mod;}).filter(function(v){return v!==null&&v!==undefined;});
-  var ctHist=cmjrEntries.slice(0,-1).map(function(e){return e.contact_time;}).filter(function(v){return v!==null&&v!==undefined;});
-  var rsiZ=null,ctZ=null;
-  if(rsiMod!=null&&rsiHist.length>=GYM_MIN_FP_HISTORY)rsiZ=(rsiMod-avg(rsiHist))/(std(rsiHist)||0.01);
-  if(contactT!=null&&ctHist.length>=GYM_MIN_FP_HISTORY)ctZ=(contactT-avg(ctHist))/(std(ctHist)||0.01);
-  var rsiLowZ=rsiZ!==null&&rsiZ<=-HOPKINS_MODERATE, ctHighZ=ctZ!==null&&ctZ>=HOPKINS_MODERATE;
+  var playerIdx=parseInt((document.getElementById('hs-import-player')||{}).value)||0;
+  var playerFirstWord=PL[playerIdx]?PL[playerIdx].name.split(' ')[0].toLowerCase():'';
+  var parsed=[],skipped=0;
 
-  if(rsiLowZ&&ctHighZ){
-    return{group:3,label:GYM_GROUPS[3].label,
-      reasons:['No cruza el corte fijo, pero cayó fuerte vs su propio historial: RSI-mod ('+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ) + Rebound Contact Time ('+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ) → limitación en el ciclo estiramiento-acortamiento (SSC)'],
-      details:details,rsiMod:rsiMod,contactT:contactT,rsiZ:rsiZ,ctZ:ctZ};
+  for(var i=1;i<lines.length;i++){
+    var vals=lines[i].split(sep).map(function(v){return v.replace(/^"|"$/g,'').trim();});
+    if(vals.length<2)continue;
+    if(cAth!==-1&&playerFirstWord){
+      var csvName=(vals[cAth]||'').toLowerCase();
+      if(!csvName.includes(playerFirstWord)){skipped++;continue;}
+    }
+    var date=parseDate(cDat!==-1?vals[cDat]:'');
+    if(!date){skipped++;continue;}
+    var testType=mapType(cTyp!==-1?vals[cTyp]:'');
+    if(!testType){skipped++;continue;}
+    function gv(col){if(col===-1)return null;var v=vals[col];return(v!==undefined&&v!==''&&v!=='—'&&v!=='N/A')?+parseFloat(v).toFixed(3):null;}
+    parsed.push({team_id:TEAM.id,player_idx:playerIdx,date:date,test_type:testType,source:'csv',notes:'',
+      l_force_kg:gv(cLKg),r_force_kg:gv(cRKg),l_force:gv(cLF),r_force:gv(cRF),imbalance:gv(cImb)});
   }
-  var reasons2=['Índice lesivo aceptable, sin patrón claro de déficit reactivo (SSC)'];
-  if(rsiMod!=null)reasons2.push('RSI-mod: '+rsiMod.toFixed(2)+(rsiZ!==null?' ('+(rsiZ>0?'+':'')+rsiZ.toFixed(2)+'σ vs su historial)':''));
-  if(contactT!=null)reasons2.push('Rebound Contact Time: '+contactT+'ms'+(ctZ!==null?' ('+(ctZ>0?'+':'')+ctZ.toFixed(2)+'σ vs su historial)':''));
-  return{group:2,label:GYM_GROUPS[2].label,reasons:reasons2,details:details,rsiMod:rsiMod,contactT:contactT,rsiZ:rsiZ,ctZ:ctZ};
+
+  if(!parsed.length){
+    preview.innerHTML='<div style="background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);border-radius:10px;padding:14px;font-size:12px;color:var(--red)">⚠️ No se encontraron filas válidas.'+(skipped?' '+skipped+' filas omitidas.':'')+' Verificá que sea un export de NordBord con tests Nordic/ISO 30.</div>';
+    return;
+  }
+  var byType={};parsed.forEach(function(r){byType[r.test_type]=(byType[r.test_type]||0)+1;});
+  var typeSummary=Object.keys(byType).map(function(k){return(k==='nordic'?'Nordic':'ISO 30')+': <strong>'+byType[k]+'</strong>';}).join(' &nbsp;·&nbsp; ');
+  window._hsParsed=parsed;
+  preview.innerHTML='<div style="background:rgba(181,84,45,.06);border:1px solid rgba(181,84,45,.2);border-radius:10px;padding:14px;margin-bottom:12px">'
+    +'<div style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:4px">✓ '+parsed.length+' registros listos para importar</div>'
+    +'<div style="font-size:11px;color:var(--dim)">'+typeSummary+(skipped?' &nbsp;·&nbsp; <span style="color:var(--yel)">'+skipped+' omitidas</span>':'')+'</div>'
+    +'</div>'
+    +'<button id="hs-confirm-btn" style="width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--pur));color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer">Importar '+parsed.length+' registros →</button>';
+  document.getElementById('hs-confirm-btn').onclick=function(){confirmHamstringImport(window._hsParsed);};
+}
+async function confirmHamstringImport(rows){
+  var btn=document.getElementById('hs-confirm-btn');
+  var dupes=rows.filter(function(r){
+    return HAMSTRING_DATA.some(function(e){return e.player_idx===r.player_idx&&e.test_type===r.test_type&&e.date===r.date;});
+  });
+  if(dupes.length){
+    var fechas=dupes.map(function(r){return r.date;}).filter(function(v,i,a){return a.indexOf(v)===i;}).join(', ');
+    var replace=confirm('Ya hay '+dupes.length+' test(s) cargado(s) para esta fecha('+(dupes.length>1?'s':'')+': '+fechas+'.\n\nAceptar = reemplazar los viejos por estos nuevos.\nCancelar = guardar estos igual, como registros adicionales.');
+    if(replace){
+      for(var j=0;j<dupes.length;j++){
+        var old=HAMSTRING_DATA.filter(function(e){return e.player_idx===dupes[j].player_idx&&e.test_type===dupes[j].test_type&&e.date===dupes[j].date;});
+        for(var k=0;k<old.length;k++)await sbDelete('hamstring_tests','id=eq.'+old[k].id);
+      }
+      HAMSTRING_DATA=HAMSTRING_DATA.filter(function(e){
+        return !dupes.some(function(d){return e.player_idx===d.player_idx&&e.test_type===d.test_type&&e.date===d.date;});
+      });
+    }
+  }
+  if(btn){btn.disabled=true;btn.textContent='Importando...';}
+  var saved=0;
+  for(var i=0;i<rows.length;i++){
+    var res=await sbInsertReturn('hamstring_tests',rows[i]);
+    if(res){rows[i].id=res.id;HAMSTRING_DATA.push(rows[i]);saved++;}
+  }
+  var m=document.getElementById('hs-import-modal');if(m)m.parentNode.removeChild(m);
+  renderFV();
+  showBanner('✅ '+saved+' registros importados de NordBord','var(--grn)',3000);
 }
 
 function renderGymGroups(){
@@ -6641,6 +6859,7 @@ function renderFV(){
     +'<option value="" '+(FV_SEL_PLAYER===null?'selected':'')+'>Individual...</option>'
     +PL.map(function(p,i){return'<option value="'+i+'"'+(i===FV_SEL_PLAYER?' selected':'')+'>'+p.name+'</option>';}).join('')
     +'</select>'
+    +'<button onclick="openHamstringImport()" style="padding:7px 14px;border-radius:8px;border:1px solid rgba(122,79,143,.3);background:rgba(122,79,143,.08);color:var(--pur);font-size:11px;font-weight:700;cursor:pointer">📥 Importar NordBord</button>'
     +'</div></div>';
 
   // Missing data warning
@@ -6663,6 +6882,8 @@ function renderFV(){
     html += fvRenderTeam(ds, meanF, meanV, withBoth);
   }
 
+  html += fvQuadrantSection();
+
   tab.innerHTML = html;
 
   if(FV_SEL_PLAYER !== null){
@@ -6670,6 +6891,43 @@ function renderFV(){
   } else if(withBoth.length > 1){
     fvDrawScatter(withBoth, meanF, meanV);
   }
+}
+
+function fvQuadrantSection(){
+  var assigns=PL.map(function(p){return{p:p,a:fvQuadrantAssign(p.idx)};});
+  var counts={fs:0,fl:0,ds:0,dl:0,null:0};
+  assigns.forEach(function(x){counts[x.a.quad===null?'null':x.a.quad]++;});
+
+  var html='<div class="card mb">'
+    +'<h3>🎯 Fuerza-Reactividad (IMTP + Isquiotibiales + CMJ/CMJ Rebound)'+sciTag('heuristic','Protocolo interno de Guido Anfuso. Fuerte/Débil: z-score individualizado (vs. historial propio, Hopkins et al. 2009) de IMTP Peak Force, IMTP Force-100ms, y Fuerza/Peso de isquiotibiales (Nordic + ISO 30) — si cualquiera sale baja, Débil. Lento/Rápido: misma lógica que Grupos de Gimnasio (RSI-mod + Rebound Contact Time).')+'</h3>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">'
+    +['fs','fl','ds','dl'].map(function(k){
+      var q=FV_QUAD[k];
+      return'<div style="text-align:center;border:1px solid '+q.border+';border-radius:10px;padding:10px">'
+        +'<div style="font-size:18px">'+q.icon+'</div>'
+        +'<div style="font-size:22px;font-weight:900;color:'+q.color+'">'+counts[k]+'</div>'
+        +'<div style="font-size:9px;color:var(--mut);margin-top:2px">'+q.label+'</div>'
+        +'</div>';
+    }).join('')
+    +'</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr style="border-bottom:1px solid var(--b)">'
+    +['Jugador','Pos','Cuadrante','Motivo'].map(function(h){return'<th style="padding:7px 8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase;white-space:nowrap">'+h+'</th>';}).join('')
+    +'</tr></thead><tbody>'
+    +assigns.slice().sort(function(a,b){
+      var order={dl:0,ds:1,fl:2,fs:3,null:4};
+      return order[a.a.quad===null?'null':a.a.quad]-order[b.a.quad===null?'null':b.a.quad];
+    }).map(function(x){
+      var q=x.a.quad?FV_QUAD[x.a.quad]:{label:x.a.label,icon:'❔',color:'var(--mut)'};
+      return'<tr style="border-bottom:1px solid rgba(43,32,22,.04)">'
+        +'<td style="padding:8px;font-size:11px;font-weight:700">'+x.p.name+'</td>'
+        +'<td style="padding:8px;font-size:10px;color:var(--mut)">'+x.p.pos+'</td>'
+        +'<td style="padding:8px;white-space:nowrap"><span style="font-size:10px;font-weight:700;color:'+q.color+'">'+q.icon+' '+q.label+'</span></td>'
+        +'<td style="padding:8px;font-size:10px;color:var(--dim)">'+x.a.reasons.join(' · ')+'</td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div></div>';
+  return html;
 }
 
 function fvRenderTeam(ds, meanF, meanV, withBoth){
@@ -11133,6 +11391,7 @@ async function initATLAS(){
     loadHistoricalRPE(),
     loadEvals(),
     loadForcePlates(),
+    loadHamstringTests(),
     loadSprints(),
     loadVmax(),
     loadPartidosCustom(),
