@@ -5065,6 +5065,7 @@ var FP_TYPES=[
   {id:'imtp',       label:'IMTP',        icon:'💪', color:'var(--yel)',
    metrics:[
      {key:'peak_force',label:'Peak Force', unit:'N/kg',   main:true},
+     {key:'force_100', label:'Force 100ms',unit:'N',      main:false},
      {key:'rfd_100',   label:'RFD 100ms',  unit:'N/s/kg', main:false},
      {key:'rfd_200',   label:'RFD 200ms',  unit:'N/s/kg', main:false},
      {key:'asymmetry', label:'Asimetría',  unit:'%',      main:false,alert:true}
@@ -5320,9 +5321,10 @@ function parseFPCSV(text){
   var cRSI=fc(['rebound rsi','reactive strength index']);
   if(cRSI===-1){var rx=hdrs.findIndex(function(h){return /^rsi$/i.test(h.trim());});if(rx!==-1)cRSI=rx;}
   var cContactT=fc(['contact time','contact_time']);
-  var cPF=fc(['peak force','peak_force','relative peak force','net peak force']);
+  var cPF=fc(['peak vertical force / bm','peak vertical force/bm','relative peak force','net peak force','peak force / bm','peak force','peak_force']);
   var cRFD1=fc(['rfd - 100','rfd_100','rfd100','100ms','100 ms']);
   var cRFD2=fc(['rfd - 200','rfd_200','rfd200','200ms','200 ms']);
+  var cForce100=fc(['force at 100ms','force at 100 ms','force_100']);
   // Asimetrías específicas por fase — Grupos de Gimnasio (ver gymGroupAssign)
   var cConcImp=fc(['concentric impulse']);
   var cEccBrake=fc(['eccentric braking impulse']);
@@ -5370,7 +5372,7 @@ function parseFPCSV(text){
       jump_height:jh,peak_power:gv(cPP),asymmetry:gv(cAsym),rsi_mod:gv(cRSIM),
       contraction_time:gv(cContT)!==null?Math.round(gv(cContT)):null,braking_rfd:gv(cBRFD),
       rsi:gv(cRSI),contact_time:gv(cContactT)!==null?Math.round(gv(cContactT)):null,
-      peak_force:gv(cPF),rfd_100:gv(cRFD1),rfd_200:gv(cRFD2)};
+      peak_force:gv(cPF),rfd_100:gv(cRFD1),rfd_200:gv(cRFD2),force_100:gv(cForce100)};
     // Asimetrías por fase — Grupos de Gimnasio. "Peak Landing Force" es la misma
     // columna en el export de VALD para CMJ y CMJ Rebound pero significa cosas
     // distintas en cada test, así que el destino cambia según testType.
