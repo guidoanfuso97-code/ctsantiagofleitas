@@ -200,7 +200,7 @@ async function saveRecovery(){
   try{
     var body={team_id:TID,player_idx:S.idx,date:DATE,score:score,target:S.target,session_type:S.sessionType};
     RECOVERY_ITEMS.forEach(function(it){body[it.id]=!!S.ans[it.id];});
-    var r=await fetch(SB+'/rest/v1/recovery',{
+    var r=await fetch(SB+'/rest/v1/recovery?on_conflict=team_id,player_idx,date',{
       method:'POST',
       headers:Object.assign({},hdrs(),{'Prefer':'resolution=merge-duplicates,return=minimal'}),
       body:JSON.stringify(body)
