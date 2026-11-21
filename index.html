@@ -7036,11 +7036,11 @@ function fvRenderIndividual(idx, ds, meanF, meanV){
   // FV Imbalance bar
   if(fvImb!==null){
     var imbAbs=Math.abs(fvImb),imbCol=imbAbs<10?'var(--grn)':imbAbs<20?'var(--yel)':'var(--red)';
-    var imbLabel=fvImb>10?'Fuerza-dominante':fvImb<-10?'Velocidad-dominante':'Equilibrado';
+    var imbLabel=fvImb>10?'Fuerza-dominante':fvImb<-10?'RFD-dominante':'Equilibrado';
     html += '<div class="card mb">'
       +'<h3>Desequilibrio F-V</h3>'
       +'<div style="display:flex;justify-content:space-between;margin-bottom:8px">'
-      +'<span style="font-size:11px;color:var(--mut)">Velocidad-dominante ←</span>'
+      +'<span style="font-size:11px;color:var(--mut)">RFD-dominante ←</span>'
       +'<span style="font-size:12px;font-weight:800;color:'+imbCol+'">'+imbLabel+' · '+(fvImb>0?'+':'')+fvImb+'%</span>'
       +'<span style="font-size:11px;color:var(--mut)">→ Fuerza-dominante</span>'
       +'</div>'
@@ -7069,10 +7069,10 @@ function fvRenderIndividual(idx, ds, meanF, meanV){
 
 function fvTrainSuggestions(qid){
   var map = {
-    power:    ['Mantener volumen de fuerza máxima (2-3x/semana)','Sprints máximos 2x/semana en microciclos de baja carga','Pliometría de potencia: CMJ con carga, saltos reactivos'],
-    force:    ['Priorizar sesiones de sprints máximos (3-4 sprints ≥90% Vmax)','Pliometría reactiva: DJ, CMJ Rebound, 10/5 RSI','Reducir proporción de trabajo de fuerza máxima a 1x/semana'],
-    velocity: ['Aumentar frecuencia de fuerza máxima: squat, RDL, hip thrust pesado','IMTP: trabajo isométrico explosivo 2x/semana','Reducir sprints máximos hasta alcanzar base de fuerza adecuada'],
-    develop:  ['Plan de S&C integral: fuerza 3x/semana + sprint 2x/semana','Priorizar recuperación: revisar carga total y wellness','Evaluar si déficit refleja fatiga acumulada o capacidad real']
+    power:    ['Mantener volumen de fuerza máxima (2-3x/semana)','Trabajo explosivo/pliométrico 2x/semana en microciclos de baja carga','Pliometría de potencia: CMJ con carga, saltos reactivos'],
+    force:    ['Priorizar trabajo explosivo: saltos con mínimo tiempo de contacto, lanzamientos balísticos','Pliometría reactiva: DJ, CMJ Rebound, 10/5 RSI','Reducir proporción de trabajo de fuerza máxima a 1x/semana para dar lugar al trabajo de RFD'],
+    velocity: ['Aumentar frecuencia de fuerza máxima: squat, RDL, hip thrust pesado','IMTP: trabajo isométrico máximo 2x/semana','Mantener el trabajo explosivo como complemento hasta elevar la base de fuerza'],
+    develop:  ['Plan de S&C integral: fuerza máxima 3x/semana + trabajo explosivo 2x/semana','Priorizar recuperación: revisar carga total y wellness','Evaluar si déficit refleja fatiga acumulada o capacidad real']
   };
   return map[qid]||[];
 }
