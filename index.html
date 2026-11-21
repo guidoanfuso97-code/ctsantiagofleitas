@@ -1835,7 +1835,7 @@ function renderCarga(){
     +acwrCard('Player Load',acwrPL,weekPL,' AU','📦')
     +acwrCard('Distancia',acwrDist,weekDist,'m','📏')
     +acwrCard('HI Dist +21',acwrHI,weekHI,'m','🔥')
-    +acwrCard('Sprint +25',acwrSprint,weekSprint,'m','🏃')
+    +acwrCard('Sprint +24',acwrSprint,weekSprint,'m','🏃')
     +'</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
     // Vel Máx
@@ -1905,7 +1905,7 @@ function renderCarga(){
     var spD=p.sprintArr28||DL.map(function(){return 0;});
     mkC('ext-c',{type:'bar',data:{labels:DL,datasets:[
       {label:'HI +21 (m)',data:hiD,backgroundColor:'rgba(245,158,11,.6)',stack:'s'},
-      {label:'Sprint +25 (m)',data:spD,backgroundColor:'rgba(244,63,94,.65)',stack:'s'}
+      {label:'Sprint +24 (m)',data:spD,backgroundColor:'rgba(244,63,94,.65)',stack:'s'}
     ]},options:Object.assign({},CBASE,{scales:{x:Object.assign({},XY.x,{stacked:true}),y:Object.assign({},XY.y,{stacked:true})}})});
     // PL EWMA 28d bar
     var pl28=p.sArr||DL.map(function(){return 0;});
@@ -1932,7 +1932,7 @@ function renderMicroChart(p,microSessions,metric){
     pl:{key:'pl',label:'Player Load (AU)',color:'#A878B0'},
     dist:{key:'dist',label:'Distancia (m)',color:'var(--acc)'},
     hi:{key:'hiDist',label:'HI Distance +21 (m)',color:'var(--yel)'},
-    sprint:{key:'sprintDist',label:'Sprint Distance +25 (m)',color:'var(--red)'},
+    sprint:{key:'sprintDist',label:'Sprint Distance +24 (m)',color:'var(--red)'},
     acc:{key:'accEff',label:'Aceleraciones (esf.)',color:'rgba(181,84,45,.9)'},
     dec:{key:'decEff',label:'Desaceleraciones (esf.)',color:'rgba(122,79,143,.9)'}
   };
@@ -2214,13 +2214,13 @@ function buildSpeedZonesCard(p,gpsHoy){
   var velH=gpsHoy&&gpsHoy.metrics?gpsHoy.metrics.maxVel:null;
   var zone=velH?(velH>=t3?4:velH>=t2?3:velH>=t1?2:1):0;
   var velPct=velH?Math.round(velH/vmax*100):null;
-  var hiDiff=+(t2-21).toFixed(1),spDiff=+(t3-25).toFixed(1);
+  var hiDiff=+(t2-21).toFixed(1),spDiff=+(t3-24).toFixed(1);
   return'<div class="card mb" style="border-color:rgba(245,158,11,.2)">'
     +'<h3 style="color:var(--yel)">⚡ Zonas de Velocidad · '+p.name.split(' ')[0]+sciTag('validated','Mendez-Villanueva et al. (2013), Buchheit &amp; Simpson (2017) — zonas por %vMax individual en vez de umbrales fijos en km/h.')+'</h3>'
     +'<div style="font-size:9px;color:var(--mut);margin-bottom:10px">'
     +'vMax ('+vmaxSrc+'): <strong style="color:var(--txt)">'+vmax.toFixed(1)+' km/h</strong>'
     +' · HI umbral individual: <strong style="color:var(--yel)">'+t2+' km/h</strong> ('+(hiDiff>=0?'+':'')+hiDiff+' vs fijo 21)'
-    +' · Sprint: <strong style="color:var(--red)">'+t3+' km/h</strong> ('+(spDiff>=0?'+':'')+spDiff+' vs fijo 25)'
+    +' · Sprint: <strong style="color:var(--red)">'+t3+' km/h</strong> ('+(spDiff>=0?'+':'')+spDiff+' vs fijo 24)'
     +'</div>'
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">'
     +speedZoneBox('Z1 · Baja','< '+t1+' km/h','< 45% vMax','var(--mut)',zone===1)
