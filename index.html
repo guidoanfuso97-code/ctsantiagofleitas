@@ -3005,7 +3005,7 @@ function openQRModal(mode){
   window._qrMode=mode==='recovery'?'recovery':'checkin';
   var page=window._qrMode==='recovery'?'recovery.html':'checkin.html';
   var title=window._qrMode==='recovery'?'📱 QR Recovery Score':'📱 QR Check-in';
-  var url='https://guidoanfuso97-code.github.io/ctsantiagofleitas/'+page+'?t='+TEAM.id+'&d='+TODAY;
+  var url='https://guidoanfuso97-code.github.io/ctsantiagofleitas/'+page+'?t='+TEAM.id;
   var m=document.createElement('div');
   m.id='qr-modal';
   m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:16px';
