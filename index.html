@@ -5867,14 +5867,14 @@ function generarInformeGimnasio(){
 var FV_SEL_PLAYER = null; // null = team view, idx = individual
 
 var FV_QUADRANTS = [
-  {id:'power',    label:'Potencia',           color:'#B5542D', desc:'Alta fuerza y velocidad. Mantener con trabajo variado.',
-   rec:'Mantener con sesiones mixtas de fuerza y velocidad. Monitorear fatiga acumulada.'},
-  {id:'force',    label:'Fuerza-dominante',   color:'#7A4F8F', desc:'Alta fuerza, baja velocidad. Priorizar velocidad.',
-   rec:'Incorporar sprints máximos, pliometría reactiva (RSI), y trabajo de potencia con cargas medias-bajas a alta velocidad.'},
-  {id:'velocity', label:'Velocidad-dominante',color:'#f59e0b', desc:'Alta velocidad, baja fuerza. Priorizar fuerza.',
-   rec:'Priorizar fuerza máxima: sentadilla pesada, IMTP, hip thrust. Reducir volumen de sprint en período de carga.'},
-  {id:'develop',  label:'Desarrollo',         color:'#f43f5e', desc:'Fuerza y velocidad bajo media. Desarrollar ambas.',
-   rec:'Plan integral de S&C: fuerza máxima + sprints cortos. Evaluar carga total y recuperación.'}
+  {id:'power',    label:'Potencia',           color:'#B5542D', desc:'Alta fuerza máxima y alta RFD. Llega fuerte y rápido al pico.',
+   rec:'Mantener con sesiones mixtas de fuerza máxima y trabajo explosivo (pliometría, RFD). Monitorear fatiga acumulada.'},
+  {id:'force',    label:'Fuerza-dominante',   color:'#7A4F8F', desc:'Fuerza alta, pero tarda en llegar al pico (RFD baja). Fuerte pero lento para expresarlo.',
+   rec:'Incorporar trabajo explosivo y pliometría reactiva (RSI) para mejorar la velocidad de expresión de fuerza, sin perder la base de fuerza máxima ya lograda.'},
+  {id:'velocity', label:'RFD-dominante',      color:'#f59e0b', desc:'Llega rápido al pico (RFD alta), pero el pico de fuerza es bajo.',
+   rec:'Priorizar fuerza máxima: sentadilla pesada, IMTP, hip thrust. La base de fuerza es el límite, no la velocidad de desarrollo.'},
+  {id:'develop',  label:'Desarrollo',         color:'#f43f5e', desc:'Fuerza máxima y RFD bajo media. Desarrollar ambas.',
+   rec:'Plan integral de S&C: fuerza máxima + trabajo explosivo. Evaluar carga total y recuperación.'}
 ];
 
 function fvGetIMTP(playerIdx){
@@ -5888,6 +5888,15 @@ function fvGetCMJPower(playerIdx){
   if(!rows.length) return null;
   return rows.reduce(function(a,b){return new Date(a.date)>new Date(b.date)?a:b;}).peak_power;
 }
+// "Velocidad" acá NO es velocidad de sprint en cancha (GPS) — es qué tan rápido
+// llega al pico de fuerza DENTRO del propio test de IMTP (RFD-100ms). Mezclar
+// fuerza isométrica (estática) con velocidad de sprint (otra tarea totalmente
+// distinta) no arma un perfil Fuerza-Velocidad coherente.
+function fvGetIMTPRFD(playerIdx){
+  var rows = FP_DATA.filter(function(r){return r.player_idx===playerIdx&&r.test_type==='imtp'&&r.rfd_100!==null&&r.rfd_100!==undefined;});
+  if(!rows.length) return null;
+  return rows.reduce(function(a,b){return new Date(a.date)>new Date(b.date)?a:b;}).rfd_100;
+}
 
 function fvBuildDataset(){
   return PL.map(function(p,i){
@@ -5896,7 +5905,7 @@ function fvBuildDataset(){
     var force = imtp; // prefer IMTP
     var forceType = imtp !== null ? 'imtp' : (cmjPow !== null ? 'cmj' : null);
     if(force===null) force = cmjPow;
-    var vel = p.hasGPSDevice && p.peakVel28 > 0 ? p.peakVel28 : null;
+    var vel = fvGetIMTPRFD(i);
     return {idx:i, name:p.name, pos:p.pos, force:force, vel:vel, forceType:forceType};
   });
 }
@@ -6867,7 +6876,7 @@ function renderFV(){
 
   var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
     +'<div><div style="font-size:15px;font-weight:700">📐 Perfil Fuerza-Velocidad</div>'
-    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">IMTP (N/kg) × Vel Máx 28d (km/h) · VALD + Catapult</div></div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:1px">IMTP Peak Force (N/kg) × RFD-100ms (N/s) · VALD ForceDecks</div></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
     +'<button onclick="FV_SEL_PLAYER=null;renderFV()" style="padding:7px 14px;border-radius:8px;border:1px solid '+(FV_SEL_PLAYER===null?'var(--acc)':'var(--b)')+';background:'+(FV_SEL_PLAYER===null?'rgba(181,84,45,.1)':'var(--c)')+';color:'+(FV_SEL_PLAYER===null?'var(--acc)':'var(--mut)')+';font-size:11px;font-weight:700;cursor:pointer">👥 Equipo</button>'
     +'<select onchange="FV_SEL_PLAYER=+this.value;renderFV()" style="background:var(--bg2);border:1px solid '+(FV_SEL_PLAYER!==null?'var(--acc)':'var(--b)')+';border-radius:8px;padding:7px 12px;color:'+(FV_SEL_PLAYER!==null?'var(--acc)':'var(--mut)')+';font-size:12px;font-weight:700;outline:none;cursor:pointer">'
@@ -6885,7 +6894,7 @@ function renderFV(){
       +missing.map(function(d){
         var miss=[];
         if(d.force===null)miss.push('Force Plates');
-        if(d.vel===null)miss.push('GPS');
+        if(d.vel===null)miss.push('RFD-100ms IMTP');
         return d.name.split(' ')[0]+' ('+miss.join('+')+')';
       }).join(', ')
       +'</div>';
@@ -6962,7 +6971,7 @@ function fvRenderTeam(ds, meanF, meanV, withBoth){
 
   // Scatter chart
   if(withBoth.length > 1){
-    html += '<div class="card mb"><h3>📐 Scatter F-V · Plantel — IMTP (N/kg) vs Vel Máx 28d (km/h)</h3>'
+    html += '<div class="card mb"><h3>📐 Scatter F-V · Plantel — IMTP Peak Force (N/kg) vs RFD-100ms (N/s)</h3>'
       +'<div style="height:360px"><canvas id="fv-scatter-c"></canvas></div>'
       +'<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;justify-content:center">'
       +FV_QUADRANTS.map(function(q){return'<div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:50%;background:'+q.color+'"></div><span style="font-size:10px;color:var(--dim)">'+q.label+'</span></div>';}).join('')
@@ -6973,7 +6982,7 @@ function fvRenderTeam(ds, meanF, meanV, withBoth){
   html += '<div class="card"><h3>📋 Resumen del plantel</h3>'
     +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
     +'<thead><tr style="border-bottom:1px solid var(--b)">'
-    +['Jugador','Pos','IMTP (N/kg)','Fuente F','Vel Máx 28d','Perfil','Recomendación'].map(function(h){
+    +['Jugador','Pos','IMTP (N/kg)','Fuente F','RFD-100ms','Perfil','Recomendación'].map(function(h){
       return'<th style="padding:7px 8px;text-align:left;font-size:9px;color:var(--mut);text-transform:uppercase;white-space:nowrap">'+h+'</th>';
     }).join('')
     +'</tr></thead><tbody>'
@@ -6984,7 +6993,7 @@ function fvRenderTeam(ds, meanF, meanV, withBoth){
         +'<td style="padding:8px;font-size:10px;color:var(--mut)">'+d.pos+'</td>'
         +'<td style="padding:8px;font-size:11px;font-weight:700;color:var(--acc)">'+(d.force!==null?d.force.toFixed(1)+'<span style="font-size:9px;color:var(--mut)"> N/kg</span>':'<span style="color:var(--mut)">—</span>')+'</td>'
         +'<td style="padding:8px"><span style="font-size:9px;background:var(--c);border:1px solid var(--b);border-radius:4px;padding:1px 6px;color:var(--mut)">'+(d.forceType==='imtp'?'IMTP':d.forceType==='cmj'?'CMJ Pwr':'—')+'</span></td>'
-        +'<td style="padding:8px;font-size:11px;font-weight:700;color:var(--yel)">'+(d.vel!==null?d.vel.toFixed(1)+'<span style="font-size:9px;color:var(--mut)"> km/h</span>':'<span style="color:var(--mut)">—</span>')+'</td>'
+        +'<td style="padding:8px;font-size:11px;font-weight:700;color:var(--yel)">'+(d.vel!==null?Math.round(d.vel)+'<span style="font-size:9px;color:var(--mut)"> N/s</span>':'<span style="color:var(--mut)">—</span>')+'</td>'
         +'<td style="padding:8px">'+(q?'<span style="font-size:10px;font-weight:700;color:'+q.color+'">'+q.label+'</span>':'<span style="color:var(--mut);font-size:10px">Sin datos</span>')+'</td>'
         +'<td style="padding:8px;font-size:10px;color:var(--dim);max-width:220px">'+(q?q.rec.slice(0,60)+'…':'—')+'</td>'
         +'</tr>';
@@ -7013,7 +7022,7 @@ function fvRenderIndividual(idx, ds, meanF, meanV){
   // KPI cards
   html += '<div class="g4 mb">';
   [{label:'IMTP Peak Force',val:d.force,unit:'N/kg',col:'var(--acc)',src:d.forceType==='imtp'?'IMTP':'CMJ Power'},
-   {label:'Vel Máx 28d',val:d.vel,unit:'km/h',col:'var(--yel)',src:'GPS'},
+   {label:'RFD-100ms',val:d.vel,unit:'N/s',col:'var(--yel)',src:'IMTP'},
    {label:'F vs Media equipo',val:fNorm,unit:'%',col:fNorm!==null?(fNorm>=100?'var(--grn)':fNorm>=85?'var(--yel)':'var(--red)'):'var(--mut)'},
    {label:'V vs Media equipo',val:vNorm,unit:'%',col:vNorm!==null?(vNorm>=100?'var(--grn)':vNorm>=85?'var(--yel)':'var(--red)'):'var(--mut)'}
   ].forEach(function(k){
@@ -7098,12 +7107,12 @@ function fvDrawScatter(withBoth, meanF, meanV){
       }]},
       options:Object.assign({},CBASE,{
         plugins:Object.assign({},CBASE.plugins||{},{
-          tooltip:{callbacks:{label:function(ctx){var p=ctx.raw;return(p.label||'')+(p.y!==undefined?' · F: '+p.y.toFixed(1)+' N/kg':'')+' · V: '+(p.x!==undefined?p.x.toFixed(1):'')+' km/h';}}},
+          tooltip:{callbacks:{label:function(ctx){var p=ctx.raw;return(p.label||'')+(p.y!==undefined?' · F: '+p.y.toFixed(1)+' N/kg':'')+' · RFD: '+(p.x!==undefined?Math.round(p.x):'')+' N/s';}}},
           legend:{display:false}
         }),
         onClick:function(e,els){if(els.length&&els[0].datasetIndex===0){FV_SEL_PLAYER=withBoth[els[0].index].idx;renderFV();}},
         scales:{
-          x:Object.assign({},XY.x,{title:{display:true,text:'Vel Máx 28d (km/h)',color:'#7D6B57',font:{size:10}},min:minV,max:maxV}),
+          x:Object.assign({},XY.x,{title:{display:true,text:'RFD-100ms (N/s)',color:'#7D6B57',font:{size:10}},min:minV,max:maxV}),
           y:Object.assign({},XY.y,{title:{display:true,text:'IMTP Peak Force (N/kg)',color:'#7D6B57',font:{size:10}},min:minF,max:maxF})
         }
       }),
@@ -7177,7 +7186,7 @@ function fvDrawRadar(idx, ds, meanF, meanV){
     var playerData=[fNorm,cmjNorm,rsiNorm,vNorm];
     var teamData=[10,10,10,10]; // team mean = 10
     mkC('fv-radar-c',{type:'radar',
-      data:{labels:['IMTP\n(Fuerza Máx)','CMJ\n(Potencia)','RSI\n(Reactividad)','Vel Máx\n(Velocidad)'],
+      data:{labels:['IMTP\n(Fuerza Máx)','CMJ\n(Potencia)','RSI\n(Reactividad)','RFD-100ms\n(Explosividad)'],
         datasets:[
           {label:d.name.split(' ')[0],data:playerData,borderColor:'#B5542D',backgroundColor:'rgba(181,84,45,.12)',pointBackgroundColor:'#B5542D',borderWidth:2,pointRadius:4},
           {label:'Media equipo',data:teamData,borderColor:'rgba(43,32,22,.2)',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,3],pointRadius:2,pointBackgroundColor:'rgba(43,32,22,.3)'}
