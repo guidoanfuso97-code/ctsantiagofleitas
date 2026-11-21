@@ -767,7 +767,7 @@ var OFFLINE_TABLE_KEYS={
   dolor:['team_id','player_idx','date'],
   evaluaciones:['team_id','player_idx','date','eval_type'],
   force_plates:['id'],
-  microciclo:['team_id','player_idx','date'],
+  microciclo:['team_id','week_start','day_idx'],
   player_vmax:['team_id','player_idx'],
   campo:['team_id','date'],
   sessions:['id'],lesiones:['id'],sprints:['id'],documentos:['id'],partidos:['id'],teams:['id']
@@ -1150,12 +1150,7 @@ async function loadTeams(){
   if(!TEAM)setTimeout(openTeamModal,400);
 }
 async function saveTeam(t){
-  var r=await fetch(SUPABASE_URL+'/rest/v1/teams?on_conflict=id',{
-    method:'POST',
-    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
-    body:JSON.stringify({id:t.id,name:t.name,season:t.season,players:t.players})
-  });
-  if(!r.ok)showBanner('❌ Error al guardar equipo — chequeá la conexión','var(--red)',4000);
+  await sbUpsert('teams',{id:t.id,name:t.name,season:t.season,players:t.players},'id');
 }
 async function saveTeams(){for(var i=0;i<TEAMS.length;i++)await saveTeam(TEAMS[i]);}
 function updateClubLabel(){var el=$('club-lbl');if(el)el.textContent=(TEAM?TEAM.name.toUpperCase():'ATLAS')+' ⚙';}
@@ -3363,30 +3358,8 @@ async function saveSession(session){
     duration:session.duration,notes:session.notes||'',fname:session.fname||'',
     players:session.players,imported_at:session.importedAt||new Date().toISOString()
   };
-  // Upsert — on_conflict must be a query param, not a header
-  var url=SUPABASE_URL+'/rest/v1/sessions?on_conflict=team_id%2Cdate';
-  try{
-    var res=await fetch(url,{
-      method:'POST',
-      headers:{
-        'apikey':SUPABASE_KEY,
-        'Authorization':'Bearer '+SUPABASE_KEY,
-        'Content-Type':'application/json',
-        'Prefer':'resolution=merge-duplicates,return=minimal'
-      },
-      body:JSON.stringify(row)
-    });
-    if(!res.ok){
-      // If upsert fails (e.g. no unique constraint), try DELETE then INSERT
-      var delUrl=SUPABASE_URL+'/rest/v1/sessions?team_id=eq.'+TEAM.id+'&date=eq.'+session.date;
-      await fetch(delUrl,{method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-      await fetch(SUPABASE_URL+'/rest/v1/sessions',{
-        method:'POST',
-        headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-        body:JSON.stringify(row)
-      });
-    }
-  }catch(e){console.error('saveSession error:',e);}
+  // sessions tiene UNIQUE(team_id,date) — sbUpsert encola offline si no hay red
+  await sbUpsert('sessions',row,'team_id,date');
   _clearSC(); // invalidate cache — new session added
   // Update in-memory SESSIONS
   var idx=SESSIONS.findIndex(function(s){return s.date===session.date;});
@@ -3438,15 +3411,10 @@ async function confirmRestDay(){
   var conflict=SESSIONS.find(function(s){return s.date===date;});
   if(conflict){showBanner('⚠️ Esa fecha ya tiene una sesión importada','var(--yel)',3000);closeModal();return;}
   closeModal();
-  try{
-    // Delete any existing record for this date first, then insert fresh
-    await fetch(SUPABASE_URL+'/rest/v1/rest_days?team_id=eq.'+TEAM.id+'&date=eq.'+date,{
-      method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}});
-    var r=await fetch(SUPABASE_URL+'/rest/v1/rest_days',{method:'POST',
-      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({team_id:TEAM.id,date:date,note:note||null})});
-    if(!r.ok){var e=await r.json();showBanner('⚠️ Error: '+(e.message||e.hint||r.status),'var(--red)',4000);return;}
-  }catch(e){showBanner('⚠️ Error de conexión','var(--red)',2000);return;}
+  // Delete any existing record for this date first, then insert fresh — ambas
+  // pasan por la cola offline si no hay red (sbDelete/sbInsert).
+  await sbDelete('rest_days','team_id=eq.'+TEAM.id+'&date=eq.'+date);
+  await sbInsert('rest_days',{team_id:TEAM.id,date:date,note:note||null});
   var existing=REST_DAYS.findIndex(function(r){return r.date===date;});
   if(existing>=0)REST_DAYS[existing]={team_id:TEAM.id,date:date,note:note};
   else REST_DAYS.push({team_id:TEAM.id,date:date,note:note});
@@ -9749,12 +9717,7 @@ async function saveMicrocicloDay(dayIdx){
     intensidad:parseInt(document.getElementById('mc-int-'+dayIdx).value)||0,
     duracion:document.getElementById('mc-dur-'+dayIdx).value||'',
     notas:document.getElementById('mc-notas-'+dayIdx).value||''};
-  var r=await fetch(SUPABASE_URL+'/rest/v1/microciclo?on_conflict=team_id,week_start,day_idx',{
-    method:'POST',
-    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
-    body:JSON.stringify(row)
-  });
-  if(!r.ok){showBanner('❌ Error al guardar microciclo — chequeá la conexión','var(--red)',4000);return;}
+  await sbUpsert('microciclo',row,'team_id,week_start,day_idx');
   if(_mcCache[weekStart])_mcCache[weekStart].days[dayIdx]=Object.assign(_mcCache[weekStart].days[dayIdx]||{},row);
   var ind=document.getElementById('mc-saved-'+dayIdx);
   if(ind){ind.style.opacity='1';setTimeout(function(){if(ind)ind.style.opacity='0';},1500);}
